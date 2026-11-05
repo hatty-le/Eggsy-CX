@@ -95,6 +95,7 @@ details.elog div{margin-top:6px}
 .bubble.internal{background:#eef1f7;margin-left:auto;border:1px dashed #b9c3d8}
 .bubble.eggsy{background:transparent;border:1px solid var(--line);max-width:100%;font-size:13px;color:var(--muted)}
 .bubble.sysnote{background:#f3f7f3;border:1px solid #d6e6d6;max-width:100%;font-size:13px}
+.linknote{font-size:13px;color:var(--muted);margin:0 0 6px}.linknote a{color:#7a5a00;font-weight:600}
 .bubble.psum{background:#faf8f2;border:1px dashed #d9cfb4;font-size:13.5px}
 .role{display:inline-block;font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 7px;margin-left:6px;background:#fff;border:1px solid var(--line);vertical-align:1px}
 .others{margin-top:18px;border-top:1px solid var(--line);padding-top:4px}
@@ -224,7 +225,7 @@ const trMode=()=>{try{return localStorage.getItem(TRK)==='orig'?'orig':'en'}catc
 const setTrMode=v=>{try{localStorage.setItem(TRK,v)}catch(e){}};
 const $=id=>document.getElementById(id);
 const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
-const fmt=d=>d?new Date(d).toLocaleString('en-GB',{timeZone:'Europe/London',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+const fmt=d=>{if(!d)return '';const x=new Date(d),o={timeZone:'Europe/London',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'};if(x.getFullYear()!==new Date().getFullYear())o.year='numeric';return x.toLocaleString('en-GB',o)};
 
 const okEmail=EggsyAuth.okEmail;
 const setMsg=(t,bad)=>{$('amsg').textContent=t;$('amsg').style.color=bad?'#b3261e':''};
@@ -310,6 +311,8 @@ function drawList(){const box=$('list');box.innerHTML='';const v=visible();
 $('q').oninput=drawList;
 // ---- Conversation view: full history, other conversations, composer with Eggsy's suggested reply ----
 const TEAM=['Mich Mahinay','Marty Pardoe','Luke Shelley','Hatty Innes'];
+// Walmart wraps agent cases in standard seller instructions; hide them so only the case text shows.
+function cleanBody(b){return String(b||'').replace(/\n?\s*1\. Always reply within 48 hours[\s\S]*?Hide Walmart Customer Care Instructions\s*/i,'').trim()}
 function kindOf(m){const a=m.author||'',b=m.body||'';
  if(m.direction==='note')return a==='Eggsy'||/^Eggsy/i.test(a)?'eggsy':'sysnote';
  if(m.direction==='draft')return 'draft';
@@ -324,6 +327,7 @@ function whoLine(m,k,o){const a=m.author||'';o=o||'';
  if(k==='sysnote')return [a||'System','Platform notification'];
  if(k==='draft')return ['✏️ '+(a||'Eggsy'),'Draft, not sent'];
  if(k==='psum')return [a||'Customer','Customer · Eggsy’s summary of the platform chat'];
+ if(k==='inbound'&&/^Walmart customer care/i.test(a))return ['Walmart customer care','Walmart agent writing for the customer, not the customer’s own words'];
  if(k==='inbound')return [a||'Customer','Customer'];
  if(k==='internal')return [a==='hey@luckyegg.co'?'hey@ team':a,'Internal, team only'];
  if(k==='platform')return ['Lucky Egg team','Reply sent via Amazon'];
@@ -351,9 +355,13 @@ async function openConv(id,push){sel=id;drawList();const c=convs.find(x=>x.id===
  if(c.summary||c.subject){const d=el('details','elog');d.append(el('summary',null,'Eggsy’s notes'));if(c.subject)d.append(el('div',null,'Subject: '+c.subject));if(c.summary)d.append(el('div',null,c.summary));t.append(d)}
  const actHost=el('div');actHost.id='acthost';t.append(actHost);
  t.append(el('div','hist-h','Conversation history'));
+ // Marketplaces like Walmart open a new thread for each message about an order; show them all together.
+ const linked=c.order_number?otherConvs(c).filter(x=>x.origin===c.origin&&(x.order_number||'').trim()===c.order_number.trim()):[];
+ if(linked.length){const n=el('div','linknote');n.append(document.createTextNode('Includes '+linked.length+' other '+(linked.length===1?'thread':'threads')+' about order '+c.order_number+': '));
+  linked.forEach((x,i)=>{const a=el('a',null,(x.subject||x.overview||'thread').replace(/^Message from Walmart\.com Customer: /,''));a.href='?c='+x.id;a.onclick=e=>{e.preventDefault();openConv(x.id,true)};if(i)n.append(document.createTextNode(' · '));n.append(a)});t.append(n)}
  const box=el('div');box.append(el('div','empty','Loading messages…'));t.append(box);
  const [mr,qr,dr,ar]=await Promise.all([
-  sb.from('messages').select('id,direction,author,body,sent_at,language,body_en').eq('conversation_id',id).order('sent_at',{ascending:true}),
+  sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true}),
   sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address').eq('conversation_id',id).order('queued_at',{ascending:true}),
   sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
   sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false})]);
@@ -381,6 +389,7 @@ async function openConv(id,push){sel=id;drawList();const c=convs.find(x=>x.id===
    if(k==='psum'&&hasReal){const d=el('details','psumfold');d.append(el('summary',null,'📝 Eggsy’s earlier summary · '+fmt(m.sent_at)+' (the full chat is shown here now)'),el('div',null,m.body||''));box.append(d);return}
    const [who,role]=whoLine(m,k,c.origin);const b=el('div','bubble '+(k==='team'||k==='platform'?'outbound '+k:k==='psum'?'inbound psum':k));
    const by=el('div','by');by.append(el('b',null,who),el('span','role',role),document.createTextNode(' · '+fmt(m.sent_at)));
+   if(m.conversation_id&&m.conversation_id!==id){const lt=linked.find(x=>x.id===m.conversation_id);by.append(el('span','ltag','Other thread'+(lt&&lt.subject?': '+lt.subject.replace(/^Message from Walmart\.com Customer: /,'').replace(/, ?\d+$/,''):'')))}
    const foreign=m.body_en&&m.language&&m.language!=='en';
    if(foreign){const lt=el('span','ltag',m.language.toUpperCase());lt.title='Written in '+langName(m.language);by.append(lt)}
    const lq=byMsg[m.id];if(lq){if(lq.status==='failed')by.append(el('span','badge b-failed','Not delivered'));else by.append(el('span','badge b-sent',lq.send_route==='email'?'Sent by email ✓':'Sent from Eggsy CX'))}
@@ -390,7 +399,7 @@ async function openConv(id,push){sel=id;drawList();const c=convs.find(x=>x.id===
      lab.textContent=en?'Translated from '+langName(m.language)+' by Eggsy.':'Original ('+langName(m.language)+').';fl.textContent=en?'Show original':'Show English'};
     fl.onclick=()=>{const curEn=(flips[m.id]!=null?flips[m.id]:trMode())==='en';flips[m.id]=curEn?'orig':'en';draw()};
     redraws.push(()=>{delete flips[m.id];draw()});draw()}
-   else txt.textContent=m.body||'';
+   else txt.textContent=cleanBody(m.body);
    if(lq)sentExtras(b,lq,c);
    box.append(b);return}
   box.append(queueBubble(it.q,c));});
