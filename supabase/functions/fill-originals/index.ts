@@ -130,6 +130,14 @@ Deno.serve(async (req) => {
   if (ok !== true) return new Response("Forbidden", { status: 403 });
   let p: any = {}; try { p = await req.json(); } catch { /* */ }
   try {
+    if (p.mode === "probe" && typeof p.q === "string") {
+      // Diagnostics: how many hey@ messages match a search, with dates and senders only (no content).
+      const list = await gm("messages?" + new URLSearchParams({ q: p.q, maxResults: "10", includeSpamTrash: "true" }));
+      const out = [];
+      for (const it of list.messages || []) { const m = await gm("messages/" + it.id + "?format=metadata&metadataHeaders=From&metadataHeaders=Date"); out.push({ id: it.id, from: hdr(m, "From"), date: hdr(m, "Date"), labels: m.labelIds }); }
+      const prof = await gm("profile");
+      return new Response(JSON.stringify({ mailbox: prof.emailAddress, total: prof.messagesTotal, matches: out }), { headers: { "Content-Type": "application/json" } });
+    }
     if (p.mode === "sent") {
       const cs = await sentCandidates(Array.isArray(p.conversation_ids) ? p.conversation_ids : undefined);
       const results = [];
