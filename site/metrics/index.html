@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metrics · Eggsy CX</title>
+<style>
+:root{--yolk:#FFC83D;--ink:#1d1b26;--muted:#6b6878;--bg:#FFF9EC;--card:#fff;--line:#eadfc4}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+a{color:inherit}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;gap:12px}
+.ptitle{margin:0;font-size:22px}
+.btn{background:var(--ink);color:#fff;border:0;border-radius:999px;padding:10px 18px;font-weight:600;text-decoration:none;cursor:pointer;font-size:14px;display:inline-block}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.small{padding:6px 12px;font-size:13px}
+.card{background:var(--card);border-radius:18px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+#auth{max-width:420px;margin:60px auto;padding:28px;text-align:center}
+#auth h1{margin:0 0 8px}#auth p{color:var(--muted)}
+input,select{font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#fff;width:100%}
+#auth input{margin:10px 0}
+.msg{font-size:14px;color:var(--muted);min-height:20px}
+#app{display:none;max-width:1280px;margin:0 auto;padding:0 24px 24px}
+.intro{color:var(--muted);font-size:14px;margin:0 0 12px}
+
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:14px}
+.bar label{font-size:12px;color:var(--muted);display:block}.bar label input,.bar label select{margin-top:3px;width:auto}
+.chip{background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.kpi{padding:16px 18px}.kpi .l{font-size:12px;color:var(--muted);font-weight:600}.kpi .v{font-size:28px;font-weight:800;margin:4px 0 2px}.kpi .s{font-size:13px;color:var(--muted)}
+.good{color:#1a7f37!important}.bad{color:#b3261e!important}
+.sec{padding:16px 18px;margin-bottom:14px}.sec h2{font-size:16px;margin:0 0 4px}.sec .sub{font-size:13px;color:var(--muted);margin:0 0 10px}
+.chart{width:100%;overflow-x:auto}.chart svg{display:block}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:6px}.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-2px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid #f3ecd9}td.n,th.n{text-align:right;white-space:nowrap}
+tr.g td{font-weight:700;background:#fffcf3;cursor:pointer}tr.s td:first-child{padding-left:28px;color:var(--muted)}
+.tw{overflow-x:auto}
+.ul a{text-decoration:none}.ul a:hover b{text-decoration:underline}
+.notes{font-size:13.5px;line-height:1.5;color:#3d3a48}.notes li{margin-bottom:6px}
+.empty{color:var(--muted);text-align:center;padding:30px 20px}
+@media (max-width:900px){.kpis{grid-template-columns:1fr 1fr}}
+@media (max-width:760px){header{padding:10px 14px}.ptitle{font-size:19px}#app{padding:0 12px 12px}.kpi .v{font-size:22px}.bar label input{font-size:16px}}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<header><h1 class="ptitle">Metrics</h1><a class="btn ghost small" href="/inbox/">← Back to inbox</a></header>
+
+<section id="auth" class="card">
+ <h1>Metrics</h1>
+ <p>Log in with your <b>@luckyegg.co</b> Google account.</p>
+ <div id="gsign" style="margin:16px 0 6px"></div>
+ <p class="msg" id="amsg" role="status"></p>
+</section>
+
+<main id="app">
+ <p class="intro">First response time = clock hours from a customer's first message to the first real reply from Lucky Egg (any reply in the stored history, including ones sent outside Eggsy CX). Automatic, AI, chatbot and internal messages don't count; creator/affiliate chats, spam and other ignored conversations are left out. Conversations are dated by the customer's first message. All dates and times are UK time.</p>
+ <div class="bar">
+  <button class="chip" data-p="30">Last 30 days</button>
+  <button class="chip" data-p="since15">Since 15 Oct</button>
+  <button class="chip" data-p="7">Last 7 days</button>
+  <label>From<input id="from" type="date"></label>
+  <label>To<input id="to" type="date"></label>
+  <label>Show by<select id="by"><option value="week">Week</option><option value="day">Day</option></select></label>
+ </div>
+ <div class="kpis" id="kpis"></div>
+ <section class="card sec"><h2>First response time</h2><p class="sub" id="frsub"></p><div class="chart" id="frchart"></div>
+  <div class="legend"><span><i style="background:#1d1b26"></i>Average</span><span><i style="background:#e0a100"></i>Median</span><span><i style="background:none;border:2px dashed #b3261e;height:0;border-radius:0"></i>15 Oct baseline (11h average)</span></div></section>
+ <section class="card sec"><h2>Volumes</h2><p class="sub">New customer conversations, customer messages received and replies sent.</p><div class="chart" id="volchart"></div>
+  <div class="legend"><span><i style="background:#7aa7e8"></i>New conversations</span><span><i style="background:#FFC83D"></i>Customer messages</span><span><i style="background:#5bb974"></i>Replies sent</span></div>
+  <div class="tw" id="voltable"></div></section>
+ <section class="card sec"><h2>By channel</h2><p class="sub">Click a channel to show or hide its marketplaces.</p><div class="tw" id="chtable"></div></section>
+ <section class="card sec"><h2>Replacements, refunds and returns</h2><p class="sub">Actions logged from tickets in this date range (cancelled and failed actions are left out). Replacement value is the retail price of the items sent free.</p><div class="kpis" id="actkpis"></div><div class="tw" id="acttable"></div></section>
+ <section class="card sec"><h2>Unanswered now</h2><p class="sub">Open or awaiting-approval conversations where the customer's latest message has no reply after it (all dates, not just the range above).</p><div class="tw" id="ulist"></div></section>
+ <section class="card sec"><h2>About the data</h2><div class="notes" id="notes"></div></section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://xodkbmtylftfmnxfnxxf.supabase.co';
+const SUPABASE_KEY='sb_publishable_gX9OKDCT6Opnt8OcsFRmiQ_xaM0O8ti'; // public publishable key: safe in the browser, data is protected by RLS
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,detectSessionInUrl:false,flowType:'pkce'}});
+const BASE=11, BASEDAY='2026-10-15';
+const $=id=>document.getElementById(id);
+const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
+const NS='http://www.w3.org/2000/svg';
+const sv=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e};
+const okEmail=EggsyAuth.okEmail;
+const ukToday=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Europe/London'});
+const addDays=(d,n)=>{const x=new Date(d+'T12:00:00Z');x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)};
+const fmtD=d=>new Date(d+'T12:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'UTC'});
+const fmtH=h=>h==null?'–':(h<1?Math.round(h*60)+' min':(h>=100?Math.round(h):(+h).toFixed(1))+'h');
+const ukWhen=d=>new Date(d).toLocaleString('en-GB',{timeZone:'Europe/London',weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' UK';
+const GROUPS={email:'Email (hey@)',forms:'Web forms',amazon:'Amazon',tiktok:'TikTok',walmart:'Walmart',meta:'Facebook & Instagram',other:'Other'};
+const ORDER=['email','forms','amazon','tiktok','walmart','meta','other'];
+const SUBL={amazon_uk:'UK',amazon_us:'US',amazon_de:'DE',amazon_nl:'NL',amazon_se:'SE',amazon_fr:'FR',amazon_it:'IT',amazon_es:'ES',amazon_pl:'PL',amazon_be:'BE',amazon_other:'Other',tiktok_uk:'UK',tiktok_us:'US',tiktok_eu:'EU',shopify_form:'Shopify',wix_mmc_form:'Wix MMC',instagram:'Instagram',facebook:'Facebook',email_hey:'hey@luckyegg.co',walmart:'Walmart'};
+const vsBase=a=>{if(a==null)return {t:'No answered conversations in range',c:''};const p=Math.round((BASE-a)/BASE*100);
+ return p>=0?{t:p+'% faster than 15 Oct baseline (11h)',c:'good'}:{t:(-p)+'% slower than 15 Oct baseline (11h)',c:'bad'}};
+let data=null,openGrp={};
+
+const setMsg=(t,bad)=>{$('amsg').textContent=t;$('amsg').style.color=bad?'#b3261e':''};
+EggsyAuth.button($('gsign'),sb,setMsg);
+sb.auth.onAuthStateChange((_e,session)=>render(session));
+EggsyAuth.handleRedirect(sb,setMsg).then(()=>sb.auth.getSession()).then(({data})=>render(data.session));
+let started=false;
+function render(session){
+ const email=session&&session.user&&session.user.email;
+ if(!email){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;return}
+ if(!okEmail(email)){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;EggsyAuth.reject(sb,email,setMsg);return}
+ EggsyNav.setUser(email,()=>sb.auth.signOut(),sb);
+ EggsyNav.takeReturn();
+ $('auth').style.display='none';$('app').style.display='block';
+ if(!started){started=true;preset('30')}
+}
+function preset(p){const t=ukToday();$('to').value=t;$('from').value=p==='since15'?BASEDAY:addDays(t,-(+p-1));
+ if(p==='7')$('by').value='day';else if(p==='30')$('by').value='week';markChips(p);load()}
+function markChips(p){document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c.dataset.p===p))}
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>preset(c.dataset.p));
+$('from').onchange=$('to').onchange=()=>{markChips('');load()};
+$('by').onchange=()=>data&&draw();
+let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>data&&draw(),200)});
+async function load(){
+ let f=$('from').value,t=$('to').value;if(!f||!t)return;if(f>t){[f,t]=[t,f];$('from').value=f;$('to').value=t}
+ $('kpis').innerHTML='<div class="card kpi"><div class="l">Loading…</div></div>';
+ const [{data:d,error},{data:ad,error:ae}]=await Promise.all([sb.rpc('cx_metrics',{p_from:f,p_to:t}),sb.rpc('cx_action_metrics',{p_from:f,p_to:t})]);
+ if(error){$('kpis').innerHTML='';$('kpis').append(el('div','card kpi bad','Could not load metrics: '+error.message));return}
+ data=d;data.actions=ae?null:ad;if(ae)data.actions_error=ae.message;draw();
+}
+function kpi(l,v,s,c){const k=el('div','card kpi');k.append(el('div','l',l));const vv=el('div','v',v);k.append(vv);const ss=el('div','s'+(c?' '+c:''),s);k.append(ss);return k}
+function draw(){const d=data,S=d.summary||{};const vb=vsBase(S.avg_h);
+ const K=$('kpis');K.innerHTML='';
+ K.append(kpi('Average first response',fmtH(S.avg_h),vb.t,vb.c));
+ K.append(kpi('Median first response',fmtH(S.median_h),S.median_h==null?'':(S.median_h<=BASE?'below':'above')+' the 11h baseline average'));
+ K.append(kpi('Conversations answered',(S.answered||0)+' of '+(S.conversations||0),S.conversations?Math.round(100*S.within_24h/S.conversations)+'% answered within 24h':''));
+ const U=d.unanswered||{};K.append(kpi('Unanswered now',String(U.total||0),(U.over_24h||0)+' waiting more than 24h',U.over_24h?'bad':''));
+ const by=$('by').value,rows=by==='week'?d.by_week:d.by_day,key=by==='week'?'uk_week':'uk_day';
+ $('frsub').textContent=(by==='week'?'Weekly (weeks start Monday)':'Daily')+' average and median, '+fmtD(d.from)+' – '+fmtD(d.to)+'. Gaps mean no new customer conversations that '+by+'.';
+ lineChart($('frchart'),rows,key,by);barChart($('volchart'),rows,key,by);volTable(rows,key,by);chTable(d.by_channel||[]);uList(U.items||[]);notes(d);actMetrics(d);
+}
+function actMetrics(d){
+ const K=$('actkpis'),T=$('acttable');if(!K||!T)return;K.innerHTML='';T.innerHTML='';
+ if(d.actions_error){T.append(el('div','empty','Could not load action metrics: '+d.actions_error));return}
+ const A=d.actions||{},S=A.summary||{};
+ const money=n=>n==null||n===''?'–':'£'+Number(n).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+ K.append(kpi('Replacements',String(S.replacements||0),'Free Shopify orders (or recorded replacements) in this range'));
+ K.append(kpi('Refunds',String(S.refunds||0),money(S.refund_value)+' refunded'));
+ K.append(kpi('Returns',String(S.returns||0),'Expected or received'));
+ K.append(kpi('Replacement retail value',money(S.replacement_value),'Value of items sent free'));
+ const list=A.by_channel||[];if(!list.length){T.append(el('div','empty','No replacements, refunds or returns logged in this range.'));return}
+ const t=el('table');t.innerHTML='<thead><tr><th>Channel</th><th class="n">Replacements</th><th class="n">Replacement value</th><th class="n">Refunds</th><th class="n">Refund value</th><th class="n">Returns</th></tr></thead>';
+ const b=el('tbody');const GR=GROUPS,SL=SUBL;
+ list.forEach(r=>{const tr=el('tr');const name=(GR[r.grp]||r.grp)+(SL[r.origin]&&r.grp!=='email'?' · '+(SL[r.origin]):'');
+  tr.append(el('td','',name),el('td','n',String(r.replacements||0)),el('td','n',money(r.replacement_value)),el('td','n',String(r.refunds||0)),el('td','n',money(r.refund_value)),el('td','n',String(r.returns||0)));b.append(tr)});
+ t.append(b);T.append(t);
+}
+const lab=(r,key,by)=>by==='week'?'w/c '+fmtD(r[key])+((r[key]<data.from||addDays(r[key],6)>data.to)?' (part)':''):fmtD(r[key]);
+function lineChart(box,rows,key,by){box.innerHTML='';const W=Math.max(box.clientWidth||560,rows.length*(by==='day'?24:0)),H=230,L=40,R=34,T=12,B=34;
+ const mx=Math.max(BASE*1.4,...rows.map(r=>Math.max(r.avg_h||0,r.median_h||0)));const ymax=Math.ceil(mx/6)*6;
+ const s=sv('svg',{viewBox:`0 0 ${W} ${H}`,width:W,height:H,role:'img','aria-label':'First response time chart'});
+ const x=i=>L+(rows.length<2?(W-L-R)/2:i*(W-L-R)/(rows.length-1)),y=v=>T+(H-T-B)*(1-v/ymax);
+ for(let v=0;v<=ymax;v+=ymax/6){s.append(sv('line',{x1:L,x2:W-R,y1:y(v),y2:y(v),stroke:'#f0e8d4'}));const t=sv('text',{x:L-6,y:y(v)+4,'text-anchor':'end','font-size':11,fill:'#6b6878'});t.textContent=v+'h';s.append(t)}
+ s.append(sv('line',{x1:L,x2:W-R,y1:y(BASE),y2:y(BASE),stroke:'#b3261e','stroke-width':2,'stroke-dasharray':'6 4'}));
+ const bt=sv('text',{x:W-R,y:y(BASE)-5,'text-anchor':'end','font-size':11,fill:'#b3261e'});bt.textContent='15 Oct baseline 11h';s.append(bt);
+ const step=Math.ceil(rows.length/Math.max(2,Math.floor((W-L-R)/80)));
+ rows.forEach((r,i)=>{if(i%step)return;const t=sv('text',{x:x(i),y:H-12,'text-anchor':'middle','font-size':11,fill:'#6b6878'});t.textContent=lab(r,key,by);s.append(t)});
+ [['avg_h','#1d1b26'],['median_h','#e0a100']].forEach(([k,c])=>{let p='';rows.forEach((r,i)=>{if(r[k]==null){p+=' ';return}p+=(p===''||p.endsWith(' ')?'M':'L')+x(i)+','+y(r[k])});
+  p.trim().split(' ').filter(Boolean).forEach(seg=>s.append(sv('path',{d:seg,fill:'none',stroke:c,'stroke-width':2.5})));
+  rows.forEach((r,i)=>{if(r[k]==null)return;const c0=sv('circle',{cx:x(i),cy:y(r[k]),r:3.5,fill:c});const tt=sv('title',{});tt.textContent=lab(r,key,by)+': '+(k==='avg_h'?'average ':'median ')+fmtH(r[k]);c0.append(tt);s.append(c0)})});
+ box.append(s)}
+function barChart(box,rows,key,by){box.innerHTML='';const n=rows.length,g=24,W=Math.max(box.clientWidth||560,by==='day'?n*g+50:0),H=200,L=40,R=10,T=10,B=30;
+ const ks=[['new_conversations','#7aa7e8','new conversations'],['customer_messages','#FFC83D','customer messages'],['replies_sent','#5bb974','replies sent']];
+ const mx=Math.max(4,...rows.flatMap(r=>ks.map(k=>r[k[0]]||0)));const ymax=Math.ceil(mx/4)*4;
+ const s=sv('svg',{viewBox:`0 0 ${W} ${H}`,width:W,height:H,role:'img','aria-label':'Volumes chart'});const y=v=>T+(H-T-B)*(1-v/ymax);
+ for(let v=0;v<=ymax;v+=ymax/4){s.append(sv('line',{x1:L,x2:W-R,y1:y(v),y2:y(v),stroke:'#f0e8d4'}));const t=sv('text',{x:L-6,y:y(v)+4,'text-anchor':'end','font-size':11,fill:'#6b6878'});t.textContent=v;s.append(t)}
+ const cw=(W-L-R)/n,bw=Math.max(3,cw*0.8/3),step=Math.ceil(n/Math.max(2,Math.floor((W-L-R)/80)));
+ rows.forEach((r,i)=>{const x0=L+i*cw+cw*0.1;ks.forEach((k,j)=>{const v=r[k[0]]||0;const b=sv('rect',{x:x0+j*bw,y:y(v),width:bw-1,height:y(0)-y(v),fill:k[1],rx:2});const tt=sv('title',{});tt.textContent=lab(r,key,by)+': '+v+' '+k[2];b.append(tt);s.append(b)});
+  if(!(i%step)){const t=sv('text',{x:L+i*cw+cw/2,y:H-10,'text-anchor':'middle','font-size':11,fill:'#6b6878'});t.textContent=lab(r,key,by);s.append(t)}});
+ box.append(s)}
+function volTable(rows,key,by){const box=$('voltable');box.innerHTML='';const t=el('table');
+ t.innerHTML='<thead><tr><th>'+(by==='week'?'Week (UK)':'Day (UK)')+'</th><th class="n">New conversations</th><th class="n">Customer messages</th><th class="n">Replies sent</th><th class="n">Avg first response</th><th class="n">Median</th></tr></thead>';
+ const b=el('tbody');let tot=[0,0,0];[...rows].reverse().forEach(r=>{const tr=el('tr');tr.append(el('td','',lab(r,key,by)));
+  ['new_conversations','customer_messages','replies_sent'].forEach((k,i)=>{tot[i]+=r[k]||0;tr.append(el('td','n',String(r[k]||0)))});
+  tr.append(el('td','n',fmtH(r.avg_h)),el('td','n',fmtH(r.median_h)));b.append(tr)});
+ const tr=el('tr','g');tr.style.cursor='default';tr.append(el('td','','Total'));tot.forEach(v=>tr.append(el('td','n',String(v))));tr.append(el('td','n',fmtH(data.summary.avg_h)),el('td','n',fmtH(data.summary.median_h)));b.append(tr);
+ t.append(b);box.append(t)}
+function chTable(list){const box=$('chtable');box.innerHTML='';if(!list.length){box.append(el('div','empty','No conversations in this range.'));return}
+ const t=el('table');t.innerHTML='<thead><tr><th>Channel</th><th class="n">Conversations</th><th class="n">Answered</th><th class="n">Avg first response</th><th class="n">Median</th><th class="n">vs baseline</th><th class="n">Customer messages</th><th class="n">Replies sent</th></tr></thead>';
+ const b=el('tbody');const tot=list.filter(r=>r.is_total).sort((a,c)=>ORDER.indexOf(a.grp)-ORDER.indexOf(c.grp));
+ const row=(r,cls,name)=>{const tr=el('tr',cls);tr.append(el('td','',name),el('td','n',String(r.conversations)),el('td','n',String(r.answered)),el('td','n',fmtH(r.avg_h)),el('td','n',fmtH(r.median_h)));
+  const v=vsBase(r.avg_h);const td=el('td','n '+v.c,r.avg_h==null?'–':v.t.replace(' than 15 Oct baseline (11h)',''));tr.append(td,el('td','n',String(r.customer_messages||0)),el('td','n',String(r.replies_sent||0)));return tr};
+ tot.forEach(g=>{const subs=list.filter(r=>!r.is_total&&r.grp===g.grp).sort((a,c)=>c.conversations-a.conversations);const multi=subs.length>1||(subs[0]&&subs[0].origin!=='email_hey');
+  const tr=row(g,'g',(multi?(openGrp[g.grp]?'▾ ':'▸ '):'')+(GROUPS[g.grp]||g.grp));if(multi)tr.onclick=()=>{openGrp[g.grp]=!openGrp[g.grp];chTable(list)};else tr.style.cursor='default';b.append(tr);
+  if(multi&&openGrp[g.grp])subs.forEach(s=>b.append(row(s,'s',SUBL[s.origin]||s.origin)))});
+ t.append(b);box.append(t)}
+let showAllU=false;
+function uList(items){const box=$('ulist');box.innerHTML='';if(!items.length){box.append(el('div','empty','Nothing unanswered. 🎉'));return}
+ const t=el('table','ul');t.innerHTML='<thead><tr><th>Customer</th><th>Channel</th><th>Status</th><th>Last customer message</th><th class="n">Waiting</th></tr></thead>';const b=el('tbody');
+ items.sort((a,c)=>c.waiting_h-a.waiting_h);(showAllU?items:items.slice(0,10)).forEach(u=>{const tr=el('tr');const td=el('td');const a=el('a');a.href='/inbox/?c='+encodeURIComponent(u.conversation_id);a.append(el('b','',u.customer_name||'Customer'));td.append(a);
+  tr.append(td,el('td','',(GROUPS[u.grp]||u.grp)+(SUBL[u.origin]&&u.grp!=='email'?' '+SUBL[u.origin]:'')),el('td','',u.status==='open'?'Open':'Awaiting approval'),el('td','',ukWhen(u.last_customer_at)),el('td','n'+(u.waiting_h>24?' bad':''),fmtH(u.waiting_h)));b.append(tr)});
+ t.append(b);box.append(t);
+ if(items.length>10){const m=el('button','btn ghost small',showAllU?'Show fewer':'Show all '+items.length);m.style.marginTop='10px';m.onclick=()=>{showAllU=!showAllU;uList(items)};box.append(m)}}
+function notes(d){const box=$('notes');box.innerHTML='';const ul=el('ul');
+ const add=(h,txt)=>{const li=el('li');if(h)li.append(el('b','',h+' '));li.append(txt);ul.append(li)};
+ const cov=d.coverage||[];const latest=o=>{const c=cov.find(x=>x.origin===o);return c?ukWhen(c.latest):'none'};
+ add('hey@ email gap:','No new hey@ email or Shopify contact-form messages have been stored since 29 Oct (latest email: '+latest('email_hey')+'; latest form: '+latest('shopify_form')+'). Those channels are missing from recent days, which flatters the most recent figures because email and forms are the slowest channels.');
+ add('Backlog sweep:','Older hey@ and form messages recovered from Spam/Trash were added late. Their real arrival times are used, so they show as slow (or still unanswered) conversations and drag the averages up and add to the unanswered count.');
+ add('Approximate times:','Some messages were recorded from a summary rather than the original (marked "time approximate"): '+cov.filter(c=>c.approx_time_messages).map(c=>(SUBL[c.origin]&&c.grp!=='email'?(GROUPS[c.grp]+' '+SUBL[c.origin]):GROUPS[c.grp])+' '+c.approx_time_messages+' of '+c.messages).join(', ')+'. Amazon UK and US rely on these most, so treat their times as rough.');
+ add('History start:','Stored history starts at different dates: '+cov.map(c=>(SUBL[c.origin]&&c.grp!=='email'?(GROUPS[c.grp]+' '+SUBL[c.origin]):GROUPS[c.grp])+' from '+new Date(c.earliest).toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'Europe/London'})).join(', ')+'. TikTok chat times are to the minute only.');
+ add('Replies outside the history:','A reply only counts if it is in the stored history. Conversations with no stored reply are left out of the averages and shown as unanswered if still open.');
+ add('Clock hours:','Times are plain clock hours, including nights and weekends. The 11h baseline is the 15 Oct average first response.');
+ box.append(ul)}
+</script>
+</body>
+</html>

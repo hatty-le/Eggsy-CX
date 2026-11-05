@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knowledge · Eggsy CX</title>
+<style>
+:root{--yolk:#FFC83D;--ink:#1d1b26;--muted:#6b6878;--bg:#FFF9EC;--card:#fff;--line:#eadfc4}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+a{color:inherit}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;gap:12px}
+.ptitle{margin:0;font-size:22px}
+.btn{background:var(--ink);color:#fff;border:0;border-radius:999px;padding:10px 18px;font-weight:600;text-decoration:none;cursor:pointer;font-size:14px;display:inline-block}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.small{padding:6px 12px;font-size:13px}
+.card{background:var(--card);border-radius:18px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+#auth{max-width:420px;margin:60px auto;padding:28px;text-align:center}
+#auth h1{margin:0 0 8px}#auth p{color:var(--muted)}
+input,select{font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#fff;width:100%}
+#auth input{margin:10px 0}
+.msg{font-size:14px;color:var(--muted);min-height:20px}
+#app{display:none;max-width:1280px;margin:0 auto;padding:0 24px 24px}
+.intro{color:var(--muted);font-size:14px;margin:0 0 12px}
+
+.filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:8px;margin-bottom:10px;align-items:end}
+.filters label{font-size:12px;color:var(--muted);display:block}
+.filters label input,.filters label select{margin-top:3px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.chip small{opacity:.7;margin-left:4px}
+.wrap{display:grid;grid-template-columns:minmax(280px,380px) 1fr;gap:14px;align-items:start}
+#list{max-height:calc(100vh - 230px);overflow:auto}
+.item{padding:12px 14px;border-bottom:1px solid #f3ecd9;cursor:pointer}
+.item:hover{background:#fffaf0}.item.sel{background:#FFF1C9}
+.item b{display:block;font-size:14.5px;margin-bottom:4px}
+.meta{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:12px;color:var(--muted)}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:#f2ecdc;white-space:nowrap}
+.t-pub{background:#dff5e3}.t-draft{background:#ffe9c7}.t-ch{background:#dcecff}
+#view{padding:20px 24px;min-height:300px}
+#view h2.at{margin:0 0 6px;font-size:21px}
+.md{line-height:1.55;font-size:15px}.md h3{font-size:16px;margin:16px 0 6px}.md h4{font-size:15px;margin:14px 0 4px}
+.md ul,.md ol{padding-left:22px;margin:6px 0}.md p{margin:8px 0}
+.md code{background:#f6f0e0;border-radius:6px;padding:1px 5px}
+.md blockquote{margin:8px 0;padding:6px 12px;border-left:3px solid var(--yolk);background:#fffaf0;white-space:pre-wrap}
+.src{margin-top:16px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.notes{margin-top:12px;background:#FFF4D6;border-radius:12px;padding:10px 14px;font-size:13.5px;white-space:pre-wrap}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}
+.empty{color:var(--muted);text-align:center;padding:48px 20px;line-height:1.5}
+form.ed{display:grid;gap:10px}
+form.ed label{font-size:12px;color:var(--muted);display:block}
+form.ed label>input,form.ed label>select,form.ed label>textarea{margin-top:3px}
+textarea{font:inherit;width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#fff;resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row3{display:grid;grid-template-columns:2fr 2fr 1fr;gap:10px}
+.chs{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--ink);margin-top:4px}
+.chs label{color:var(--ink);font-size:13px;display:flex;gap:4px;align-items:center}
+.chs input{width:auto}
+.hint{font-size:12.5px;color:var(--muted)}
+@media (max-width:1000px){.wrap{grid-template-columns:1fr}#list{max-height:none}.filters{grid-template-columns:1fr 1fr}.filters .q{grid-column:1/-1}.row2,.row3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<header><h1 class="ptitle">📚 Knowledge</h1><button class="btn small" id="new" type="button" style="display:none">+ New article</button></header>
+
+<section id="auth" class="card">
+ <h1>Knowledge</h1>
+ <p>Log in with your <b>@luckyegg.co</b> Google account.</p>
+ <div id="gsign" style="margin:16px 0 6px"></div>
+ <p class="msg" id="amsg" role="status"></p>
+</section>
+
+<main id="app">
+ <p class="intro">Short answers for customer service, one topic each, with the source they come from. Eggsy only uses <b>published</b> articles when it drafts replies (through <code>kb_for_origin</code>); drafts are for checking first. Channel rules show only for the channels they apply to.</p>
+ <div class="filters">
+  <label class="q">Search<input id="q" type="search" placeholder="Title, answer text, source…"></label>
+  <label>Channel<select id="ch"><option value="">All channels</option></select></label>
+  <label>Status<select id="st"><option value="">Any status</option><option value="published">Published</option><option value="draft">Draft</option></select></label>
+  <label>Language<select id="lg"><option value="">Any language</option></select></label>
+  <label>Sort<select id="so"><option value="cat">Category, title</option><option value="upd">Recently updated</option></select></label>
+  <button class="btn ghost" id="clear" type="button">Clear</button>
+ </div>
+ <div class="chips" id="chips"></div>
+ <div class="wrap">
+  <div class="card" id="list"><div class="empty">Loading…</div></div>
+  <div class="card" id="view"><div class="empty">Pick an article on the left.</div></div>
+ </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://xodkbmtylftfmnxfnxxf.supabase.co';
+const SUPABASE_KEY='sb_publishable_gX9OKDCT6Opnt8OcsFRmiQ_xaM0O8ti'; // public publishable key: safe in the browser, data is protected by RLS
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,detectSessionInUrl:false,flowType:'pkce'}});
+const $=id=>document.getElementById(id);
+const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
+const okEmail=EggsyAuth.okEmail;
+const CATS=['Returns & refunds','Faulty, missing & replacements','Shipping & delivery','Orders & cancellations','Products & game rules','Channel rules','Tone & templates','Escalation & routing','Company & contact'];
+const ORIGINS={email_hey:'hey@ email',shopify_form:'Shopify form',wix_mmc_form:'MMC Wix form',tiktok_uk:'TikTok UK',tiktok_eu:'TikTok EU',tiktok_us:'TikTok US',amazon_uk:'Amazon UK',amazon_us:'Amazon US',amazon_de:'Amazon DE',amazon_fr:'Amazon FR',amazon_it:'Amazon IT',amazon_es:'Amazon ES',amazon_nl:'Amazon NL',amazon_se:'Amazon SE',amazon_pl:'Amazon PL',amazon_be:'Amazon BE',amazon_other:'Amazon (other)',walmart:'Walmart',facebook:'Facebook',instagram:'Instagram'};
+const LANGS={en:'English',de:'German',fr:'French',es:'Spanish',it:'Italian',nl:'Dutch',sv:'Swedish',pl:'Polish'};
+const ukWhen=d=>d?new Date(d).toLocaleString('en-GB',{timeZone:'Europe/London',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})+' UK time':'–';
+let arts=[],cat='',sel=null,me='';
+
+const setMsg=(t,bad)=>{$('amsg').textContent=t;$('amsg').style.color=bad?'#b3261e':''};
+EggsyAuth.button($('gsign'),sb,setMsg);
+sb.auth.onAuthStateChange((_e,session)=>render(session));
+EggsyAuth.handleRedirect(sb,setMsg).then(()=>sb.auth.getSession()).then(({data})=>render(data.session));
+let started=false;
+function render(session){
+ const email=session&&session.user&&session.user.email;
+ if(!email){$('auth').style.display='block';$('app').style.display='none';$('new').style.display='none';EggsyNav.setUser(null);started=false;return}
+ if(!okEmail(email)){$('auth').style.display='block';$('app').style.display='none';$('new').style.display='none';EggsyNav.setUser(null);started=false;EggsyAuth.reject(sb,email,setMsg);return}
+ me=email;EggsyNav.setUser(email,()=>sb.auth.signOut(),sb);
+ EggsyNav.takeReturn();
+ $('auth').style.display='none';$('app').style.display='block';$('new').style.display='';
+ if(!started){started=true;init()}
+}
+async function init(){
+ const chs=$('ch');for(const [k,v] of Object.entries(ORIGINS))chs.append(new Option(v,k));
+ const u=new URLSearchParams(location.search);
+ if(u.get('ch')&&ORIGINS[u.get('ch')])chs.value=u.get('ch');if(u.get('q'))$('q').value=u.get('q');
+ if(u.get('cat')&&CATS.includes(u.get('cat')))cat=u.get('cat');if(u.get('st'))$('st').value=u.get('st');
+ for(const id of ['q','ch','st','lg','so'])$(id).addEventListener(id==='q'?'input':'change',()=>{drawChips();drawList();syncUrl()});
+ $('clear').onclick=()=>{$('q').value='';$('ch').value='';$('st').value='';$('lg').value='';cat='';drawChips();drawList();syncUrl()};
+ $('new').onclick=()=>editor(null);
+ await load();
+ const a=u.get('a');if(a){const x=arts.find(r=>r.id===a||r.slug===a);if(x)show(x);else{$('view').innerHTML='';$('view').append(el('div','empty','That article was not found.'))}}
+}
+async function load(){
+ const {data,error}=await sb.from('kb_articles').select('*').order('category').order('title');
+ if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load the knowledge base: '+error.message));return}
+ arts=data||[];
+ const lg=$('lg'),cur=lg.value;lg.length=1;for(const l of [...new Set(arts.map(a=>a.language))].sort())lg.append(new Option(LANGS[l]||l,l));lg.value=cur;
+ drawChips();drawList();
+}
+function syncUrl(){const u=new URLSearchParams();if(sel)u.set('a',sel);if($('q').value)u.set('q',$('q').value);if($('ch').value)u.set('ch',$('ch').value);if(cat)u.set('cat',cat);if($('st').value)u.set('st',$('st').value);
+ history.replaceState(null,'',location.pathname+(u.toString()?'?'+u:''))}
+const appliesTo=(a,o)=>!a.applies_to||!a.applies_to.length||a.applies_to.includes(o);
+function base(){const q=$('q').value.trim().toLowerCase(),o=$('ch').value,st=$('st').value,lg=$('lg').value;
+ return arts.filter(a=>(!o||appliesTo(a,o))&&(!st||a.status===st)&&(!lg||a.language===lg)&&(!q||[a.title,a.body,a.category,a.source_name,a.notes,(a.applies_to||[]).map(x=>ORIGINS[x]).join(' ')].join(' ').toLowerCase().includes(q)))}
+function drawChips(){const b=base(),box=$('chips');box.innerHTML='';
+ const mk=(label,val,n)=>{const c=el('button','chip'+(cat===val?' on':''),label);c.type='button';c.append(el('small',null,String(n)));c.onclick=()=>{cat=val;drawChips();drawList();syncUrl()};box.append(c)};
+ mk('All','',b.length);for(const c of CATS){const n=b.filter(a=>a.category===c).length;if(n||cat===c)mk(c,c,n)}}
+function chLabel(a){if(!a.applies_to||!a.applies_to.length)return null;const g=a.applies_to.map(o=>ORIGINS[o]||o);return g.length>3?g.slice(0,3).join(', ')+' +'+(g.length-3):g.join(', ')}
+function drawList(){const box=$('list');box.innerHTML='';let v=base().filter(a=>!cat||a.category===cat);
+ if($('so').value==='upd')v.sort((a,b)=>(b.updated_at||'').localeCompare(a.updated_at||''));
+ else v.sort((a,b)=>CATS.indexOf(a.category)-CATS.indexOf(b.category)||a.title.localeCompare(b.title));
+ if(!v.length){box.append(el('div','empty','No articles match these filters.'));return}
+ for(const a of v){const it=el('div','item'+(a.id===sel?' sel':''));it.tabIndex=0;it.append(el('b',null,a.title));
+  const m=el('div','meta');m.append(el('span','tag '+(a.status==='published'?'t-pub':'t-draft'),a.status==='published'?'Published':'Draft'));
+  const cl=chLabel(a);if(cl)m.append(el('span','tag t-ch',cl));if(a.language&&a.language!=='en')m.append(el('span','tag',(a.language||'').toUpperCase()));
+  m.append(el('span',null,a.category));it.append(m);
+  it.onclick=()=>show(a);it.onkeydown=e=>{if(e.key==='Enter')show(a)};box.append(it)}}
+// Safe markdown: escape everything, then allow headings, bold, italics, code, lists, quotes and http(s) links only.
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+function inline(s){return esc(s).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/(^|[\s(])_([^_]+)_(?=[\s).,!?]|$)/g,'$1<i>$2</i>')
+ .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,(m,t,u)=>'<a href="'+u+'" target="_blank" rel="noopener noreferrer">'+t+'</a>')}
+function md(src){const out=[];let list=null,quote=[];const lines=String(src||'').replace(/\r/g,'').split('\n');
+ const endList=()=>{if(list){out.push('</'+list+'>');list=null}};const endQuote=()=>{if(quote.length){out.push('<blockquote>'+quote.map(inline).join('\n')+'</blockquote>');quote=[]}};
+ for(const ln of lines){let m;
+  if(/^>\s?/.test(ln)){endList();quote.push(ln.replace(/^>\s?/,''));continue}endQuote();
+  if((m=ln.match(/^(#{1,4})\s+(.*)/))){endList();out.push('<h'+(m[1].length<3?3:4)+'>'+inline(m[2])+'</h'+(m[1].length<3?3:4)+'>');continue}
+  if((m=ln.match(/^\s*[-*]\s+(.*)/))){if(list!=='ul'){endList();out.push('<ul>');list='ul'}out.push('<li>'+inline(m[1])+'</li>');continue}
+  if((m=ln.match(/^\s*\d+[.)]\s+(.*)/))){if(list!=='ol'){endList();out.push('<ol>');list='ol'}out.push('<li>'+inline(m[1])+'</li>');continue}
+  endList();if(ln.trim())out.push('<p>'+inline(ln)+'</p>')}
+ endList();endQuote();return out.join('')}
+function show(a){sel=a.id;syncUrl();drawList();const v=$('view');v.innerHTML='';
+ v.append(el('h2','at',a.title));const m=el('div','meta');
+ m.append(el('span','tag '+(a.status==='published'?'t-pub':'t-draft'),a.status==='published'?'Published':'Draft'),el('span','tag',a.category),el('span','tag t-ch',chLabel(a)?'Only: '+a.applies_to.map(o=>ORIGINS[o]||o).join(', '):'All channels'),el('span','tag',LANGS[a.language]||a.language));
+ v.append(m);const body=el('div','md');body.innerHTML=md(a.body);v.append(body);
+ if(a.notes){const n=el('div','notes');n.append(el('b',null,'Internal notes: '),document.createTextNode(a.notes));v.append(n)}
+ const s=el('div','src');s.append(document.createTextNode('Source: '));
+ if(a.source_url&&/^https?:\/\//.test(a.source_url)){const l=el('a',null,a.source_name);l.href=a.source_url;l.target='_blank';l.rel='noopener noreferrer';s.append(l)}else s.append(document.createTextNode(a.source_name));
+ if(a.source_updated_at)s.append(document.createTextNode(' (source dated '+a.source_updated_at+')'));
+ s.append(el('br'),document.createTextNode('Last edited '+ukWhen(a.updated_at)+(a.updated_by?' by '+a.updated_by:'')+(a.published_at&&a.status==='published'?' · published '+ukWhen(a.published_at):'')));v.append(s);
+ const acts=el('div','acts');const e=el('button','btn small','Edit');e.type='button';e.onclick=()=>editor(a);acts.append(e);
+ const t=el('button','btn ghost small',a.status==='published'?'Unpublish (back to draft)':'Publish');t.type='button';
+ t.onclick=async()=>{const to=a.status==='published'?'draft':'published';if(!confirm(to==='published'?'Publish this article? Eggsy will start using it when drafting replies.':'Move this back to draft? Eggsy will stop using it.'))return;
+  t.disabled=true;const {data,error}=await sb.from('kb_articles').update({status:to}).eq('id',a.id).select('*').single();if(error){alert('Could not save: '+error.message);t.disabled=false;return}
+  Object.assign(a,data);drawChips();show(a)};acts.append(t);
+ const cp=el('button','btn ghost small','Copy link');cp.type='button';cp.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(location.origin+'/knowledge/?a='+a.id);cp.textContent='Link copied'};acts.append(cp);
+ v.append(acts)}
+const slugify=t=>t.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,70);
+function editor(a){const isNew=!a;a=a||{title:'',category:CATS[0],body:'',applies_to:null,language:'en',source_name:'',source_url:'',source_updated_at:null,notes:'',status:'draft'};
+ sel=isNew?null:a.id;drawList();const v=$('view');v.innerHTML='';v.append(el('h2','at',isNew?'New article':'Edit article'));
+ const f=el('form','ed');const lab=(t,inp)=>{const l=el('label',null,t);l.append(inp);return l};
+ const ti=el('input');ti.value=a.title;ti.maxLength=200;ti.required=true;
+ const ca=el('select');for(const c of CATS)ca.append(new Option(c,c));ca.value=a.category;
+ const lg=el('select');for(const [k,n] of Object.entries(LANGS))lg.append(new Option(n,k));lg.value=a.language||'en';
+ const bo=el('textarea');bo.rows=14;bo.value=a.body;bo.required=true;
+ const chBox=el('div','chs');const all=el('label');const allc=el('input');allc.type='checkbox';allc.checked=!a.applies_to||!a.applies_to.length;all.append(allc,document.createTextNode('All channels'));chBox.append(all);
+ const boxes={};for(const [k,n] of Object.entries(ORIGINS)){const l=el('label');const c=el('input');c.type='checkbox';c.checked=!!(a.applies_to||[]).includes(k);c.disabled=allc.checked;boxes[k]=c;l.append(c,document.createTextNode(n));chBox.append(l)}
+ allc.onchange=()=>{for(const c of Object.values(boxes)){c.disabled=allc.checked;if(allc.checked)c.checked=false}};
+ const sn=el('input');sn.value=a.source_name||'';sn.required=true;const su=el('input');su.type='url';su.value=a.source_url||'';su.placeholder='https://…';
+ const sd=el('input');sd.type='date';sd.value=a.source_updated_at||'';
+ const no=el('textarea');no.rows=3;no.value=a.notes||'';
+ const r1=el('div','row2');r1.append(lab('Category',ca),lab('Language',lg));
+ const r2=el('div','row3');r2.append(lab('Source name',sn),lab('Source link',su),lab('Source date',sd));
+ const chl=el('label',null,'Applies to');chl.append(chBox);
+ f.append(lab('Title',ti),r1,chl,lab('Answer (markdown: **bold**, - lists, ## headings, [text](https://…) links)',bo),r2,lab('Internal notes (conflicts, caveats; never shown to customers)',no),
+  el('div','hint','Never put passwords, codes, keys or customer details in an article.'));
+ const msg=el('span','msg');const acts=el('div','acts');
+ const save=async(status)=>{const ap=allc.checked?null:Object.keys(boxes).filter(k=>boxes[k].checked);
+  if(!ti.value.trim()||!bo.value.trim()||!sn.value.trim()){msg.style.color='#b3261e';msg.textContent='Title, answer and source name are needed.';return}
+  if(!allc.checked&&!ap.length){msg.style.color='#b3261e';msg.textContent='Pick at least one channel, or All channels.';return}
+  if(status==='published'&&!confirm('Publish this article? Eggsy will start using it when drafting replies.'))return;
+  const row={title:ti.value.trim(),category:ca.value,language:lg.value,body:bo.value.trim(),applies_to:ap,source_name:sn.value.trim(),source_url:su.value.trim()||null,source_updated_at:sd.value||null,notes:no.value.trim()||null,status};
+  msg.style.color='';msg.textContent='Saving…';let res;
+  if(isNew){row.slug=slugify(row.title)+'-'+Math.random().toString(36).slice(2,6);res=await sb.from('kb_articles').insert(row).select('*').single()}
+  else res=await sb.from('kb_articles').update(row).eq('id',a.id).select('*').single();
+  if(res.error){msg.style.color='#b3261e';msg.textContent='Could not save: '+res.error.message;return}
+  await load();const x=arts.find(r=>r.id===res.data.id);if(x)show(x)};
+ const b1=el('button','btn small',isNew||a.status==='draft'?'Save draft':'Save (keep published)');b1.type='button';b1.onclick=()=>save(isNew?'draft':a.status);
+ const b2=el('button','btn ghost small',a.status==='published'&&!isNew?'Save and unpublish':'Save and publish');b2.type='button';b2.onclick=()=>save(a.status==='published'&&!isNew?'draft':'published');
+ const b3=el('button','btn ghost small','Cancel');b3.type='button';b3.onclick=()=>{if(isNew){$('view').innerHTML='';$('view').append(el('div','empty','Pick an article on the left.'))}else show(a)};
+ acts.append(b1,b2,b3,msg);f.append(acts);f.onsubmit=e=>e.preventDefault();v.append(f);ti.focus()}
+</script>
+</body>
+</html>
