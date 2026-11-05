@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Actions · Eggsy CX</title>
+<style>
+:root{--yolk:#FFC83D;--ink:#1d1b26;--muted:#6b6878;--bg:#FFF9EC;--card:#fff;--line:#eadfc4}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+a{color:inherit}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;gap:12px}
+.ptitle{margin:0;font-size:22px}
+.btn{background:var(--ink);color:#fff;border:0;border-radius:999px;padding:10px 18px;font-weight:600;text-decoration:none;cursor:pointer;font-size:14px;display:inline-block;white-space:nowrap}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.small{padding:6px 12px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default}
+.card{background:var(--card);border-radius:18px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+#auth{max-width:420px;margin:60px auto;padding:28px;text-align:center}
+#auth h1{margin:0 0 8px}#auth p{color:var(--muted)}
+input,select{font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#fff;width:100%}
+.msg{font-size:14px;color:var(--muted);min-height:20px}
+#app{display:none;max-width:1280px;margin:0 auto;padding:0 24px 24px}
+.intro{color:var(--muted);font-size:14px;margin:0 0 12px;line-height:1.45}
+.bar{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:12px}
+.tabs{display:flex;gap:4px;background:#f2ecdc;border-radius:999px;padding:4px}
+.tabs button{border:0;background:none;border-radius:999px;padding:7px 14px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;color:var(--muted)}
+.tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.bar label{font-size:12px;color:var(--muted);display:block;min-width:180px}
+.bar label input,.bar label select{margin-top:3px}
+.bar .q{flex:1;min-width:220px}
+.count{font-size:13px;color:var(--muted);margin:0 0 8px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:12px;border-bottom:1px solid #f3ecd9;vertical-align:top}
+tr:last-child td{border-bottom:0}
+.when{white-space:nowrap}.when small{display:block;color:var(--muted);font-size:12px}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:#f2ecdc;white-space:nowrap}
+.k-product_fault{background:#ffe1e1;color:#8a1c14}.k-game_idea{background:#e7defc;color:#4b2a8a}.k-feedback{background:#dcecff;color:#1d4f86}
+.what b{display:block;margin:4px 0 2px}.what .det{color:var(--muted);font-size:13px;line-height:1.4;max-width:460px}
+.cust b{display:block}.cust span{color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}
+.none{color:var(--muted);font-size:13px}
+.acts{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.empty{color:var(--muted);text-align:center;padding:48px 20px;line-height:1.5}
+.empty b{color:var(--ink);display:block;font-size:17px;margin-bottom:6px}
+details.add{margin:0 0 12px}details.add summary{cursor:pointer;font-weight:600;font-size:14px}
+.addf{display:grid;grid-template-columns:1fr 2fr 1fr 1fr auto;gap:8px;align-items:end;margin-top:10px}
+.addf label{font-size:12px;color:var(--muted)}.addf label input,.addf label select{margin-top:3px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;display:none;z-index:60}
+@media (max-width:760px){
+ header{padding:10px 14px}.ptitle{font-size:19px}#app{padding:0 12px 12px}
+ input,select{font-size:16px}
+ .addf{grid-template-columns:1fr}
+ thead{display:none}
+ table,tbody,tr,td{display:block;width:100%}
+ tr{padding:12px 14px;border-bottom:1px solid var(--line)}
+ td{border:0;padding:3px 0}
+ td[data-k]:before{content:attr(data-k);display:block;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+ .acts{flex-direction:row;flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<header><h1 class="ptitle">Actions</h1><a class="btn ghost small" href="/inbox/">← Back to inbox</a></header>
+
+<section id="auth" class="card">
+ <h1>Actions</h1>
+ <p>Log in with your <b>@luckyegg.co</b> Google account.</p>
+ <div id="gsign" style="margin:16px 0 6px"></div>
+ <p class="msg" id="amsg" role="status"></p>
+</section>
+
+<main id="app">
+ <p class="intro">Jobs to do after replying to a customer. Game ideas and feedback go to Marty and Rob. Product faults go on the Customer Feedback Log, then tell Rob and Marty on Slack. <b>Copy Slack note</b> gives you a ready message to paste. Mark each one done when it's handled.</p>
+ <details class="add card" style="padding:12px 16px"><summary>+ Add an action</summary>
+  <form class="addf" id="addf">
+   <label>Type<select id="nkind"><option value="product_fault">Product fault</option><option value="game_idea">Game idea</option><option value="feedback">Feedback</option><option value="other">Other</option></select></label>
+   <label>What needs doing<input id="ntitle" required placeholder="e.g. Pass game idea to Marty and Rob"></label>
+   <label>Who<input id="nwho" placeholder="Marty, Rob"></label>
+   <label>Conversation link (optional)<input id="nconv" placeholder="Paste /inbox/?c=… link"></label>
+   <button class="btn" type="submit">Add</button>
+  </form>
+ </details>
+ <div class="bar">
+  <div class="tabs" role="tablist"><button type="button" class="on" data-s="open">Open</button><button type="button" data-s="done">Done</button></div>
+  <label>Type<select id="kind"><option value="">All types</option><option value="product_fault">Product fault</option><option value="game_idea">Game idea</option><option value="feedback">Feedback</option><option value="other">Other</option></select></label>
+  <label class="q">Search<input id="q" type="search" placeholder="Customer, product, details…"></label>
+ </div>
+ <p class="count" id="count"></p>
+ <div class="card" id="list"><div class="empty">Loading…</div></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://xodkbmtylftfmnxfnxxf.supabase.co';
+const SUPABASE_KEY='sb_publishable_gX9OKDCT6Opnt8OcsFRmiQ_xaM0O8ti'; // public publishable key: safe in the browser, data is protected by RLS
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,detectSessionInUrl:false,flowType:'pkce'}});
+const KIND_LABEL={product_fault:'Product fault',game_idea:'Game idea',feedback:'Feedback',other:'Other'};
+const CHANNEL={amazon_uk:'Amazon UK',amazon_us:'Amazon US',amazon_de:'Amazon DE',amazon_nl:'Amazon NL',amazon_es:'Amazon ES',amazon_fr:'Amazon FR',amazon_it:'Amazon IT',tiktok_uk:'TikTok UK',tiktok_us:'TikTok US',shopify_form:'Website form',email_hey:'Email (hey@)',walmart:'Walmart',wix:'Wix',other:'Other'};
+const $=id=>document.getElementById(id);
+const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
+const okEmail=EggsyAuth.okEmail;
+const ukWhen=d=>{const x=new Date(d);
+ const date=x.toLocaleDateString('en-GB',{timeZone:'Europe/London',weekday:'short',day:'numeric',month:'short',year:'numeric'});
+ const time=x.toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'});
+ const tz=(x.toLocaleTimeString('en-GB',{timeZone:'Europe/London',timeZoneName:'short'}).split(' ').pop())||'UK';
+ return {date,time:time+' '+tz+' (UK time)'}};
+let rows=[],me='',view='open';
+
+const setMsg=(t,bad)=>{$('amsg').textContent=t;$('amsg').style.color=bad?'#b3261e':''};
+const toast=t=>{const b=$('toast');b.textContent=t;b.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>b.style.display='none',2200)};
+EggsyAuth.button($('gsign'),sb,setMsg);
+
+sb.auth.onAuthStateChange((_e,session)=>render(session));
+EggsyAuth.handleRedirect(sb,setMsg).then(()=>sb.auth.getSession()).then(({data})=>render(data.session));
+let started=false;
+function render(session){
+ const email=session&&session.user&&session.user.email;
+ if(!email){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;return}
+ if(!okEmail(email)){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;EggsyAuth.reject(sb,email,setMsg);return}
+ me=email;
+ EggsyNav.setUser(email,()=>sb.auth.signOut(),sb);
+ EggsyNav.takeReturn();
+ $('auth').style.display='none';$('app').style.display='block';
+ if(!started){started=true;load()}
+}
+async function load(){
+ const {data,error}=await sb.from('cx_followups')
+  .select('id,conversation_id,kind,title,details,assignees,status,created_by,created_at,done_at,done_by,conversations(customer_name,customer_handle,origin,shop,order_number,overview)')
+  .order('created_at',{ascending:false}).limit(2000);
+ if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load actions: '+error.message));return}
+ rows=data||[];draw();
+}
+function chName(c){return c?(CHANNEL[c.origin]||c.shop||c.origin||''):''}
+function visible(){const q=$('q').value.trim().toLowerCase(),k=$('kind').value;
+ return rows.filter(r=>{const c=r.conversations||{};
+  return r.status===view&&(!k||r.kind===k)&&
+   (!q||[r.title,r.details,r.assignees,c.customer_name,c.customer_handle,c.order_number,chName(c)].join(' ').toLowerCase().includes(q))})}
+function slackNote(r){const c=r.conversations||{};
+ const who=c.customer_name||c.customer_handle||'a customer';
+ const head=r.kind==='product_fault'?'Product fault reported':r.kind==='game_idea'?'Game idea from a customer':'Customer feedback';
+ const lines=[head+' ('+(chName(c)||'unknown channel')+'): '+(r.details||c.overview||r.title)];
+ lines.push('Customer: '+who+(c.order_number?', order '+c.order_number:''));
+ if(r.kind==='product_fault')lines.push('Added to the Customer Feedback Log.');
+ if(r.conversation_id)lines.push('Conversation: '+location.origin+'/inbox/?c='+r.conversation_id);
+ return lines.join('\n')}
+async function copy(t){try{await navigator.clipboard.writeText(t);toast('Copied, ready to paste in Slack')}catch(e){prompt('Copy this:',t)}}
+async function setStatus(r,status,btn){btn.disabled=true;
+ const patch=status==='done'?{status:'done',done_at:new Date().toISOString(),done_by:me}:{status:'open',done_at:null,done_by:null};
+ const {error}=await sb.from('cx_followups').update(patch).eq('id',r.id);
+ if(error){btn.disabled=false;toast(error.message.includes('one_open')?'There is already an open action of this type for that conversation':'Could not update: '+error.message);return}
+ Object.assign(r,patch);draw();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();toast(status==='done'?'Marked done':'Reopened')}
+function draw(){const box=$('list');box.innerHTML='';
+ const v=visible();const all=rows.filter(r=>r.status===view).length;
+ $('count').textContent=all?(v.length===all?all+(view==='open'?' open':' done'):v.length+' of '+all+' match'):'';
+ if(!all){const e=el('div','empty');e.append(el('b',null,view==='open'?'Nothing to follow up 🎉':'Nothing marked done yet'),
+  document.createTextNode(view==='open'?'Game ideas, feedback and product faults appear here when a customer raises them, so nothing gets lost after the reply goes out.':'Actions you mark done show here, with who did them and when.'));box.append(e);return}
+ if(!v.length){box.append(el('div','empty','No actions match these filters.'));return}
+ const tb=el('table');const th=el('thead');const hr=el('tr');
+ ['What to do','Who','Customer','Raised (UK time)',view==='open'?'':'Done',''].forEach(h=>hr.append(el('th',null,h)));th.append(hr);tb.append(th);
+ const body=el('tbody');
+ v.forEach(r=>{const c=r.conversations||{};const tr=el('tr');
+  const c1=el('td','what');c1.dataset.k='What to do';c1.append(el('span','tag k-'+r.kind,KIND_LABEL[r.kind]||r.kind),el('b',null,r.title));
+  if(r.details)c1.append(el('div','det',r.details));
+  const c2=el('td');c2.dataset.k='Who';c2.textContent=r.assignees||'–';
+  const c3=el('td','cust');c3.dataset.k='Customer';
+  if(r.conversation_id){c3.append(el('b',null,c.customer_name||c.customer_handle||'Unknown'));const s=[chName(c),c.order_number].filter(Boolean).join(' · ');if(s)c3.append(el('span',null,s))}
+  else c3.append(el('span','none','No linked conversation'));
+  const w=ukWhen(r.created_at);const c4=el('td','when');c4.dataset.k='Raised';c4.append(document.createTextNode(w.date),el('small',null,w.time+(r.created_by?' · by '+r.created_by:'')));
+  const c5=el('td','when');if(r.done_at){c5.dataset.k='Done';const d=ukWhen(r.done_at);c5.append(document.createTextNode(d.date),el('small',null,(r.done_by?'by '+r.done_by:'')))}
+  const c6=el('td');const a=el('div','acts');
+  if(r.status==='open'){const b=el('button','btn small','Mark done');b.type='button';b.onclick=()=>setStatus(r,'done',b);a.append(b)}
+  else{const b=el('button','btn ghost small','Reopen');b.type='button';b.onclick=()=>setStatus(r,'open',b);a.append(b)}
+  if(r.kind!=='other'){const s=el('button','btn ghost small','Copy Slack note');s.type='button';s.onclick=()=>copy(slackNote(r));a.append(s)}
+  if(r.conversation_id){const l=el('a','btn ghost small','Open conversation →');l.href='/inbox/?c='+encodeURIComponent(r.conversation_id);a.append(l)}
+  c6.append(a);
+  tr.append(c1,c2,c3,c4,c5,c6);body.append(tr)});
+ tb.append(body);box.append(tb);
+}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{view=b.dataset.s;document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));draw()});
+['q','kind'].forEach(id=>{$(id).addEventListener('input',draw);$(id).addEventListener('change',draw)});
+const DEFAULTS={product_fault:['Add to Customer Feedback Log and tell Rob and Marty on Slack','Customer Feedback Log, Rob, Marty'],game_idea:['Pass game idea to Marty and Rob','Marty, Rob'],feedback:['Pass feedback to Marty and Rob','Marty, Rob'],other:['','']};
+function fillDefaults(){const d=DEFAULTS[$('nkind').value];$('ntitle').value=d[0];$('nwho').value=d[1]}
+$('nkind').onchange=fillDefaults;fillDefaults();
+$('addf').onsubmit=async e=>{e.preventDefault();
+ const m=($('nconv').value.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)||[])[0]||null;
+ if($('nconv').value.trim()&&!m){toast('That conversation link was not recognised');return}
+ const {error}=await sb.from('cx_followups').insert({kind:$('nkind').value,title:$('ntitle').value.trim(),assignees:$('nwho').value.trim()||null,conversation_id:m,created_by:me});
+ if(error){toast(error.message.includes('one_open')?'That conversation already has an open action of this type':'Could not add: '+error.message);return}
+ $('nconv').value='';fillDefaults();toast('Action added');EggsyNav.refreshCounts&&EggsyNav.refreshCounts();load()};
+</script>
+</body>
+</html>

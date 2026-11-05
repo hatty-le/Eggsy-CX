@@ -6,6 +6,7 @@ var PAGES=[
  {href:'/inbox/',label:'Inbox',icon:'💬',count:'inbox'},
  {href:'/waiting/',label:'Waiting',icon:'⏳',count:'waiting'},
  {href:'/resolved/',label:'Resolved',icon:'✅',count:'resolved'},
+ {href:'/actions/',label:'Actions',icon:'📌',count:'actions'},
  {href:'/knowledge/',label:'Knowledge',icon:'📚'},
  {href:'/sent/',label:'Sent log',icon:'📤'},
  {href:'/metrics/',label:'Metrics',icon:'📊'}
