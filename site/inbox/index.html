@@ -177,7 +177,7 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
  <div class="toolbar">
   <div class="chips" id="chips" aria-label="Channel"></div>
   <div class="chips sub" id="subchips" aria-label="Marketplace or shop"></div>
-  <div class="row2"><input id="q" type="search" placeholder="Search name, email, order, topic…"><select id="st"><option value="">All statuses</option><option value="open">Open</option><option value="awaiting_approval">Awaiting approval</option><option value="awaiting_customer">Awaiting customer</option><option value="resolved">Resolved</option><option value="ignored">Ignored</option></select></div>
+  <div class="row2"><input id="q" type="search" placeholder="Search name, email, order, topic…"></div>
  </div>
  <div class="layout" id="layout">
   <div class="card" id="list"></div>
@@ -210,7 +210,7 @@ const bucketOf=c=>{const x=stMap[c.id];if(x)return x.bucket;return c.status==='r
 const inMode=c=>bucketOf(c)===MODE;
 const sinceOf=c=>{const x=stMap[c.id];return (x&&(x.needs_reply_since||x.last_customer_at))||c.last_message_at};
 (function(){const m=MODES[MODE];document.getElementById('ptitle').textContent=m.title;document.getElementById('atitle').textContent=m.title;document.getElementById('pintro').textContent=m.intro;
- const st=document.getElementById('st');[...st.options].forEach(o=>{if(o.value&&!m.statuses.includes(o.value))o.remove()})})();
+ })();
 async function loadStates(){const {data,error}=await sb.from('cx_conversation_state').select('conversation_id,bucket,last_customer_at,last_reply_at,needs_reply_since');
  if(error){console.warn('state',error.message);return}stMap={};(data||[]).forEach(r=>{stMap[r.conversation_id]=r})}
 async function refreshStates(){await loadStates();drawChips();drawList();EggsyNav.refreshCounts()}
@@ -286,7 +286,7 @@ function drawChips(){const box=$('chips');box.innerHTML='';
  keepOnVisible(sbx)}
 // On narrow screens the chip rows scroll sideways; keep the selected chip in view.
 function keepOnVisible(row){const on=row.querySelector('.on');if(on&&row.scrollWidth>row.clientWidth)row.scrollLeft=Math.max(0,on.offsetLeft-row.offsetLeft-12)}
-function visible(){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const q=$('q').value.trim().toLowerCase();const st=$('st').value;
+function visible(){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const q=$('q').value.trim().toLowerCase();const st='';
  const v=convs.filter(c=>inMode(c)&&g[2](c.origin)&&(!sub||c.origin===sub)&&(!st||c.status===st)&&(!q||[c.customer_name,c.customer_handle,c.order_number,c.subject,c.shop,c.summary,c.topic,c.overview,ORIGINS[c.origin]].join(' ').toLowerCase().includes(q)));
  if(MODE==='inbox')v.sort((a,b)=>new Date(sinceOf(a))-new Date(sinceOf(b)));
  else v.sort((a,b)=>new Date(b.last_message_at||0)-new Date(a.last_message_at||0));
@@ -307,7 +307,7 @@ function drawList(){const box=$('list');box.innerHTML='';const v=visible();
   foot.append(st,el('span',null,c.order_number?('Order '+(/^\d{3,6}$/.test(c.order_number)?'#':'')+c.order_number):''));
   it.append(l1,tags,ov,foot);box.append(it)});
 }
-$('q').oninput=drawList;$('st').onchange=drawList;
+$('q').oninput=drawList;
 // ---- Conversation view: full history, other conversations, composer with Eggsy's suggested reply ----
 const TEAM=['Mich Mahinay','Marty Pardoe','Luke Shelley','Hatty Innes'];
 function kindOf(m){const a=m.author||'',b=m.body||'';
