@@ -20,8 +20,25 @@ async function token() {
 }
 async function gm(path: string) {
   const r = await fetch(G + path, { headers: { Authorization: "Bearer " + await token() } });
-  if (!r.ok) throw new Error("Gmail " + r.status);
+  if (!r.ok) { const e: any = new Error("Gmail " + r.status); e.status = r.status; throw e; }
   return r.json();
+}
+// Older tickets (imported by Grok before 5 Nov) carry Gmail ids from a different mailbox view, so hey@ returns 404.
+// Find the same email in hey@ by sender and time, and repair the stored id so it works directly next time.
+async function resolve(mid: string, rowId: string) {
+  try { return { id: mid, msg: await gm("messages/" + mid + "?format=full") }; } catch (e) { if (![400, 404].includes((e as any).status)) throw e; }
+  const { data: row } = await SB.from("messages").select("sent_at, conversation_id, conversations(customer_handle)").eq("id", rowId).maybeSingle();
+  const email = String((row as any)?.conversations?.customer_handle || "").trim().toLowerCase();
+  if (!row || !email.includes("@")) return null;
+  const t = Math.floor(Date.parse((row as any).sent_at) / 1000);
+  const list = await gm("messages?" + new URLSearchParams({ q: 'from:"' + email + '" after:' + (t - 900) + " before:" + (t + 900), maxResults: "5", includeSpamTrash: "true" }));
+  for (const it of list.messages || []) {
+    const msg = await gm("messages/" + it.id + "?format=full");
+    const { data: taken } = await SB.from("messages").select("id").eq("external_id", "gmail:" + it.id).maybeSingle();
+    if (!taken) await SB.from("messages").update({ external_id: "gmail:" + it.id, external_thread_id: msg.threadId }).eq("id", rowId);
+    return { id: it.id, msg };
+  }
+  return null;
 }
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
@@ -51,12 +68,14 @@ Deno.serve(async (req) => {
   const { data: row } = await SB.from("messages").select("id").eq("external_id", "gmail:" + mid).maybeSingle();
   if (!row) return json({ error: "Not on a ticket" }, 404);
   try {
-    const m = await gm("messages/" + mid + "?format=full");
+    const found = await resolve(mid, row.id);
+    if (!found) return json({ attachments: [], note: "This email could not be found in hey@" });
+    const m = found.msg;
     const list: any[] = []; collect(m.payload, list);
-    if (!p.attachment_id) return json({ attachments: list.map(({ data: _d, att: _a, ...a }) => a) });
+    if (!p.attachment_id) return json({ message_id: "gmail:" + found.id, attachments: list.map(({ data: _d, att: _a, ...a }) => a) });
     const a = list.find((x) => x.id === p.attachment_id);
     if (!a) return json({ error: "Attachment not found" }, 404);
-    const data = a.data || (await gm("messages/" + mid + "/attachments/" + encodeURIComponent(a.att))).data;
+    const data = a.data || (await gm("messages/" + found.id + "/attachments/" + encodeURIComponent(a.att))).data;
     return new Response(fromB64Url(data), { headers: { ...CORS, "Content-Type": a.mimeType, "Content-Disposition": 'inline; filename="' + a.filename.replace(/"/g, "") + '"', "Cache-Control": "private, max-age=3600" } });
   } catch (e) {
     console.error("gmail-attachment: " + String((e as Error).message).slice(0, 120));

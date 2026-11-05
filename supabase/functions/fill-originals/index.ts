@@ -93,6 +93,36 @@ async function fillOne(c: any) {
   return { id: c.id, result: added ? "added " + added : "nothing found in hey@" };
 }
 
+// ---- replies our team sent from hey@ (Gmail or eDesk via hey@) that never reached Eggsy ----
+async function sentCandidates(ids?: string[]) {
+  let st = SB.from("cx_conversation_state").select("conversation_id").eq("bucket", "inbox");
+  if (ids?.length) st = st.in("conversation_id", ids);
+  const { data } = await st;
+  const { data: convs } = await SB.from("conversations").select("id,origin,customer_handle,last_message_at").in("id", (data || []).map((s: any) => s.conversation_id))
+    .in("origin", ["email_hey", "shopify_form", "wix_mmc_form"]);
+  return (convs || []).filter((c: any) => /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test((c.customer_handle || "").trim()) && !OWN.test(c.customer_handle.trim()));
+}
+async function sentOne(c: any) {
+  const email = c.customer_handle.trim().toLowerCase();
+  const list = await gm("messages?" + new URLSearchParams({ q: 'to:"' + email + '" newer_than:90d', maxResults: "20", includeSpamTrash: "true" }));
+  let added = 0, latest = "";
+  for (const it of list.messages || []) {
+    const ext = "gmail:" + it.id;
+    const { data: dupe } = await SB.from("messages").select("id").eq("external_id", ext).maybeSingle();
+    if (dupe) continue;
+    const m = await gm("messages/" + it.id + "?format=full");
+    if (!OWN.test(addrOf(hdr(m, "From")))) continue;           // only mail sent by us
+    if (!addrOf(hdr(m, "To")).includes(email) && !hdr(m, "To").toLowerCase().includes(email)) continue;
+    const body = bodyOf(m.payload).replace(/\r\n/g, "\n").trim().slice(0, 12000);
+    const sentAt = new Date(Number(m.internalDate || Date.now())).toISOString();
+    const { error } = await SB.from("messages").insert({ conversation_id: c.id, direction: "outbound", author: "Lucky Egg (hey@)", body: body || "(email with no text)",
+      sent_at: sentAt, external_id: ext, external_thread_id: m.threadId });
+    if (!error) { added++; if (sentAt > latest) latest = sentAt; }
+  }
+  if (latest && (!c.last_message_at || latest > c.last_message_at)) await SB.from("conversations").update({ last_message_at: latest, updated_at: new Date().toISOString() }).eq("id", c.id);
+  return { id: c.id, result: added ? "found " + added + " sent" : "none sent" };
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
   const secret = req.headers.get("x-eggsy-hook") || "";
@@ -100,6 +130,14 @@ Deno.serve(async (req) => {
   if (ok !== true) return new Response("Forbidden", { status: 403 });
   let p: any = {}; try { p = await req.json(); } catch { /* */ }
   try {
+    if (p.mode === "sent") {
+      const cs = await sentCandidates(Array.isArray(p.conversation_ids) ? p.conversation_ids : undefined);
+      const results = [];
+      const off = Number(p.offset) || 0;
+      for (const c of cs.slice(off, off + 30)) { try { results.push(await sentOne(c)); } catch (e) { results.push({ id: c.id, result: "error: " + String((e as Error).message).slice(0, 80) }); } }
+      console.log(JSON.stringify({ mode: "sent", checked: cs.length, found: results.filter((r) => r.result.startsWith("found")).length }));
+      return new Response(JSON.stringify({ checked: cs.length, results }), { headers: { "Content-Type": "application/json" } });
+    }
     const list = await candidates(Array.isArray(p.conversation_ids) ? p.conversation_ids : undefined);
     const results = [];
     for (const c of list.slice(0, 40)) { try { results.push(await fillOne(c)); } catch (e) { results.push({ id: c.id, result: "error: " + String((e as Error).message).slice(0, 80) }); } }

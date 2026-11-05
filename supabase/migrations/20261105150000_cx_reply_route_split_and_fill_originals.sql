@@ -48,3 +48,7 @@ end $$;
 revoke all on function public.cx_fill_originals_call(jsonb) from public, anon, authenticated;
 select cron.unschedule('cx-fill-originals') where exists (select 1 from cron.job where jobname = 'cx-fill-originals');
 select cron.schedule('cx-fill-originals', '*/30 * * * *', $c$select public.cx_fill_originals_call('{}'::jsonb)$c$);
+
+-- Every 30 minutes: log replies our team sent from hey@ (Gmail, eDesk via hey@) that never reached Eggsy, so tickets move to Waiting.
+select cron.unschedule('cx-fill-sent') where exists (select 1 from cron.job where jobname = 'cx-fill-sent');
+select cron.schedule('cx-fill-sent', '15,45 * * * *', $c$select public.cx_fill_originals_call('{"mode":"sent","offset":0}'::jsonb), public.cx_fill_originals_call('{"mode":"sent","offset":30}'::jsonb), public.cx_fill_originals_call('{"mode":"sent","offset":60}'::jsonb), public.cx_fill_originals_call('{"mode":"sent","offset":90}'::jsonb)$c$);
