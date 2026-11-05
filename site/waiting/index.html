@@ -264,10 +264,11 @@ async function openFromUrl(){const id=new URLSearchParams(location.search).get('
  if(!convs.find(c=>c.id===id)){const {data}=await sb.from('conversations').select('*').eq('id',id).maybeSingle();if(data){convs.push(data);drawList()}}
  if(convs.find(c=>c.id===id))openConv(id,false);
  else{$('thread').innerHTML='';$('thread').append(el('div','empty','That conversation could not be found. It may have been deleted.'));document.body.classList.add('showthread')}}
-// Eggsy's current draft per conversation: "gaps" when it still has [ ] notes (missing info or a decision), otherwise "ready".
+// Eggsy's current draft per conversation (cx_draft_readiness): "gaps" when it still has [ ] notes, or promises a
+// replacement, refund or return that isn't logged yet (the same check that blocks Send); otherwise "ready".
 async function loadDrafts(){const m={};
- const {data}=await sb.from('suggested_drafts').select('conversation_id,body,drafted_at').eq('superseded',false).order('drafted_at',{ascending:true}).limit(5000);
- (data||[]).forEach(r=>{m[r.conversation_id]={gaps:/\[[^\]]*\]/.test(r.body||''),notes:((r.body||'').match(/\[[^\]]*\]/g)||[]).length,at:r.drafted_at}});draftMap=m}
+ const {data}=await sb.rpc('cx_draft_readiness');
+ (data||[]).forEach(r=>{const acts=(r.missing_actions||[]).map(t=>t==='any'?'action':t);m[r.conversation_id]={notes:r.notes||0,acts,gaps:(r.notes||0)>0||acts.length>0,at:r.drafted_at}});draftMap=m}
 function draftState(c){const d=draftMap[c.id];if(!d||qmap[c.id])return 'none';return d.gaps?'gaps':'ready'}
 async function loadEmailCh(){emailCh={};const {data}=await sb.from('email_send_channels').select('origin,enabled');(data||[]).forEach(r=>{if(r.enabled)emailCh[r.origin]=true})}
 async function loadLangs(){const m={};
@@ -297,7 +298,7 @@ function drawDraftChips(){const box=$('draftchips');box.innerHTML='';if(MODE!=='
  const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const mc=convs.filter(c=>inMode(c)&&g[2](c.origin)&&(!sub||c.origin===sub));
  [['','All drafts',''],['ready','✅ Ready','d-ready'],['gaps','⚠️ Gaps','d-gaps'],['none','No draft','']].forEach(([k,lab,cls])=>{const n=k?mc.filter(c=>draftState(c)===k).length:mc.length;
   const ch=el('button','chip '+cls+(dft===k?' on':''),lab);ch.type='button';ch.setAttribute('aria-pressed',dft===k);
-  ch.title=k==='ready'?'Eggsy’s draft has everything it needs: check it and send':k==='gaps'?'Eggsy’s draft has [ ] notes: missing info or a decision first':k==='none'?'No draft yet, or a reply is already queued':'';
+  ch.title=k==='ready'?'Eggsy’s draft has everything it needs: check it and send':k==='gaps'?'Eggsy’s draft has [ ] notes, or promises a replacement, refund or return that needs logging first':k==='none'?'No draft yet, or a reply is already queued':'';
   ch.append(el('small',null,n));ch.onclick=()=>{dft=k;writeFilterUrl();drawChips();drawList()};box.append(ch)})}
 // On narrow screens the chip rows scroll sideways; keep the selected chip in view.
 function keepOnVisible(row){const on=row.querySelector('.on');if(on&&row.scrollWidth>row.clientWidth)row.scrollLeft=Math.max(0,on.offsetLeft-row.offsetLeft-12)}
@@ -315,7 +316,8 @@ function drawList(){const box=$('list');box.innerHTML='';const v=visible();
   const tags=el('div','tags');const ct=chTag(c.origin);if(c.shop)ct.title=c.shop;tags.append(ct);
   if(c.topic)tags.append(el('span','tag topic',c.topic));
   if(MODE==='inbox'){const ds=draftState(c);if(ds==='ready'){const t=el('span','tag dready','✅ Ready');t.title='Draft ready to check and send';tags.append(t)}
-   else if(ds==='gaps'){const n=draftMap[c.id].notes;const t=el('span','tag dgaps','⚠️ '+n+(n===1?' gap':' gaps'));t.title='The draft has [ ] notes to fill in first';tags.append(t)}}
+   else if(ds==='gaps'){const d=draftMap[c.id],bits=[];if(d.acts.length)bits.push(d.acts.join(' + ')+' to log');if(d.notes)bits.push(d.notes+(d.notes===1?' note':' notes'));
+    const t=el('span','tag dgaps','⚠️ '+bits.join(', '));t.title=(d.acts.length?'The draft promises a '+d.acts.join(' and ')+': log it in Actions before sending. ':'')+(d.notes?'The draft has [ ] notes to fill in first.':'');tags.append(t)}}
   if(langMap[c.id])[...langMap[c.id]].forEach(l=>{const lt=el('span','tag lang',l.toUpperCase());lt.title=langName(l)+' conversation, English translation available';tags.append(lt)});
   const ov=el('div','ov',c.overview||'No summary yet');if(!c.overview)ov.style.color='var(--muted)';
   const foot=el('div','foot');const st=el('span');st.append(el('span','tag st-'+c.status,STATUS[c.status]||c.status));
@@ -709,7 +711,9 @@ async function reloadActions(c, host){
   if(host) renderActPanel(host,c,actList);
   const ta=document.getElementById('replybox');if(ta)ta.dispatchEvent(new Event('input'));
 }
-function renderActPanel(host,c,list){
+// When the ticket's actions change (e.g. a replacement is logged), refresh Ready/Gaps in the list.
+let lastActSig={};
+function renderActPanel(host,c,list){const sig=(list||[]).map(x=>x.id+':'+x.status).join(',');if(lastActSig[c.id]!==undefined&&lastActSig[c.id]!==sig)loadDrafts().then(()=>{drawChips();drawList()});lastActSig[c.id]=sig;
   if(!host)return;
   host.innerHTML='';
   const box=el('div','actbox');
