@@ -31,7 +31,7 @@ td{padding:12px;border-bottom:1px solid #f3ecd9;vertical-align:top}
 tr:last-child td{border-bottom:0}
 .when{white-space:nowrap}.when small{display:block;color:var(--muted);font-size:12px}
 .tag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:#f2ecdc;white-space:nowrap}
-.r-queued{background:#dcecff}.r-chat{background:#FFE8A6}.r-email{background:#dff5e3}
+.r-queued{background:#dcecff}.r-auto{background:#d7f2e3;color:#1d5c3a}.r-chat{background:#FFE8A6}.r-email{background:#dff5e3}
 .cust b{display:block}.cust span{color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}
 .body{white-space:pre-wrap;word-wrap:break-word;line-height:1.4;max-width:520px}
 .body.clip{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
@@ -65,11 +65,11 @@ tr:last-child td{border-bottom:0}
 </section>
 
 <main id="app">
- <p class="intro">Every customer reply Eggsy has sent, newest first, whether you queued it in the inbox, approved it in chat, or approved an email card. Times are UK time (Europe/London).</p>
+ <p class="intro">Every customer reply Eggsy has sent, newest first: sent from the Eggsy CX reply box, sent automatically, approved in chat, or approved as an email card. Times are UK time (Europe/London).</p>
  <div class="filters">
   <label class="q">Search<input id="q" type="search" placeholder="Customer, order, reply text…"></label>
   <label>Channel<select id="ch"><option value="">All channels</option></select></label>
-  <label>Route<select id="rt"><option value="">All routes</option><option value="queued in Eggsy CX">Queued in Eggsy CX</option><option value="approved in chat">Approved in chat</option><option value="email card">Email card</option></select></label>
+  <label>Route<select id="rt"><option value="">All routes</option><option value="queued in Eggsy CX">Sent from Eggsy CX</option><option value="approved in chat">Approved in chat</option><option value="email card">Email card</option></select></label>
   <label>From (UK date)<input id="from" type="date"></label>
   <label>To (UK date)<input id="to" type="date"></label>
   <button class="btn ghost" id="clear" type="button">Clear</button>
@@ -84,7 +84,8 @@ const SUPABASE_URL='https://xodkbmtylftfmnxfnxxf.supabase.co';
 const SUPABASE_KEY='sb_publishable_gX9OKDCT6Opnt8OcsFRmiQ_xaM0O8ti'; // public publishable key: safe in the browser, data is protected by RLS
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,detectSessionInUrl:false,flowType:'pkce'}});
 const ROUTE_CLASS={'queued in Eggsy CX':'r-queued','approved in chat':'r-chat','email card':'r-email'};
-const ROUTE_LABEL={'queued in Eggsy CX':'Queued in Eggsy CX','approved in chat':'Approved in chat','email card':'Email card'};
+const ROUTE_LABEL={'queued in Eggsy CX':'Sent from Eggsy CX','approved in chat':'Sent by Eggsy (approved in chat)','email card':'Email card'};
+let autoIds=new Set();
 const $=id=>document.getElementById(id);
 const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
 const okEmail=EggsyAuth.okEmail;
@@ -116,7 +117,11 @@ async function load(){
   .select('id,sent_at,conversation_id,origin,shop,customer_name,customer_handle,order_number,channel,body,route,approved_by,sent_by,external_id,delivery_failed_at,failure_reason')
   .order('sent_at',{ascending:false}).limit(5000);
  if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load the sent log: '+error.message));return}
- rows=data||[];
+ // Sends that were queued automatically (no one checked them).
+ const {data:au}=await sb.from('reply_queue').select('id').eq('auto_sent',true).limit(5000);autoIds=new Set((au||[]).map(x=>'reply:'+x.id));
+ // Grok logs its own copy when it posts a reply that was queued in Eggsy CX; show each reply once.
+ const all=data||[];const queued=all.filter(r=>r.route==='queued in Eggsy CX');
+ rows=all.filter(r=>!(r.route==='approved in chat'&&queued.some(q=>q.conversation_id&&q.conversation_id===r.conversation_id&&Math.abs(new Date(q.sent_at)-new Date(r.sent_at))<15*60e3)));
  const chs=[...new Set(rows.map(r=>r.channel||'Unknown'))].sort();const sel=$('ch');
  chs.forEach(c=>{const o=el('option',null,c);o.value=c;sel.append(o)});
  draw();
@@ -142,8 +147,9 @@ function draw(){const box=$('list');box.innerHTML='';
   const c5=el('td');c5.dataset.k='Reply';const b=el('div','body clip',r.body||'');c5.append(b);
   if((r.body||'').length>160||(r.body||'').split('\n').length>3){const m=el('button','more','Show full reply');m.type='button';
    m.onclick=()=>{const open=b.classList.toggle('clip');m.textContent=open?'Show full reply':'Show less'};c5.append(m)}
-  const c6=el('td');c6.dataset.k='Route';c6.append(el('span','tag '+(ROUTE_CLASS[r.route]||''),ROUTE_LABEL[r.route]||r.route));
-  if(r.approved_by)c6.append(el('div','none','Approved by '+r.approved_by));
+  const isAuto=autoIds.has(r.external_id);
+  const c6=el('td');c6.dataset.k='Route';const rt=el('span','tag '+(isAuto?'r-auto':(ROUTE_CLASS[r.route]||'')),isAuto?'Sent automatically':(ROUTE_LABEL[r.route]||r.route));c6.append(rt);
+  if(isAuto)c6.append(el('div','none','Eggsy draft, sent with no one checking'));else if(r.approved_by)c6.append(el('div','none','Approved by '+r.approved_by));
   if((r.external_id||'').startsWith('gmail:')&&r.route==='queued in Eggsy CX'&&!r.delivery_failed_at)c6.append(el('div','none','Sent by email from hey@'));
   if(r.delivery_failed_at){const x=el('span','tag','Not delivered');x.style.cssText='background:#ffe1e1;color:#8a1c14;margin-top:4px';x.title=r.failure_reason||'';c6.append(el('div'),x)}
   const c7=el('td');c7.dataset.k='Conversation';
