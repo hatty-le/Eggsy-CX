@@ -269,7 +269,7 @@ async function openFromUrl(){const id=new URLSearchParams(location.search).get('
 // replacement, refund or return that isn't logged yet (the same check that blocks Send); otherwise "ready".
 async function loadDrafts(){const m={};
  const {data}=await sb.rpc('cx_draft_readiness');
- (data||[]).forEach(r=>{const acts=(r.missing_actions||[]).map(t=>t==='any'?'action':t);m[r.conversation_id]={notes:r.notes||0,acts,partial:!!r.partial_history,gaps:(r.notes||0)>0||acts.length>0||!!r.partial_history,at:r.drafted_at}});draftMap=m}
+ (data||[]).forEach(r=>{const acts=(r.missing_actions||[]).map(t=>t==='any'?'action':t);m[r.conversation_id]={notes:r.notes||0,acts,partial:!!r.partial_history,att:!!r.attachment_missing,gaps:(r.notes||0)>0||acts.length>0||!!r.partial_history||!!r.attachment_missing,at:r.drafted_at}});draftMap=m}
 function draftState(c){const d=draftMap[c.id];if(!d||qmap[c.id])return 'none';return d.gaps?'gaps':'ready'}
 async function loadEmailCh(){emailCh={};const {data}=await sb.from('email_send_channels').select('origin,enabled');(data||[]).forEach(r=>{if(r.enabled)emailCh[r.origin]=true})}
 async function loadLangs(){const m={};
@@ -317,8 +317,8 @@ function drawList(){const box=$('list');box.innerHTML='';const v=visible();
   const tags=el('div','tags');const ct=chTag(c.origin);if(c.shop)ct.title=c.shop;tags.append(ct);
   if(c.topic)tags.append(el('span','tag topic',c.topic));
   if(MODE==='inbox'){const ds=draftState(c);if(ds==='ready'){const t=el('span','tag dready','✅ Ready');t.title='Draft ready to check and send';tags.append(t)}
-   else if(ds==='gaps'){const d=draftMap[c.id],bits=[];if(d.partial)bits.push('full chat not in Eggsy');if(d.acts.length)bits.push(d.acts.join(' + ')+' to log');if(d.notes)bits.push(d.notes+(d.notes===1?' note':' notes'));
-    const t=el('span','tag dgaps','⚠️ '+bits.join(', '));t.title=(d.partial?'Part of this chat is only an Eggsy summary (the platform can’t be read directly), so check the full chat on the platform before sending. ':'')+(d.acts.length?'The draft promises a '+d.acts.join(' and ')+': log it in Actions before sending. ':'')+(d.notes?'The draft has [ ] notes to fill in first.':'');tags.append(t)}}
+   else if(ds==='gaps'){const d=draftMap[c.id],bits=[];if(d.att)bits.push('photo missing');if(d.partial)bits.push('full chat not in Eggsy');if(d.acts.length)bits.push(d.acts.join(' + ')+' to log');if(d.notes)bits.push(d.notes+(d.notes===1?' note':' notes'));
+    const t=el('span','tag dgaps','⚠️ '+bits.join(', '));t.title=(d.att?'The customer sent a photo or file that is no longer in hey@, so it can’t be shown here. Check eDesk or ask them to resend. ':'')+(d.partial?'Part of this chat is only an Eggsy summary (the platform can’t be read directly), so check the full chat on the platform before sending. ':'')+(d.acts.length?'The draft promises a '+d.acts.join(' and ')+': log it in Actions before sending. ':'')+(d.notes?'The draft has [ ] notes to fill in first.':'');tags.append(t)}}
   if(langMap[c.id])[...langMap[c.id]].forEach(l=>{const lt=el('span','tag lang',l.toUpperCase());lt.title=langName(l)+' conversation, English translation available';tags.append(lt)});
   const ov=el('div','ov',c.overview||'No summary yet');if(!c.overview)ov.style.color='var(--muted)';
   const foot=el('div','foot');const st=el('span');st.append(el('span','tag st-'+c.status,STATUS[c.status]||c.status));

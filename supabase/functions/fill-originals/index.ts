@@ -123,6 +123,38 @@ async function sentOne(c: any) {
   return { id: c.id, result: added ? "found " + added + " sent" : "none sent" };
 }
 
+// ---- customer emails with a photo or file that are no longer in hey@ ----
+const ATT_HINT = /(attachment|image|photo|picture|\.(jpe?g|png|heic|gif|pdf|mp4|mov)\b)/i;
+async function missingCheck(off: number) {
+  const { data: st } = await SB.from("cx_conversation_state").select("conversation_id").in("bucket", ["inbox", "waiting"]);
+  const ids = (st || []).map((s: any) => s.conversation_id);
+  const { data: msgs } = await SB.from("messages").select("id,conversation_id,external_id,body,sent_at,attachment_missing,conversations(customer_handle)")
+    .in("conversation_id", ids).eq("direction", "inbound").like("external_id", "gmail:%").order("sent_at");
+  const list = (msgs || []).filter((m: any) => ATT_HINT.test(m.body || ""));
+  let missing = 0, repaired = 0, ok = 0;
+  for (const m of list.slice(off, off + 40)) {
+    const mid = m.external_id.slice(6);
+    let found = false;
+    try { await gm("messages/" + mid + "?format=minimal"); found = true; } catch { /* not in hey@ under this id */ }
+    if (!found) {
+      const email = String(m.conversations?.customer_handle || "").trim().toLowerCase();
+      if (email.includes("@")) {
+        const t = Math.floor(Date.parse(m.sent_at) / 1000);
+        const r = await gm("messages?" + new URLSearchParams({ q: 'from:"' + email + '" after:' + (t - 900) + " before:" + (t + 900), maxResults: "1", includeSpamTrash: "true" }));
+        const hit = r.messages?.[0]?.id;
+        if (hit) {
+          const { data: taken } = await SB.from("messages").select("id").eq("external_id", "gmail:" + hit).maybeSingle();
+          if (!taken) { await SB.from("messages").update({ external_id: "gmail:" + hit }).eq("id", m.id); repaired++; }
+          found = true;
+        }
+      }
+    }
+    if (m.attachment_missing !== !found) await SB.from("messages").update({ attachment_missing: !found }).eq("id", m.id);
+    if (found) ok++; else missing++;
+  }
+  return { checked: Math.min(40, Math.max(0, list.length - off)), of: list.length, missing, repaired, ok };
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
   const secret = req.headers.get("x-eggsy-hook") || "";
@@ -137,6 +169,11 @@ Deno.serve(async (req) => {
       for (const it of list.messages || []) { const m = await gm("messages/" + it.id + "?format=metadata&metadataHeaders=From&metadataHeaders=Date"); out.push({ id: it.id, from: hdr(m, "From"), date: hdr(m, "Date"), labels: m.labelIds }); }
       const prof = await gm("profile");
       return new Response(JSON.stringify({ mailbox: prof.emailAddress, total: prof.messagesTotal, matches: out }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (p.mode === "missing") {
+      const r = await missingCheck(Number(p.offset) || 0);
+      console.log(JSON.stringify({ mode: "missing", ...r }));
+      return new Response(JSON.stringify(r), { headers: { "Content-Type": "application/json" } });
     }
     if (p.mode === "sent") {
       const cs = await sentCandidates(Array.isArray(p.conversation_ids) ? p.conversation_ids : undefined);
