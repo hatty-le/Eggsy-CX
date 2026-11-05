@@ -506,31 +506,41 @@ const ACT_MSG='Create the replacement, refund or return on this ticket first';
 const UK_RETURN_ADDR='The Finishing Line Ltd\nUnit DC1 Prologis Park\nHonywood Road\nBasildon\nSS14 3TS\nUnited Kingdom';
 const REPLACEMENT_GUARD_RE=/(replacement|replacements|\breplace\b|\breplaced\b|\breplacing\b|\bresend\b|\bresending\b|\breship\b|a new (copy|game|order|parcel)|ersatzlieferung|\bersatz\b|remplacement|reemplazo)/i;
 const REPLACEMENT_ASK_RE=/(send another|sending another|send me another|another one|\bnew one\b|another (copy|game|item|part|parcel)|a new (item|part)|missing parts?|spare parts?|ersetzen|ersatzteil|austauschen|\baustausch\b|remplacer|reemplazar|recambio|sostitu(?:zione|ire)|vervang(?:ing|en)|substitui(?:ção|r))/i;
+const REFUND_RE=/(refund|refunded|refunds|refunding|money back|reimburse|erstattung|erstatten|rückerstattung|geld zurück|remboursement|rembourser|reembolso|reembolsar|rimborso|terugbetaling)/i;
+const RETURN_RE=/(return label|return postage|prepaid return|return address|send (the |it |this |your |them ).{0,40}back|sending .{0,20}back|send it back|return the (item|game|parcel|order|package|headset|microphone)|return your (item|game|parcel|order|package)|returning (the|it|this|my)|\barrange a return\b|\ba return to\b|(can|could|may|want to|like to|need to) (i |we )?return|return (it|this|them)\b|rücksendung|zurückschicken|zurücksenden|\bretoure\b|retourner|renvoyer|devoluci[oó]n|devolver|restituire|reso\b|retourneren)/i;
+const ACT_TYPE_RE={replacement:null,refund:REFUND_RE,return:RETURN_RE};
 function mentionsReplacement(text){return REPLACEMENT_GUARD_RE.test(text||'')||REPLACEMENT_ASK_RE.test(text||'')}
-function shouldShowReplacementButton(){
+function mentionsType(type,text){if(type==='replacement')return mentionsReplacement(text);return ACT_TYPE_RE[type].test(text||'')}
+// An action button only shows once that action is discussed in the thread (by the customer or by us),
+// is in the reply being written, already exists on the ticket, or the agent opens "More actions".
+function shouldShowActionButton(type){
   if(actShowReplacement) return true;
-  if((actList||[]).some(a=>a.type==='replacement')) return true;
+  if((actList||[]).some(a=>a.type===type)) return true;
   const reqc=document.getElementById('requires_action');
   if(reqc&&reqc.checked) return true;
   const ta=document.getElementById('replybox');
-  if(ta&&mentionsReplacement(ta.value)) return true;
+  if(ta&&mentionsType(type,ta.value)) return true;
   for(const m of (actThreadMsgs||[])){
     const ours=m.direction==='outbound'||m.direction==='draft'||(m.direction&&m.direction!=='inbound'&&m.direction!=='note');
     const customer=m.direction==='inbound';
-    if((customer||ours)&&(mentionsReplacement(m.body)||mentionsReplacement(m.body_en))) return true;
+    if((customer||ours)&&(mentionsType(type,m.body)||mentionsType(type,m.body_en))) return true;
   }
   for(const q of (actQueuedReplies||[])){
     if(q.status==='cancelled') continue;
-    if(mentionsReplacement(q.body)) return true;
+    if(mentionsType(type,q.body)) return true;
   }
   return false;
 }
+function shouldShowReplacementButton(){return shouldShowActionButton('replacement')}
 function syncReplacementButton(){
-  const show=shouldShowReplacementButton();
-  const r1=document.getElementById('act-replacement-btn');
+  const ids={replacement:'act-replacement-btn',refund:'act-refund-btn',return:'act-return-btn'};
+  let anyHidden=false;
+  for(const t of Object.keys(ids)){
+    const b=document.getElementById(ids[t]);if(!b)continue;
+    const show=shouldShowActionButton(t);b.hidden=!show;if(!show)anyHidden=true;
+  }
   const more=document.getElementById('act-more-btn');
-  if(r1) r1.hidden=!show;
-  if(more) more.hidden=show;
+  if(more) more.hidden=!anyHidden;
 }
 function promisedTypes(body, flag){
   const types=[];
@@ -725,9 +735,9 @@ function renderActPanel(host,c,list){
   });
   const btns=el('div','actbtns');
   const r1=el('button','btn','Replacement');r1.type='button';r1.id='act-replacement-btn';r1.onclick=()=>openReplacementModal(c,host);
-  const r2=el('button','btn ghost','Refund');r2.type='button';r2.onclick=()=>openRefundModal(c,host);
-  const r3=el('button','btn ghost','Return');r3.type='button';r3.onclick=()=>openReturnModal(c,host);
-  const more=el('button','btn moreact','More actions');more.type='button';more.id='act-more-btn';more.title='Show the Replacement button';
+  const r2=el('button','btn ghost','Refund');r2.type='button';r2.id='act-refund-btn';r2.onclick=()=>openRefundModal(c,host);
+  const r3=el('button','btn ghost','Return');r3.type='button';r3.id='act-return-btn';r3.onclick=()=>openReturnModal(c,host);
+  const more=el('button','btn moreact','More actions');more.type='button';more.id='act-more-btn';more.title='Show all action buttons';
   more.onclick=()=>{actShowReplacement=true;syncReplacementButton()};
   btns.append(r1,r2,r3,more);box.append(btns);
   host.append(box);
