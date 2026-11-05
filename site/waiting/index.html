@@ -97,6 +97,7 @@ details.elog div{margin-top:6px}
 .bubble.internal{background:#eef1f7;margin-left:auto;border:1px dashed #b9c3d8}
 .bubble.eggsy{background:transparent;border:1px solid var(--line);max-width:100%;font-size:13px;color:var(--muted)}
 .bubble.sysnote{background:#f3f7f3;border:1px solid #d6e6d6;max-width:100%;font-size:13px}
+.atts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;white-space:normal}.att img{max-width:220px;max-height:220px;border-radius:10px;border:1px solid var(--line);cursor:zoom-in;display:block}.attph{font-size:12.5px;color:var(--muted)}.attlink{background:#fff;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font:inherit;font-size:13px;cursor:pointer}
 .linknote{font-size:13px;color:var(--muted);margin:0 0 6px}.linknote a{color:#7a5a00;font-weight:600}
 .bubble.psum{background:#faf8f2;border:1px dashed #d9cfb4;font-size:13.5px}
 .role{display:inline-block;font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 7px;margin-left:6px;background:#fff;border:1px solid var(--line);vertical-align:1px}
@@ -331,6 +332,17 @@ $('q').oninput=drawList;
 const TEAM=['Mich Mahinay','Marty Pardoe','Luke Shelley','Hatty Innes'];
 // Walmart wraps agent cases in standard seller instructions; hide them so only the case text shows.
 function cleanBody(b){return String(b||'').replace(/\n?\s*1\. Always reply within 48 hours[\s\S]*?Hide Walmart Customer Care Instructions\s*/i,'').trim()}
+// Photos and files a customer attached to an email in hey@ (fetched live from Gmail by the gmail-attachment function).
+async function attCall(payload){const {data:{session}}=await sb.auth.getSession();if(!session)throw new Error('Not signed in');
+ const r=await fetch(SUPABASE_URL+'/functions/v1/gmail-attachment',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token,apikey:SUPABASE_KEY},body:JSON.stringify(payload)});
+ if(!r.ok){let e='';try{e=(await r.json()).error}catch(_){}throw new Error(e||('Error '+r.status))}return r}
+async function showAttachments(bubble,ext){let list=[];try{list=(await (await attCall({message_id:ext})).json()).attachments||[]}catch(e){return}
+ if(!list.length)return;const wrap=el('div','atts');bubble.append(wrap);
+ for(const a of list){const isImg=/^image\//.test(a.mimeType);const box=el('div','att');wrap.append(box);
+  const open=async()=>{const r=await attCall({message_id:ext,attachment_id:a.id});const url=URL.createObjectURL(await r.blob());return url};
+  if(isImg){const ph=el('div','attph','Loading '+a.filename+'…');box.append(ph);
+   open().then(url=>{const im=el('img');im.src=url;im.alt=a.filename;im.title=a.filename+' (click to open full size)';im.onclick=()=>window.open(url,'_blank');ph.replaceWith(im)}).catch(e=>{ph.textContent='📎 '+a.filename+' (could not load: '+e.message+')'})}
+  else{const l=el('button','attlink','📎 '+a.filename+(a.size?' · '+Math.max(1,Math.round(a.size/1024))+' KB':''));l.type='button';l.onclick=async()=>{l.disabled=true;try{window.open(await open(),'_blank')}catch(e){alert('Could not open: '+e.message)}l.disabled=false};box.append(l)}}}
 function kindOf(m){const a=m.author||'',b=m.body||'';
  if(m.direction==='note')return a==='Eggsy'||/^Eggsy/i.test(a)?'eggsy':'sysnote';
  if(m.direction==='draft')return 'draft';
@@ -379,7 +391,7 @@ async function openConv(id,push){sel=id;drawList();const c=convs.find(x=>x.id===
   linked.forEach((x,i)=>{const a=el('a',null,(x.subject||x.overview||'thread').replace(/^Message from Walmart\.com Customer: /,''));a.href='?c='+x.id;a.onclick=e=>{e.preventDefault();openConv(x.id,true)};if(i)n.append(document.createTextNode(' · '));n.append(a)});t.append(n)}
  const box=el('div');box.append(el('div','empty','Loading messages…'));t.append(box);
  const [mr,qr,dr,ar]=await Promise.all([
-  sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true}),
+  sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en,external_id').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true}),
   sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address').eq('conversation_id',id).order('queued_at',{ascending:true}),
   sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
   sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false})]);
@@ -419,6 +431,7 @@ async function openConv(id,push){sel=id;drawList();const c=convs.find(x=>x.id===
     redraws.push(()=>{delete flips[m.id];draw()});draw()}
    else txt.textContent=cleanBody(m.body);
    if(lq)sentExtras(b,lq,c);
+   if(m.direction==='inbound'&&/^gmail:/.test(m.external_id||''))showAttachments(b,m.external_id);
    box.append(b);return}
   box.append(queueBubble(it.q,c));});
  if(!items.length)box.append(el('div','empty','No messages stored.'));
