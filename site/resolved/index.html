@@ -75,7 +75,9 @@ input,select{font:inherit;border:1px solid var(--line);border-radius:12px;paddin
 .bubble .okline{font-size:12px;color:var(--muted);margin-top:6px;white-space:normal}
 .chips.sub .chip{font-size:12.5px;padding:4px 11px;background:#fffdf6}
 .chips.sub .chip.on{background:#FFE8A6;border-color:#f3c84b}
-.chips.sub:empty{display:none}
+.chips.sub:empty,.chips.draft:empty{display:none}
+.chips.draft .chip{font-size:12.5px;padding:4px 11px}.chips.draft .chip.on.d-ready{background:#dff5e3;border-color:#9fd7aa}.chips.draft .chip.on.d-gaps{background:#ffe1e1;border-color:#f3b4ae}
+.tag.dready{background:#dff5e3;color:#1d5c2b}.tag.dgaps{background:#ffe1e1;color:#8a1c14}
 button.chip{font:inherit;font-size:13px;color:inherit}
 .item .line1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .item .when{font-size:12.5px;color:var(--muted);white-space:nowrap}
@@ -178,6 +180,7 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
  <div class="toolbar">
   <div class="chips" id="chips" aria-label="Channel"></div>
   <div class="chips sub" id="subchips" aria-label="Marketplace or shop"></div>
+  <div class="chips draft" id="draftchips" aria-label="Draft readiness"></div>
   <div class="row2"><input id="q" type="search" placeholder="Search name, email, order, topic…"></div>
  </div>
  <div class="layout" id="layout">
@@ -200,7 +203,7 @@ const SUBS={amazon:[['amazon_uk','UK',1],['amazon_us','US',1],['amazon_de','DE',
  meta:[['instagram','Instagram',1],['facebook','Facebook',1]]};
 const groupOf=o=>(GROUPS.find(g=>g[0]!=='all'&&g[2](o))||['other'])[0];
 const STATUS={open:'Open',awaiting_approval:'Awaiting approval',awaiting_customer:'Awaiting customer',resolved:'Resolved',ignored:'Ignored'};
-let convs=[],grp='all',sub='',sel=null,qmap={},langMap={},emailCh={},stMap={};
+let convs=[],grp='all',sub='',dft='',draftMap={},sel=null,qmap={},langMap={},emailCh={},stMap={};
 // One page, three views: /inbox/ (needs a reply from us), /waiting/ (we replied, waiting on the customer), /resolved/.
 // The bucket comes from the cx_conversation_state view in Supabase, so the nav counts and the lists always agree.
 const MODES={inbox:{title:'Inbox',path:'/inbox/',intro:'Conversations that need a reply from us: the customer wrote last and it isn’t resolved. Oldest first, so the longest wait is at the top.',empty:'Nothing needs a reply right now. 🎉',statuses:['open','awaiting_approval','awaiting_customer']},
@@ -252,7 +255,7 @@ async function load(){
  $('list').innerHTML='<div class="empty">Loading…</div>';
  const {data,error}=await sb.from('conversations').select('*').order('last_message_at',{ascending:false,nullsFirst:false}).limit(1000);
  if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load: '+error.message));return}
- convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates()]);drawChips();drawList();
+ convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates(),loadDrafts()]);drawChips();drawList();
  await openFromUrl();
 }
 // Deep link: /inbox/?c=<conversation_id>
@@ -261,6 +264,11 @@ async function openFromUrl(){const id=new URLSearchParams(location.search).get('
  if(!convs.find(c=>c.id===id)){const {data}=await sb.from('conversations').select('*').eq('id',id).maybeSingle();if(data){convs.push(data);drawList()}}
  if(convs.find(c=>c.id===id))openConv(id,false);
  else{$('thread').innerHTML='';$('thread').append(el('div','empty','That conversation could not be found. It may have been deleted.'));document.body.classList.add('showthread')}}
+// Eggsy's current draft per conversation: "gaps" when it still has [ ] notes (missing info or a decision), otherwise "ready".
+async function loadDrafts(){const m={};
+ const {data}=await sb.from('suggested_drafts').select('conversation_id,body,drafted_at').eq('superseded',false).order('drafted_at',{ascending:true}).limit(5000);
+ (data||[]).forEach(r=>{m[r.conversation_id]={gaps:/\[[^\]]*\]/.test(r.body||''),notes:((r.body||'').match(/\[[^\]]*\]/g)||[]).length,at:r.drafted_at}});draftMap=m}
+function draftState(c){const d=draftMap[c.id];if(!d||qmap[c.id])return 'none';return d.gaps?'gaps':'ready'}
 async function loadEmailCh(){emailCh={};const {data}=await sb.from('email_send_channels').select('origin,enabled');(data||[]).forEach(r=>{if(r.enabled)emailCh[r.origin]=true})}
 async function loadLangs(){const m={};
  const {data}=await sb.from('messages').select('conversation_id,language').neq('language','en').not('language','is',null).limit(5000);
@@ -270,25 +278,31 @@ async function loadQueueSummary(){qmap={};
  (data||[]).forEach(r=>{const cur=qmap[r.conversation_id];if(!cur||r.status==='failed')qmap[r.conversation_id]=r.status});}
 // Filters: ?ch=<channel>&sub=<origin> (kept alongside ?c=<conversation>)
 function readFilterUrl(){const u=new URLSearchParams(location.search);const g=u.get('ch')||'all';grp=GROUPS.some(x=>x[0]===g)?g:'all';
- const s2=u.get('sub')||'';sub=(SUBS[grp]||[]).some(x=>x[0]===s2)?s2:''}
+ const s2=u.get('sub')||'';sub=(SUBS[grp]||[]).some(x=>x[0]===s2)?s2:'';const d=u.get('draft')||'';dft=['ready','gaps','none'].includes(d)?d:''}
 function writeFilterUrl(){const u=new URLSearchParams(location.search);
- if(grp&&grp!=='all')u.set('ch',grp);else u.delete('ch');if(sub)u.set('sub',sub);else u.delete('sub');
+ if(grp&&grp!=='all')u.set('ch',grp);else u.delete('ch');if(sub)u.set('sub',sub);else u.delete('sub');if(dft)u.set('draft',dft);else u.delete('draft');
  const qs=u.toString();history.replaceState(history.state,'',location.pathname+(qs?'?'+qs:''))}
 function setFilter(g,s2){grp=g;sub=s2||'';writeFilterUrl();drawChips();drawList()}
 function drawChips(){const box=$('chips');box.innerHTML='';
  const mc=convs.filter(inMode);
  GROUPS.forEach(([k,label,fn])=>{const n=mc.filter(c=>fn(c.origin)).length;if(k!=='all'&&!n&&k!=='walmart'&&k!=='meta')return;
   const ch=el('button','chip'+(grp===k?' on':''),label);ch.type='button';ch.setAttribute('aria-pressed',grp===k);ch.append(el('small',null,n));ch.onclick=()=>setFilter(k,'');box.append(ch)});
- keepOnVisible(box);const sbx=$('subchips');sbx.innerHTML='';const list=SUBS[grp];if(!list)return;
+ keepOnVisible(box);drawDraftChips();const sbx=$('subchips');sbx.innerHTML='';const list=SUBS[grp];if(!list)return;
  const g=GROUPS.find(x=>x[0]===grp);const tot=mc.filter(c=>g[2](c.origin)).length;
  const all=el('button','chip'+(!sub?' on':''),'All '+(grp==='meta'?'Meta':g[1]));all.type='button';all.append(el('small',null,tot));all.onclick=()=>setFilter(grp,'');sbx.append(all);
  list.forEach(([o,lab,always])=>{const n=mc.filter(c=>c.origin===o).length;if(!n&&!always)return;
   const ch=el('button','chip'+(sub===o?' on':''),lab);ch.type='button';ch.setAttribute('aria-pressed',sub===o);ch.append(el('small',null,n));ch.onclick=()=>setFilter(grp,o);sbx.append(ch)});
  keepOnVisible(sbx)}
+function drawDraftChips(){const box=$('draftchips');box.innerHTML='';if(MODE!=='inbox')return;
+ const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const mc=convs.filter(c=>inMode(c)&&g[2](c.origin)&&(!sub||c.origin===sub));
+ [['','All drafts',''],['ready','✅ Ready','d-ready'],['gaps','⚠️ Gaps','d-gaps'],['none','No draft','']].forEach(([k,lab,cls])=>{const n=k?mc.filter(c=>draftState(c)===k).length:mc.length;
+  const ch=el('button','chip '+cls+(dft===k?' on':''),lab);ch.type='button';ch.setAttribute('aria-pressed',dft===k);
+  ch.title=k==='ready'?'Eggsy’s draft has everything it needs: check it and send':k==='gaps'?'Eggsy’s draft has [ ] notes: missing info or a decision first':k==='none'?'No draft yet, or a reply is already queued':'';
+  ch.append(el('small',null,n));ch.onclick=()=>{dft=k;writeFilterUrl();drawChips();drawList()};box.append(ch)})}
 // On narrow screens the chip rows scroll sideways; keep the selected chip in view.
 function keepOnVisible(row){const on=row.querySelector('.on');if(on&&row.scrollWidth>row.clientWidth)row.scrollLeft=Math.max(0,on.offsetLeft-row.offsetLeft-12)}
 function visible(){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const q=$('q').value.trim().toLowerCase();const st='';
- const v=convs.filter(c=>inMode(c)&&g[2](c.origin)&&(!sub||c.origin===sub)&&(!st||c.status===st)&&(!q||[c.customer_name,c.customer_handle,c.order_number,c.subject,c.shop,c.summary,c.topic,c.overview,ORIGINS[c.origin]].join(' ').toLowerCase().includes(q)));
+ const v=convs.filter(c=>inMode(c)&&g[2](c.origin)&&(!sub||c.origin===sub)&&(MODE!=='inbox'||!dft||draftState(c)===dft)&&(!st||c.status===st)&&(!q||[c.customer_name,c.customer_handle,c.order_number,c.subject,c.shop,c.summary,c.topic,c.overview,ORIGINS[c.origin]].join(' ').toLowerCase().includes(q)));
  if(MODE==='inbox')v.sort((a,b)=>new Date(sinceOf(a))-new Date(sinceOf(b)));
  else v.sort((a,b)=>new Date(b.last_message_at||0)-new Date(a.last_message_at||0));
  return v}
@@ -300,6 +314,8 @@ function drawList(){const box=$('list');box.innerHTML='';const v=visible();
   const l1=el('div','line1');l1.append(el('span','name',c.customer_name||c.customer_handle||'Unknown'),MODE==='inbox'?(()=>{const w=el('span','when',fmt(sinceOf(c)));w.title='Waiting for a reply since '+fmt(sinceOf(c))+' UK';return w})():el('span','when',fmt(c.last_message_at)));
   const tags=el('div','tags');const ct=chTag(c.origin);if(c.shop)ct.title=c.shop;tags.append(ct);
   if(c.topic)tags.append(el('span','tag topic',c.topic));
+  if(MODE==='inbox'){const ds=draftState(c);if(ds==='ready'){const t=el('span','tag dready','✅ Ready');t.title='Draft ready to check and send';tags.append(t)}
+   else if(ds==='gaps'){const n=draftMap[c.id].notes;const t=el('span','tag dgaps','⚠️ '+n+(n===1?' gap':' gaps'));t.title='The draft has [ ] notes to fill in first';tags.append(t)}}
   if(langMap[c.id])[...langMap[c.id]].forEach(l=>{const lt=el('span','tag lang',l.toUpperCase());lt.title=langName(l)+' conversation, English translation available';tags.append(lt)});
   const ov=el('div','ov',c.overview||'No summary yet');if(!c.overview)ov.style.color='var(--muted)';
   const foot=el('div','foot');const st=el('span');st.append(el('span','tag st-'+c.status,STATUS[c.status]||c.status));
@@ -1079,7 +1095,7 @@ async function kbFor(c,t){const d=el('details','kbbox elog');d.append(el('summar
   if(error){ul.append(el('li',null,'Could not load: '+error.message));return}
   if(!data||!data.length){ul.append(el('li',null,'No published articles yet.'));return}
   data.forEach(a=>{const li=el('li');const l=el('a',null,a.title);l.href='/knowledge/?a='+a.id;l.target='_blank';li.append(l,el('small',null,' · '+a.category+(a.channel_specific?' · this channel':'')+(a.language!=='en'?' · '+a.language.toUpperCase():'')));ul.append(li)})}}
-async function refreshAfterQueue(id){await loadQueueSummary();await loadStates();EggsyNav.refreshCounts();drawChips();drawList();if(sel!==id)return;await openConv(id,false);
+async function refreshAfterQueue(id){await Promise.all([loadQueueSummary(),loadDrafts()]);await loadStates();EggsyNav.refreshCounts();drawChips();drawList();if(sel!==id)return;await openConv(id,false);
  const qb=[...document.querySelectorAll('#thread .bubble.q-queued,#thread .bubble.qqueued')].pop();if(qb)qb.scrollIntoView({block:'center'})}
 window.onpopstate=()=>{readFilterUrl();drawChips();const id=new URLSearchParams(location.search).get('c');if(id&&convs.find(c=>c.id===id))openConv(id,false);else{sel=null;document.body.classList.remove('showthread');drawList()}};
 </script>
