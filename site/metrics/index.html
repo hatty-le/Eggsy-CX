@@ -74,6 +74,8 @@ tr.g td{font-weight:700;background:#fffcf3;cursor:pointer}tr.s td:first-child{pa
  <div class="kpis" id="kpis"></div>
  <section class="card sec"><h2>Overview: bots vs people</h2><p class="sub" id="rsub">Who resolved each conversation that was marked Resolved in this date range.</p><div id="rkpis" class="rkpis"></div><div class="tw" id="rtable"></div>
   <div class="rleg" id="rleg"></div></section>
+ <section class="card sec"><h2>Replies sent through Eggsy vs native platforms</h2><p class="sub" id="psub">Where our team's replies were sent from.</p><div id="pkpis" class="rkpis"></div><div class="tw" id="ptable"></div>
+  <div class="rleg" id="pleg"></div></section>
  <section class="card sec"><h2>First response time</h2><p class="sub" id="frsub"></p><div class="chart" id="frchart"></div>
   <div class="legend"><span><i style="background:#1d1b26"></i>Average</span><span><i style="background:#e0a100"></i>Median</span><span><i style="background:none;border:2px dashed #b3261e;height:0;border-radius:0"></i>15 Oct baseline (11h average)</span></div></section>
  <section class="card sec"><h2>Volumes</h2><p class="sub">New customer conversations, customer messages received and replies sent.</p><div class="chart" id="volchart"></div>
@@ -132,9 +134,9 @@ let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>
 async function load(){
  let f=$('from').value,t=$('to').value;if(!f||!t)return;if(f>t){[f,t]=[t,f];$('from').value=f;$('to').value=t}
  $('kpis').innerHTML='<div class="card kpi"><div class="l">Loading…</div></div>';
- const [{data:d,error},{data:ad,error:ae},{data:rd,error:re}]=await Promise.all([sb.rpc('cx_metrics',{p_from:f,p_to:t}),sb.rpc('cx_action_metrics',{p_from:f,p_to:t}),sb.rpc('cx_resolution_split',{p_from:f,p_to:t})]);
+ const [{data:d,error},{data:ad,error:ae},{data:rd,error:re},{data:pd,error:pe}]=await Promise.all([sb.rpc('cx_metrics',{p_from:f,p_to:t}),sb.rpc('cx_action_metrics',{p_from:f,p_to:t}),sb.rpc('cx_resolution_split',{p_from:f,p_to:t}),sb.rpc('cx_reply_route_split',{p_from:f,p_to:t})]);
  if(error){$('kpis').innerHTML='';$('kpis').append(el('div','card kpi bad','Could not load metrics: '+error.message));return}
- data=d;data.actions=ae?null:ad;if(ae)data.actions_error=ae.message;data.res=re?null:rd;if(re)data.res_error=re.message;draw();
+ data=d;data.actions=ae?null:ad;if(ae)data.actions_error=ae.message;data.res=re?null:rd;if(re)data.res_error=re.message;data.route=pe?null:pd;if(pe)data.route_error=pe.message;draw();
 }
 function kpi(l,v,s,c){const k=el('div','card kpi');k.append(el('div','l',l));const vv=el('div','v',v);k.append(vv);const ss=el('div','s'+(c?' '+c:''),s);k.append(ss);return k}
 function draw(){const d=data,S=d.summary||{};const vb=vsBase(S.avg_h);
@@ -145,7 +147,7 @@ function draw(){const d=data,S=d.summary||{};const vb=vsBase(S.avg_h);
  const U=d.unanswered||{};K.append(kpi('Unanswered now',String(U.total||0),(U.over_24h||0)+' waiting more than 24h',U.over_24h?'bad':''));
  const by=$('by').value,rows=by==='week'?d.by_week:d.by_day,key=by==='week'?'uk_week':'uk_day';
  $('frsub').textContent=(by==='week'?'Weekly (weeks start Monday)':'Daily')+' average and median, '+fmtD(d.from)+' – '+fmtD(d.to)+'. Gaps mean no new customer conversations that '+by+'.';
- lineChart($('frchart'),rows,key,by);barChart($('volchart'),rows,key,by);volTable(rows,key,by);chTable(d.by_channel||[]);uList(U.items||[]);notes(d);actMetrics(d);resSplit(d);
+ lineChart($('frchart'),rows,key,by);barChart($('volchart'),rows,key,by);volTable(rows,key,by);chTable(d.by_channel||[]);uList(U.items||[]);notes(d);actMetrics(d);resSplit(d);routeSplit(d);
 }
 function actMetrics(d){
  const K=$('actkpis'),T=$('acttable');if(!K||!T)return;K.innerHTML='';T.innerHTML='';
@@ -204,7 +206,7 @@ function chTable(list){const box=$('chtable');box.innerHTML='';if(!list.length){
  t.append(b);box.append(t)}
 const RCAT=[['bot','Bot only','#e0a100','Answered only by a chatbot or auto-reply'],['bot_then_human','Bot, then a person','#f2cf6b','A bot replied first, a person finished it'],['ai_drafted','AI draft, person sent','#7fb8e6','A person sent an AI-drafted reply from Eggsy CX'],['human','People only','#1d1b26','Every reply was written by a person'],['no_reply','Closed, no reply','#d8d2c2','Resolved without a reply (e.g. customer said thanks)']];
 let openRes={};
-function pct(n,d){return d?Math.round(100*n/d)+'%':'–'}
+function pct(n,d){if(!d)return '–';const p=100*n/d;return n&&p<1?'<1%':Math.round(p)+'%'}
 function sbar(r){const b=el('div','sbar');RCAT.forEach(([k,,c])=>{if(r[k]){const s=el('span');s.style.width=(100*r[k]/r.resolved)+'%';s.style.background=c;s.title=k;b.append(s)}});return b}
 function resSplit(d){const K=$('rkpis'),box=$('rtable'),L=$('rleg');K.innerHTML='';box.innerHTML='';L.innerHTML='';
  if(!d.res){box.append(el('div','empty','Could not load: '+(d.res_error||'unknown error')));return}
@@ -228,6 +230,27 @@ function resSplit(d){const K=$('rkpis'),box=$('rtable'),L=$('rleg');K.innerHTML=
   t.append(b);box.append(t)}
  RCAT.forEach(([,l,c,h])=>{const s=el('span');const i=el('i');i.style.background=c;s.append(i,document.createTextNode(l));s.title=h;L.append(s)});
 }
+const PCAT=[['eggsy','Sent through Eggsy CX','#FFC83D','Queued or sent from the Eggsy CX reply box'],['native','Sent on the native platform','#1d1b26','Typed straight into Seller Central, TikTok, Walmart, Meta, Gmail or eDesk']];
+const openRoute={};
+function pbar(r){const b=el('div','sbar');PCAT.forEach(([k,,c])=>{if(r[k]){const s=el('span');s.style.width=(100*r[k]/r.replies)+'%';s.style.background=c;b.append(s)}});return b}
+function routeSplit(d){const K=$('pkpis'),box=$('ptable'),L=$('pleg');K.innerHTML='';box.innerHTML='';L.innerHTML='';
+ if(!d.route){box.append(el('div','empty','Could not load: '+(d.route_error||'unknown error')));return}
+ const T=d.route.total||{},n=T.replies||0;
+ $('psub').textContent=n+' repl'+(n===1?'y':'ies')+' written by our team between '+fmtD(d.from)+' and '+fmtD(d.to)+', split by where they were sent from. Bot and auto-replies are left out.';
+ const k=(l,c,v,s2)=>{const x=el('div','rk');const lab=el('div','l');if(c){const i=el('i');i.style.background=c;lab.append(i)}lab.append(document.createTextNode(l));x.append(lab,el('div','v',v),el('div','s',s2));return x};
+ K.append(k('Through Eggsy CX','#FFC83D',pct(T.eggsy||0,n),(T.eggsy||0)+' of '+n+' replies'));
+ K.append(k('On native platforms','#1d1b26',pct(T.native||0,n),(T.native||0)+' of '+n+' replies'));
+ const rows=d.route.rows||[];if(!rows.length){box.append(el('div','empty','No team replies in this range.'))}
+ else{const t=el('table');t.innerHTML='<thead><tr><th>Channel</th><th class="n">Replies</th><th>Split</th>'+PCAT.map(c=>'<th class="n">'+c[1]+'</th>').join('')+'</tr></thead>';
+  const b=el('tbody');const tot=rows.filter(r=>r.is_total).sort((a,c)=>ORDER.indexOf(a.grp)-ORDER.indexOf(c.grp));
+  const row=(r,cls,name)=>{const tr=el('tr',cls);tr.append(el('td','',name),el('td','n',String(r.replies)));const sb_=el('td');sb_.append(pbar(r));tr.append(sb_);
+   PCAT.forEach(([key])=>tr.append(el('td','n',r[key]?r[key]+' ('+pct(r[key],r.replies)+')':'–')));return tr};
+  tot.forEach(g=>{const subs=rows.filter(r=>!r.is_total&&r.grp===g.grp).sort((a,c)=>c.replies-a.replies);const multi=subs.length>1;
+   const tr=row(g,'g',(multi?(openRoute[g.grp]?'▾ ':'▸ '):'')+(GROUPS[g.grp]||g.grp));if(multi)tr.onclick=()=>{openRoute[g.grp]=!openRoute[g.grp];routeSplit(d)};else tr.style.cursor='default';b.append(tr);
+   if(multi&&openRoute[g.grp])subs.forEach(s2=>b.append(row(s2,'s',SUBL[s2.origin]||s2.origin)))});
+  const ft=row(Object.assign({},T),'g','All channels');ft.style.cursor='default';b.append(ft);t.append(b);box.append(t)}
+ PCAT.forEach(([,l,c,h])=>{const s2=el('span');const i=el('i');i.style.background=c;s2.append(i,document.createTextNode(l));s2.title=h;L.append(s2)});
+}
 let showAllU=false;
 function uList(items){const box=$('ulist');box.innerHTML='';if(!items.length){box.append(el('div','empty','Nothing unanswered. 🎉'));return}
  const t=el('table','ul');t.innerHTML='<thead><tr><th>Customer</th><th>Channel</th><th>Status</th><th>Last customer message</th><th class="n">Waiting</th></tr></thead>';const b=el('tbody');
@@ -243,6 +266,7 @@ function notes(d){const box=$('notes');box.innerHTML='';const ul=el('ul');
  add('Approximate times:','Some messages were recorded from a summary rather than the original (marked "time approximate"): '+cov.filter(c=>c.approx_time_messages).map(c=>(SUBL[c.origin]&&c.grp!=='email'?(GROUPS[c.grp]+' '+SUBL[c.origin]):GROUPS[c.grp])+' '+c.approx_time_messages+' of '+c.messages).join(', ')+'. Amazon UK and US rely on these most, so treat their times as rough.');
  add('History start:','Stored history starts at different dates: '+cov.map(c=>(SUBL[c.origin]&&c.grp!=='email'?(GROUPS[c.grp]+' '+SUBL[c.origin]):GROUPS[c.grp])+' from '+new Date(c.earliest).toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'Europe/London'})).join(', ')+'. TikTok chat times are to the minute only.');
  add('Replies outside the history:','A reply only counts if it is in the stored history. Conversations with no stored reply are left out of the averages and shown as unanswered if still open.');
+ add('Eggsy vs native:','A team reply counts as sent through Eggsy CX when it was queued from the Eggsy CX reply box (by you, or approved in chat). Everything else our team wrote was sent on the platform itself. Sending from Eggsy CX only went live on 5 Nov, so earlier dates are all native.');
  add('Bots vs people:','A reply counts as a bot when its author is a chatbot, auto-reply, greeting or automatic notice (for example TikTok\'s chatbot or Amazon\'s AI auto-reply). Every other reply counts as a person, including replies stored as "Lucky Egg (via Amazon)" or "via Walmart", so any auto-replies sent by eDesk under those names are counted as people. "AI draft, person sent" only counts replies sent from Eggsy CX, so it starts from 5 Nov. Resolution dates before 3 Nov are approximate (the last time the conversation changed).');
  add('Clock hours:','Times are plain clock hours, including nights and weekends. The 11h baseline is the 15 Oct average first response.');
  box.append(ul)}
