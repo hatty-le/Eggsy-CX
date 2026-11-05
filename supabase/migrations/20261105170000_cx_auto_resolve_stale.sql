@@ -1,0 +1,6 @@
+-- Applied via MCP on 5 Nov 2026 (migrations cx_auto_resolve_stale + link_platform_posted_replies):
+-- * cx_conversation_state: a Resolved ticket returns to the Inbox when the customer writes after it was resolved; view is security_invoker.
+-- * cx_auto_resolve_stale(7): daily at 06:13 UTC (cron 'cx-auto-resolve'), Waiting tickets with no customer reply for 7 days after our
+--   last message are marked Resolved, with an Eggsy log note. Skips flagged tickets, EGGSYTEST tickets, queued replies and returns still expected.
+-- * cx_link_posted_reply trigger: links Grok's posted seller-centre message to the queued reply so it is counted once.
+-- Change the wait: select cron.alter_job((select jobid from cron.job where jobname='cx-auto-resolve'), command := 'select public.cx_auto_resolve_stale(10)');
