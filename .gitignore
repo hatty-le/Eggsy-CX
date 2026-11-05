@@ -1,0 +1,17 @@
+# secrets and env
+.env
+.env.*
+!.env.example
+secrets/
+**/secrets/
+
+# deps and deploy leftovers
+node_modules/
+.vercel/
+.output/
+dist/
+build/
+
+# junk
+.DS_Store
+*.log

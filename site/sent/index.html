@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sent log · Eggsy CX</title>
+<style>
+:root{--yolk:#FFC83D;--ink:#1d1b26;--muted:#6b6878;--bg:#FFF9EC;--card:#fff;--line:#eadfc4}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+a{color:inherit}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;gap:12px}
+.ptitle{margin:0;font-size:22px}
+.btn{background:var(--ink);color:#fff;border:0;border-radius:999px;padding:10px 18px;font-weight:600;text-decoration:none;cursor:pointer;font-size:14px;display:inline-block}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.small{padding:6px 12px;font-size:13px}
+.card{background:var(--card);border-radius:18px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+#auth{max-width:420px;margin:60px auto;padding:28px;text-align:center}
+#auth h1{margin:0 0 8px}#auth p{color:var(--muted)}
+input,select{font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#fff;width:100%}
+#auth input{margin:10px 0}
+.msg{font-size:14px;color:var(--muted);min-height:20px}
+#app{display:none;max-width:1280px;margin:0 auto;padding:0 24px 24px}
+.intro{color:var(--muted);font-size:14px;margin:0 0 12px}
+.filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:8px;margin-bottom:12px;align-items:end}
+.filters label{font-size:12px;color:var(--muted);display:block}
+.filters label input,.filters label select{margin-top:3px}
+.count{font-size:13px;color:var(--muted);margin:0 0 8px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:12px;border-bottom:1px solid #f3ecd9;vertical-align:top}
+tr:last-child td{border-bottom:0}
+.when{white-space:nowrap}.when small{display:block;color:var(--muted);font-size:12px}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:#f2ecdc;white-space:nowrap}
+.r-queued{background:#dcecff}.r-chat{background:#FFE8A6}.r-email{background:#dff5e3}
+.cust b{display:block}.cust span{color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}
+.body{white-space:pre-wrap;word-wrap:break-word;line-height:1.4;max-width:520px}
+.body.clip{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.more{background:none;border:0;padding:4px 0 0;color:#7a5a00;font:inherit;font-size:13px;font-weight:600;cursor:pointer;text-decoration:underline}
+.none{color:var(--muted);font-size:13px}
+.empty{color:var(--muted);text-align:center;padding:48px 20px;line-height:1.5}
+.empty b{color:var(--ink);display:block;font-size:17px;margin-bottom:6px}
+@media (max-width:1100px){.filters{grid-template-columns:1fr 1fr 1fr}.filters .q{grid-column:1/-1}}
+@media (max-width:760px){
+ header{padding:10px 14px}.ptitle{font-size:19px}#app{padding:0 12px 12px}
+ .filters{grid-template-columns:1fr 1fr}
+ .filters input,.filters select{font-size:16px}
+ thead{display:none}
+ table,tbody,tr,td{display:block;width:100%}
+ tr{padding:12px 14px;border-bottom:1px solid var(--line)}
+ td{border:0;padding:3px 0}
+ td[data-k]:before{content:attr(data-k);display:block;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+ .body{max-width:none}
+}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<header><h1 class="ptitle">Sent log</h1><a class="btn ghost small" href="/inbox/">← Back to inbox</a></header>
+
+<section id="auth" class="card">
+ <h1>Sent log</h1>
+ <p>Log in with your <b>@luckyegg.co</b> Google account.</p>
+ <div id="gsign" style="margin:16px 0 6px"></div>
+ <p class="msg" id="amsg" role="status"></p>
+</section>
+
+<main id="app">
+ <p class="intro">Every customer reply Eggsy has sent, newest first, whether you queued it in the inbox, approved it in chat, or approved an email card. Times are UK time (Europe/London).</p>
+ <div class="filters">
+  <label class="q">Search<input id="q" type="search" placeholder="Customer, order, reply text…"></label>
+  <label>Channel<select id="ch"><option value="">All channels</option></select></label>
+  <label>Route<select id="rt"><option value="">All routes</option><option value="queued in Eggsy CX">Queued in Eggsy CX</option><option value="approved in chat">Approved in chat</option><option value="email card">Email card</option></select></label>
+  <label>From (UK date)<input id="from" type="date"></label>
+  <label>To (UK date)<input id="to" type="date"></label>
+  <button class="btn ghost" id="clear" type="button">Clear</button>
+ </div>
+ <p class="count" id="count"></p>
+ <div class="card" id="list"><div class="empty">Loading…</div></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://xodkbmtylftfmnxfnxxf.supabase.co';
+const SUPABASE_KEY='sb_publishable_gX9OKDCT6Opnt8OcsFRmiQ_xaM0O8ti'; // public publishable key: safe in the browser, data is protected by RLS
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,detectSessionInUrl:false,flowType:'pkce'}});
+const ROUTE_CLASS={'queued in Eggsy CX':'r-queued','approved in chat':'r-chat','email card':'r-email'};
+const ROUTE_LABEL={'queued in Eggsy CX':'Queued in Eggsy CX','approved in chat':'Approved in chat','email card':'Email card'};
+const $=id=>document.getElementById(id);
+const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
+const okEmail=EggsyAuth.okEmail;
+const ukDay=d=>new Date(d).toLocaleDateString('en-CA',{timeZone:'Europe/London'}); // YYYY-MM-DD in UK time
+const ukWhen=d=>{const x=new Date(d);
+ const date=x.toLocaleDateString('en-GB',{timeZone:'Europe/London',weekday:'short',day:'numeric',month:'short',year:'numeric'});
+ const time=x.toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'});
+ const tz=(x.toLocaleTimeString('en-GB',{timeZone:'Europe/London',timeZoneName:'short'}).split(' ').pop())||'UK';
+ return {date,time:time+' '+tz+' (UK time)'}};
+let rows=[];
+
+const setMsg=(t,bad)=>{$('amsg').textContent=t;$('amsg').style.color=bad?'#b3261e':''};
+EggsyAuth.button($('gsign'),sb,setMsg);
+
+sb.auth.onAuthStateChange((_e,session)=>render(session));
+EggsyAuth.handleRedirect(sb,setMsg).then(()=>sb.auth.getSession()).then(({data})=>render(data.session));
+let started=false;
+function render(session){
+ const email=session&&session.user&&session.user.email;
+ if(!email){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;return}
+ if(!okEmail(email)){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;EggsyAuth.reject(sb,email,setMsg);return}
+ EggsyNav.setUser(email,()=>sb.auth.signOut(),sb);
+ EggsyNav.takeReturn();
+ $('auth').style.display='none';$('app').style.display='block';
+ if(!started){started=true;load()}
+}
+async function load(){
+ const {data,error}=await sb.from('sent_log')
+  .select('id,sent_at,conversation_id,origin,shop,customer_name,customer_handle,order_number,channel,body,route,approved_by,sent_by,external_id,delivery_failed_at,failure_reason')
+  .order('sent_at',{ascending:false}).limit(5000);
+ if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load the sent log: '+error.message));return}
+ rows=data||[];
+ const chs=[...new Set(rows.map(r=>r.channel||'Unknown'))].sort();const sel=$('ch');
+ chs.forEach(c=>{const o=el('option',null,c);o.value=c;sel.append(o)});
+ draw();
+}
+function visible(){const q=$('q').value.trim().toLowerCase(),ch=$('ch').value,rt=$('rt').value,f=$('from').value,t=$('to').value;
+ return rows.filter(r=>{const d=ukDay(r.sent_at);
+  return (!ch||(r.channel||'Unknown')===ch)&&(!rt||r.route===rt)&&(!f||d>=f)&&(!t||d<=t)&&
+   (!q||[r.customer_name,r.customer_handle,r.order_number,r.shop,r.channel,r.body,r.approved_by].join(' ').toLowerCase().includes(q))})}
+function draw(){const box=$('list');box.innerHTML='';
+ if(!rows.length){$('count').textContent='';
+  const e=el('div','empty');e.append(el('b',null,'Nothing sent yet'),document.createTextNode('Entries appear here as soon as Eggsy sends a customer reply: one you queued in the inbox, approved in chat, or approved as an email card. Each entry shows when it went out (UK time) and links to its conversation.'));box.append(e);return}
+ const v=visible();
+ $('count').textContent=v.length===rows.length?(rows.length+(rows.length===1?' reply sent':' replies sent')):(v.length+' of '+rows.length+' replies match');
+ if(!v.length){box.append(el('div','empty','No sent replies match these filters.'));return}
+ const tb=el('table');const th=el('thead');const hr=el('tr');
+ ['Sent (UK time)','Channel / shop','Customer','Order','Reply','Route','Conversation'].forEach(h=>hr.append(el('th',null,h)));th.append(hr);tb.append(th);
+ const body=el('tbody');
+ v.forEach(r=>{const tr=el('tr');
+  const w=ukWhen(r.sent_at);const c1=el('td','when');c1.dataset.k='Sent';c1.append(document.createTextNode(w.date),el('small',null,w.time));
+  const c2=el('td');c2.dataset.k='Channel / shop';c2.append(el('span','tag',r.channel||'Unknown'));if(r.shop&&r.shop!==r.channel){c2.append(el('div','none',r.shop))}
+  const c3=el('td','cust');c3.dataset.k='Customer';c3.append(el('b',null,r.customer_name||r.customer_handle||'Unknown'));if(r.customer_handle&&r.customer_handle!==r.customer_name)c3.append(el('span',null,r.customer_handle));
+  const c4=el('td');c4.dataset.k='Order';c4.textContent=r.order_number||'–';
+  const c5=el('td');c5.dataset.k='Reply';const b=el('div','body clip',r.body||'');c5.append(b);
+  if((r.body||'').length>160||(r.body||'').split('\n').length>3){const m=el('button','more','Show full reply');m.type='button';
+   m.onclick=()=>{const open=b.classList.toggle('clip');m.textContent=open?'Show full reply':'Show less'};c5.append(m)}
+  const c6=el('td');c6.dataset.k='Route';c6.append(el('span','tag '+(ROUTE_CLASS[r.route]||''),ROUTE_LABEL[r.route]||r.route));
+  if(r.approved_by)c6.append(el('div','none','Approved by '+r.approved_by));
+  if((r.external_id||'').startsWith('gmail:')&&r.route==='queued in Eggsy CX'&&!r.delivery_failed_at)c6.append(el('div','none','Sent by email from hey@'));
+  if(r.delivery_failed_at){const x=el('span','tag','Not delivered');x.style.cssText='background:#ffe1e1;color:#8a1c14;margin-top:4px';x.title=r.failure_reason||'';c6.append(el('div'),x)}
+  const c7=el('td');c7.dataset.k='Conversation';
+  if(r.conversation_id){const a=el('a','btn ghost small','Open conversation →');a.href='/inbox/?c='+encodeURIComponent(r.conversation_id);c7.append(a)}
+  else c7.append(el('span','none','No linked conversation'));
+  tr.append(c1,c2,c3,c4,c5,c6,c7);body.append(tr)});
+ tb.append(body);box.append(tb);
+}
+['q','ch','rt','from','to'].forEach(id=>{$(id).addEventListener('input',()=>rows.length&&draw());$(id).addEventListener('change',()=>rows.length&&draw())});
+$('clear').onclick=()=>{['q','ch','rt','from','to'].forEach(id=>$(id).value='');if(rows.length)draw()};
+</script>
+</body>
+</html>
