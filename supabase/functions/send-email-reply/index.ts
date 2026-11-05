@@ -55,11 +55,16 @@ async function findBuyerEmail(conv: any, ch: any, r: any) {
   const test = order.startsWith(TEST_PREFIX);
   if (!test && !ch.relay_domain) {
     // Plain email channels (e.g. Shopify form, when switched on): reply on the stored Gmail thread to the stored address.
-    if (!r.to_address || !r.reply_to_message_id) return { why: "no customer email address or original email is stored for this conversation" };
-    const m = await gm("messages/" + String(r.reply_to_message_id).replace(/^gmail:/, "") + "?format=metadata&metadataHeaders=Subject&metadataHeaders=Message-ID&metadataHeaders=References");
-    const mid = hdr(m, "Message-ID");
-    if (!mid) return { why: "the original email could not be found in hey@" };
-    return { to: String(r.to_address).toLowerCase(), subject: hdr(m, "Subject"), messageIdHdr: mid, references: hdr(m, "References"), threadId: m.threadId };
+    const to = String(r.to_address || conv.customer_handle || "").trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(to)) return { why: "no customer email address is stored for this conversation" };
+    const META = "?format=metadata&metadataHeaders=Subject&metadataHeaders=Message-ID&metadataHeaders=References";
+    let m: any = null;
+    // 1) the stored email; 2) if that id isn't in hey@ (older Grok imports), the customer's latest email in hey@;
+    // 3) if there's none (deleted), a fresh email to the customer.
+    if (r.reply_to_message_id) { try { m = await gm("messages/" + String(r.reply_to_message_id).replace(/^gmail:/, "") + META); } catch (e) { if (![400, 404].includes((e as any).status)) throw e; } }
+    if (!m) { const l = await gm("messages?" + new URLSearchParams({ q: 'from:"' + to + '" newer_than:180d', maxResults: "1" })); if (l.messages?.[0]) m = await gm("messages/" + l.messages[0].id + META); }
+    if (m && hdr(m, "Message-ID")) return { to, subject: hdr(m, "Subject"), messageIdHdr: hdr(m, "Message-ID"), references: hdr(m, "References"), threadId: m.threadId };
+    return { to, subject: conv.subject || "Your message to Lucky Egg", messageIdHdr: "", references: "", threadId: undefined };
   }
   if (!order) return { why: "no order number is stored on this conversation" };
   const q = (test ? "from:" + FROM : "from:" + ch.relay_domain) + ' "' + order.replace(/"/g, "") + '"';
@@ -92,8 +97,7 @@ function buildRaw(to: string, subject: string, inReplyTo: string, refs: string, 
   const text = body.replace(/\r?\n/g, "\r\n");
   const bodyB64 = b64(enc.encode(text)).replace(/.{1,76}/g, "$&\r\n");
   const references = clean([refs, inReplyTo].filter(Boolean).join(" ")).split(/\s+/).slice(-20).join(" ");
-  const mime = ["From: Lucky Egg <" + FROM + ">", "To: " + clean(to), "Subject: " + encWord(clean(subject)), "In-Reply-To: " + clean(inReplyTo),
-    "References: " + references, "MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64", "", bodyB64].join("\r\n");
+  const mime = ["From: Lucky Egg <" + FROM + ">", "To: " + clean(to), "Subject: " + encWord(clean(subject)), ...(inReplyTo ? ["In-Reply-To: " + clean(inReplyTo), "References: " + references] : []), "MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64", "", bodyB64].join("\r\n");
   return b64(enc.encode(mime)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
@@ -103,7 +107,7 @@ async function sendOne(id: string) {
   if (!r || r.status !== "queued") return { id, result: "skipped (not queued)" };
   const { data: ch } = await SB.from("email_send_channels").select("*").eq("origin", r.origin).maybeSingle();
   if (!ch?.enabled) return { id, result: "skipped (channel not on)" };
-  const { data: conv } = await SB.from("conversations").select("id,origin,order_number,customer_handle").eq("id", r.conversation_id).single();
+  const { data: conv } = await SB.from("conversations").select("id,origin,order_number,customer_handle,subject").eq("id", r.conversation_id).single();
   const test = (conv.order_number || "").startsWith(TEST_PREFIX);
 
   const problem = contentProblem(r.body || "", conv.origin);

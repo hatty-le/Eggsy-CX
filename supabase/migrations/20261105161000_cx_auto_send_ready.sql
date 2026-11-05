@@ -1,0 +1,4 @@
+-- Auto-send Ready drafts (applied via MCP as cx_auto_send_ready and cx_reply_route_split_auto on 5 Nov 2026).
+-- See the applied migration for the full definitions: cx_settings, reply_queue.auto_sent, cx_auto_send_ready(),
+-- triggers on suggested_drafts and cx_actions, cx_metric_resolution 'ai_auto', cx_resolution_split and cx_reply_route_split 'auto'.
+-- Turn auto-send off: update public.cx_settings set value = 'false' where key = 'auto_send_ready';

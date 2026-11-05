@@ -204,7 +204,7 @@ function chTable(list){const box=$('chtable');box.innerHTML='';if(!list.length){
   const tr=row(g,'g',(multi?(openGrp[g.grp]?'▾ ':'▸ '):'')+(GROUPS[g.grp]||g.grp));if(multi)tr.onclick=()=>{openGrp[g.grp]=!openGrp[g.grp];chTable(list)};else tr.style.cursor='default';b.append(tr);
   if(multi&&openGrp[g.grp])subs.forEach(s=>b.append(row(s,'s',SUBL[s.origin]||s.origin)))});
  t.append(b);box.append(t)}
-const RCAT=[['bot','Bot only','#e0a100','Answered only by a chatbot or auto-reply'],['bot_then_human','Bot, then a person','#f2cf6b','A bot replied first, a person finished it'],['ai_drafted','AI draft, person sent','#7fb8e6','A person sent an AI-drafted reply from Eggsy CX'],['human','People only','#1d1b26','Every reply was written by a person'],['no_reply','Closed, no reply','#d8d2c2','Resolved without a reply (e.g. customer said thanks)']];
+const RCAT=[['ai_auto','AI sent automatically','#2f9e6b','Eggsy wrote the reply and sent it with no one checking'],['bot','Bot only','#e0a100','Answered only by a chatbot or auto-reply'],['bot_then_human','Bot, then a person','#f2cf6b','A bot replied first, a person finished it'],['ai_drafted','AI draft, person sent','#7fb8e6','A person sent an AI-drafted reply from Eggsy CX'],['human','People only','#1d1b26','Every reply was written by a person'],['no_reply','Closed, no reply','#d8d2c2','Resolved without a reply (e.g. customer said thanks)']];
 let openRes={};
 function pct(n,d){if(!d)return '–';const p=100*n/d;return n&&p<1?'<1%':Math.round(p)+'%'}
 function sbar(r){const b=el('div','sbar');RCAT.forEach(([k,,c])=>{if(r[k]){const s=el('span');s.style.width=(100*r[k]/r.resolved)+'%';s.style.background=c;s.title=k;b.append(s)}});return b}
@@ -212,9 +212,9 @@ function resSplit(d){const K=$('rkpis'),box=$('rtable'),L=$('rleg');K.innerHTML=
  if(!d.res){box.append(el('div','empty','Could not load: '+(d.res_error||'unknown error')));return}
  const T=d.res.total||{},n=T.resolved||0;
  $('rsub').textContent='Who resolved the '+n+' conversation'+(n===1?'':'s')+' marked Resolved between '+fmtD(d.from)+' and '+fmtD(d.to)+'.';
- const auto=(T.bot||0)+(T.bot_then_human||0)+(T.ai_drafted||0);
+ const auto=(T.ai_auto||0)+(T.bot||0)+(T.bot_then_human||0)+(T.ai_drafted||0);const noPerson=(T.ai_auto||0)+(T.bot||0);
  const k=(l,c,v,s)=>{const x=el('div','rk');const lab=el('div','l');if(c){const i=el('i');i.style.background=c;lab.append(i)}lab.append(document.createTextNode(l));x.append(lab,el('div','v',v),el('div','s',s));return x};
- K.append(k('Resolved by bots alone','#e0a100',pct(T.bot||0,n),(T.bot||0)+' of '+n+' conversations'));
+ K.append(k('Resolved with no person','#2f9e6b',pct(noPerson,n),(T.ai_auto||0)+' sent automatically by Eggsy, '+(T.bot||0)+' by platform bots'));
  K.append(k('Bot or AI involved',null,pct(auto,n),auto+' had a bot reply or an AI draft'));
  K.append(k('AI draft, person sent','#7fb8e6',pct(T.ai_drafted||0,n),(T.ai_drafted||0)+' sent from Eggsy CX'));
  K.append(k('People only','#1d1b26',pct(T.human||0,n),(T.human||0)+' with no bot or AI help'));
@@ -239,6 +239,7 @@ function routeSplit(d){const K=$('pkpis'),box=$('ptable'),L=$('pleg');K.innerHTM
  $('psub').textContent=n+' repl'+(n===1?'y':'ies')+' written by our team between '+fmtD(d.from)+' and '+fmtD(d.to)+', split by where they were sent from. Bot and auto-replies are left out.';
  const k=(l,c,v,s2)=>{const x=el('div','rk');const lab=el('div','l');if(c){const i=el('i');i.style.background=c;lab.append(i)}lab.append(document.createTextNode(l));x.append(lab,el('div','v',v),el('div','s',s2));return x};
  K.append(k('Through Eggsy CX','#FFC83D',pct(T.eggsy||0,n),(T.eggsy||0)+' of '+n+' replies'));
+ K.append(k('Sent automatically','#2f9e6b',pct(T.auto||0,n),(T.auto||0)+' sent by Eggsy with no one checking'));
  K.append(k('On native platforms','#1d1b26',pct(T.native||0,n),(T.native||0)+' of '+n+' replies'));
  const rows=d.route.rows||[];if(!rows.length){box.append(el('div','empty','No team replies in this range.'))}
  else{const t=el('table');t.innerHTML='<thead><tr><th>Channel</th><th class="n">Replies</th><th>Split</th>'+PCAT.map(c=>'<th class="n">'+c[1]+'</th>').join('')+'</tr></thead>';
@@ -267,6 +268,7 @@ function notes(d){const box=$('notes');box.innerHTML='';const ul=el('ul');
  add('History start:','Stored history starts at different dates: '+cov.map(c=>(SUBL[c.origin]&&c.grp!=='email'?(GROUPS[c.grp]+' '+SUBL[c.origin]):GROUPS[c.grp])+' from '+new Date(c.earliest).toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'Europe/London'})).join(', ')+'. TikTok chat times are to the minute only.');
  add('Replies outside the history:','A reply only counts if it is in the stored history. Conversations with no stored reply are left out of the averages and shown as unanswered if still open.');
  add('Eggsy vs native:','A team reply counts as sent through Eggsy CX when it was queued from the Eggsy CX reply box (by you, or approved in chat). Everything else our team wrote was sent on the platform itself. Sending from Eggsy CX only went live on 5 Nov, so earlier dates are all native.');
+ add('Automatic replies:','Since 5 Nov, Eggsy sends drafts in Ready automatically. These count as "AI sent automatically" once the ticket is marked Resolved (until then the ticket is in Waiting and is not counted in Bots vs people). They count as "Sent automatically" in Eggsy vs native as soon as they go out.');
  add('Bots vs people:','A reply counts as a bot when its author is a chatbot, auto-reply, greeting or automatic notice (for example TikTok\'s chatbot or Amazon\'s AI auto-reply). Every other reply counts as a person, including replies stored as "Lucky Egg (via Amazon)" or "via Walmart", so any auto-replies sent by eDesk under those names are counted as people. "AI draft, person sent" only counts replies sent from Eggsy CX, so it starts from 5 Nov. Resolution dates before 3 Nov are approximate (the last time the conversation changed).');
  add('Clock hours:','Times are plain clock hours, including nights and weekends. The 11h baseline is the 15 Oct average first response.');
  box.append(ul)}
