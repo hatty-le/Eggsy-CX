@@ -500,7 +500,7 @@ function composer(c,sug){const w=el('div','composer');const ch=channel(c);
   if(!body||body===SIGNOFF.trim()){stm.textContent='Write a reply first.';stm.style.color='#b3261e';return}
   if(PH_RE.test(body)){phCheck();return}
   const need=actionGuardReason(body,reqc.checked);if(need){phCheck();return}
-  if(!confirm('Send this reply?\n\n'+ch.label+(to?' to '+to:'')+'\nShop: '+(c.shop||'–')+(ch.instant?'\n\nIt is sent exactly as written, straight away. Replies with links to our sites, review requests or marketing are held back for you to edit.':'\n\nEggsy posts it exactly as written at its next check (not instantly). You can cancel until then.')))return;
+  if(!confirm('Send this reply?\n\n'+ch.label+(to?' to '+to:'')+'\nShop: '+(c.shop||'–')+(ch.instant?'\n\nIt is sent exactly as written, straight away.'+(/^(amazon|tiktok|walmart)/.test(c.origin)?' Replies with links to our sites, review requests or marketing are held back for you to edit.':''):'\n\nEggsy posts it exactly as written at its next check (not instantly). You can cancel until then.')))return;
   go.disabled=true;stm.style.color='';stm.textContent='Sending to Eggsy…';
   const {error}=await sb.from('reply_queue').insert({conversation_id:c.id,body,requires_action:!!reqc.checked});
   if(error){go.disabled=false;stm.style.color='#b3261e';stm.textContent='Could not send: '+(/Fill in the \[ \]/.test(error.message)?PH_MSG:/promises a /.test(error.message)?error.message:error.message);phCheck();return}

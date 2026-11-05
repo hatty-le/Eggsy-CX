@@ -27,10 +27,14 @@ async function gm(path: string, body?: unknown, method?: string) {
 const hdr = (m: any, n: string) => (m?.payload?.headers || []).find((h: any) => h.name.toLowerCase() === n.toLowerCase())?.value || "";
 const addrOf = (v: string) => (v.match(/<([^>]+)>/)?.[1] || v).trim().toLowerCase();
 
-// ---- content rules (Amazon: no links to our own sites, no review requests, no marketing) ----
-function contentProblem(body: string): string | null {
+// ---- content rules ----
+// Every channel: no [ ] placeholders. Marketplaces only (Amazon, TikTok, Walmart): no links to our own sites, no review requests, no marketing.
+// Plain email to a customer (hey@ email, website form) may mention our website and hey@ address.
+const MARKETPLACE = /^(amazon|tiktok|walmart)/;
+function contentProblem(body: string, origin: string): string | null {
   const b = body.normalize("NFKC");
   if (/\[[^\]]*\]/.test(b)) return "it still contains [ ] placeholders that need filling in first";
+  if (!MARKETPLACE.test(origin || "")) return null;
   if (/lucky\s*egg\s*\.\s*(co|com|uk|de|shop|store|net)\b|luckyegg\.|luckyegg\s*\.\s*co/i.test(b)) return "it mentions a Lucky Egg website or email address, which Amazon does not allow in buyer messages";
   if (/https?:\/\/|www\./i.test(b) && /(luckyegg|myshopify|shopify|instagram|tiktok|facebook|wixsite)/i.test(b)) return "it contains a link to our own shop or social pages";
   const review = [
@@ -102,7 +106,7 @@ async function sendOne(id: string) {
   const { data: conv } = await SB.from("conversations").select("id,origin,order_number,customer_handle").eq("id", r.conversation_id).single();
   const test = (conv.order_number || "").startsWith(TEST_PREFIX);
 
-  const problem = contentProblem(r.body || "");
+  const problem = contentProblem(r.body || "", conv.origin);
   if (problem) {
     await SB.from("reply_queue").update({ status: "failed", email_attempted_at: new Date().toISOString(), send_error: "Not sent: " + problem + ". Edit and send again." }).eq("id", id).eq("status", "queued");
     return { id, result: "refused (content)" };
@@ -111,7 +115,7 @@ async function sendOne(id: string) {
   try { found = await findBuyerEmail(conv, ch, r); } catch (e) { return { id, result: "lookup error, will retry", err: String((e as Error).message) }; }
   if (!found.to) {
     // Leave it queued so Eggsy posts it in Seller Central at its next check.
-    await SB.from("reply_queue").update({ email_attempted_at: new Date().toISOString(), email_note: "Could not send by email: " + found.why + ". Eggsy will post it in Seller Central at its next check." }).eq("id", id).eq("status", "queued");
+    await SB.from("reply_queue").update({ email_attempted_at: new Date().toISOString(), email_note: "Could not send by email: " + found.why + (conv.origin.startsWith("amazon") ? ". Eggsy will post it in Seller Central at its next check." : ". Eggsy will send it at its next check.") }).eq("id", id).eq("status", "queued");
     return { id, result: "left for Seller Central" };
   }
   if (test && !TEST_TO.has(found.to)) return { id, result: "blocked (test must go to our own mailbox)" };
