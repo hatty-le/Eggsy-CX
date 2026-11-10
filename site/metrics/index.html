@@ -46,6 +46,8 @@ tr.g td{font-weight:700;background:#fffcf3;cursor:pointer}tr.s td:first-child{pa
 .rkpis.five .rk{padding:12px 10px}.rkpis.five .l{font-size:11.5px;line-height:1.3;align-items:flex-start}
 .rk .l i,.rleg i{display:inline-block;width:10px;height:10px;border-radius:3px;flex:none}
 #pnote:empty{display:none}
+.pathmode{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:2px 0 8px}
+.pathmode .hint{font-size:12.5px;color:var(--muted)}
 .sbar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:#f3ecd9;min-width:140px}.sbar span{display:block;height:100%}
 .rleg{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:8px 0 0}.rleg span{display:inline-flex;align-items:center;gap:5px}
 @media (max-width:1100px){.rkpis.five{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -79,7 +81,7 @@ tr.g td{font-weight:700;background:#fffcf3;cursor:pointer}tr.s td:first-child{pa
  <div class="kpis" id="kpis"></div>
  <section class="card sec"><h2>Overview: bots vs people</h2><p class="sub" id="rsub">Who resolved each conversation that was marked Resolved in this date range.</p><div id="rkpis" class="rkpis"></div><div class="tw" id="rtable"></div>
   <div class="rleg" id="rleg"></div></section>
- <section class="card sec"><h2>Replies sent through Eggsy vs native platforms</h2><p class="sub" id="psub">Who sent each reply: Hatty, Mich or Kim on Eggsy, Eggsy automatically, or on the native platform.</p><div id="pkpis" class="rkpis five"></div><p class="sub" id="pnote"></p><div class="tw" id="ptable"></div>
+ <section class="card sec"><h2>Replies sent through Eggsy vs native platforms</h2><p class="sub" id="psub">Who sent each reply: Hatty, Mich or Kim on Eggsy, Eggsy automatically, or on the native platform.</p><div id="pkpis" class="rkpis five"></div><div class="pathmode" id="pathmode"></div><div class="chart" id="pathchart"></div><p class="sub" id="pnote"></p><div class="tw" id="ptable"></div>
   <div class="rleg" id="pleg"></div></section>
  <section class="card sec"><h2>First response time</h2><p class="sub" id="frsub"></p><div class="chart" id="frchart"></div>
   <div class="legend"><span><i style="background:#1d1b26"></i>Average</span><span><i style="background:#e0a100"></i>Median</span><span><i style="background:none;border:2px dashed #b3261e;height:0;border-radius:0"></i>15 Oct baseline (11h average)</span></div></section>
@@ -139,9 +141,9 @@ let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>
 async function load(){
  let f=$('from').value,t=$('to').value;if(!f||!t)return;if(f>t){[f,t]=[t,f];$('from').value=f;$('to').value=t}
  $('kpis').innerHTML='<div class="card kpi"><div class="l">Loading…</div></div>';
- const [{data:d,error},{data:ad,error:ae},{data:rd,error:re},{data:pd,error:pe}]=await Promise.all([sb.rpc('cx_metrics',{p_from:f,p_to:t}),sb.rpc('cx_action_metrics',{p_from:f,p_to:t}),sb.rpc('cx_resolution_split',{p_from:f,p_to:t}),sb.rpc('cx_reply_route_split',{p_from:f,p_to:t})]);
+ const [{data:d,error},{data:ad,error:ae},{data:rd,error:re},{data:pd,error:pe},{data:dd,error:de}]=await Promise.all([sb.rpc('cx_metrics',{p_from:f,p_to:t}),sb.rpc('cx_action_metrics',{p_from:f,p_to:t}),sb.rpc('cx_resolution_split',{p_from:f,p_to:t}),sb.rpc('cx_reply_route_split',{p_from:f,p_to:t}),sb.rpc('cx_reply_route_split_daily',{p_from:f,p_to:t})]);
  if(error){$('kpis').innerHTML='';$('kpis').append(el('div','card kpi bad','Could not load metrics: '+error.message));return}
- data=d;data.actions=ae?null:ad;if(ae)data.actions_error=ae.message;data.res=re?null:rd;if(re)data.res_error=re.message;data.route=pe?null:pd;if(pe)data.route_error=pe.message;draw();
+ data=d;data.actions=ae?null:ad;if(ae)data.actions_error=ae.message;data.res=re?null:rd;if(re)data.res_error=re.message;data.route=pe?null:pd;if(pe)data.route_error=pe.message;data.routeDaily=de?null:dd;if(de)data.routeDaily_error=de.message;draw();
 }
 function kpi(l,v,s,c){const k=el('div','card kpi');k.append(el('div','l',l));const vv=el('div','v',v);k.append(vv);const ss=el('div','s'+(c?' '+c:''),s);k.append(ss);return k}
 function draw(){const d=data,S=d.summary||{};const vb=vsBase(S.avg_h);
@@ -238,9 +240,66 @@ function resSplit(d){const K=$('rkpis'),box=$('rtable'),L=$('rleg');K.innerHTML=
 // Five send paths from cx_reply_route_split (migration cx_reply_path_split). eggsy/other stay on the payload for older readers.
 const PATHS=[['hatty','Sent by Hatty on Eggsy','#FFC83D','Replies Hatty sent from the Eggsy CX reply box'],['mich','Sent by Mich on Eggsy','#5b8def','Replies Mich sent from the Eggsy CX reply box'],['kim','Sent by Kim on Eggsy','#b06cc7','Replies Kim sent from the Eggsy CX reply box'],['auto','Auto-sent by Eggsy','#2f9e6b','Ready drafts Eggsy sent with no one checking'],['native','Sent on the native platform','#1d1b26','Sent on Seller Central, TikTok, Walmart, Meta, Gmail or eDesk. Platform chatbot replies are included here and are not counted as people']];
 const openRoute={};
+let pathChartMode='count';
 function pathParts(r){const parts=PATHS.map(([k,,c])=>[k,c,r[k]||0]);if((r.other||0)>0)parts.push(['other','#d8d2c2',r.other]);return parts}
+function pathDayTip(d){
+  const n=d.replies||0;
+  const lines=[fmtD(d.uk_day)+(n?' · '+n+' repl'+(n===1?'y':'ies'):' · no replies')];
+  const series=PATHS.slice();
+  if((d.other||0)>0) series.push(['other','Other Eggsy sender']);
+  series.forEach(([k,label])=>{const v=d[k]||0;lines.push(label+': '+v+(n?' ('+pct(v,n)+')':''))});
+  if(d.native_chatbot) lines.push(d.native_chatbot+' of the native replies '+(d.native_chatbot===1?'is a platform chatbot':'are platform chatbots')+', not counted as people');
+  return lines.join('\n');
+}
+function drawPathMode(){
+  const host=$('pathmode');if(!host)return;host.innerHTML='';
+  host.append(el('span','hint','Each UK day'));
+  [['count','Counts'],['share','100% share']].forEach(([m,l])=>{
+    const b=el('button','chip'+(pathChartMode===m?' on':''),l);b.type='button';
+    b.onclick=()=>{pathChartMode=m;if(data)routeSplit(data)};
+    host.append(b);
+  });
+}
+function pathChart(box, days){
+  if(!box)return;box.innerHTML='';
+  if(!days){box.append(el('div','empty','Could not load the daily chart'+(data&&data.routeDaily_error?': '+data.routeDaily_error:'')+'.'));return}
+  if(!days.length){box.append(el('div','empty','No days in this range.'));return}
+  const share=pathChartMode==='share';
+  const series=PATHS.map(([k,label,c])=>[k,label,c]);
+  if(days.some(d=>(d.other||0)>0)) series.push(['other','Other Eggsy sender','#d8d2c2']);
+  const n=days.length,slot=Math.max(22,Math.min(46,Math.floor(((box.clientWidth||720)-48)/Math.max(n,1))));
+  const W=Math.max(box.clientWidth||560,n*slot+52),H=230,L=42,R=8,T=12,B=32;
+  const mx=share?1:Math.max(4,...days.map(d=>d.replies||0));
+  const ymax=share?1:Math.ceil(mx/4)*4;
+  const s=sv('svg',{viewBox:`0 0 ${W} ${H}`,width:W,height:H,role:'img','aria-label':'Replies by path for each UK day'});
+  const y=v=>T+(H-T-B)*(1-v/ymax);
+  (share?[0,0.5,1]:[0,ymax/4,ymax/2,ymax*3/4,ymax]).forEach(v=>{
+    s.append(sv('line',{x1:L,x2:W-R,y1:y(v),y2:y(v),stroke:'#f0e8d4'}));
+    const t=sv('text',{x:L-6,y:y(v)+4,'text-anchor':'end','font-size':11,fill:'#6b6878'});
+    t.textContent=share?Math.round(v*100)+'%':String(Math.round(v));s.append(t);
+  });
+  const cw=(W-L-R)/n,bw=Math.max(6,cw*0.72),step=Math.ceil(n/Math.max(2,Math.floor((W-L-R)/64)));
+  days.forEach((d,i)=>{
+    const x0=L+i*cw+(cw-bw)/2,total=d.replies||0;
+    let acc=0;
+    if(!total) s.append(sv('line',{x1:x0,x2:x0+bw,y1:y(0),y2:y(0),stroke:'#eadfc4','stroke-width':2}));
+    else series.forEach(([k,,c])=>{
+      const v=d[k]||0;if(!v)return;
+      const hgt=share?v/total:v;
+      const yTop=y(acc+hgt),yBot=y(acc);
+      const b=sv('rect',{x:x0,y:yTop,width:bw,height:Math.max(0.5,yBot-yTop),fill:c});
+      acc+=hgt;s.append(b);
+    });
+    const hit=sv('rect',{x:L+i*cw,y:T,width:cw,height:H-T-B,fill:'transparent'});
+    const tt=sv('title',{});tt.textContent=pathDayTip(d);hit.append(tt);s.append(hit);
+    if(!(i%step)){const t=sv('text',{x:L+i*cw+cw/2,y:H-10,'text-anchor':'middle','font-size':11,fill:'#6b6878'});t.textContent=fmtD(d.uk_day);s.append(t)}
+  });
+  box.append(s);
+}
 function pbar(r){const b=el('div','sbar');const den=r.replies||0;pathParts(r).forEach(([,c,n0])=>{if(!n0||!den)return;const s=el('span');s.style.width=(100*n0/den)+'%';s.style.background=c;s.title=n0;b.append(s)});return b}
 function routeSplit(d){const K=$('pkpis'),box=$('ptable'),L=$('pleg'),note=$('pnote');K.innerHTML='';box.innerHTML='';L.innerHTML='';if(note)note.textContent='';
+ drawPathMode();
+ pathChart($('pathchart'), d.routeDaily_error?null:((d.routeDaily&&d.routeDaily.days)||[]));
  if(!d.route){box.append(el('div','empty','Could not load: '+(d.route_error||'unknown error')));return}
  const T=d.route.total||{},n=T.replies||0;
  $('psub').textContent=n+' repl'+(n===1?'y':'ies')+' between '+fmtD(d.from)+' and '+fmtD(d.to)+'. Hatty, Mich and Kim sent theirs from Eggsy. Auto-sent is Eggsy itself. Native includes platform chatbots, which are not counted as people.';
