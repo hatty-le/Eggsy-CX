@@ -40,6 +40,12 @@ tr.g td{font-weight:700;background:#fffcf3;cursor:pointer}tr.s td:first-child{pa
 .ul a{text-decoration:none}.ul a:hover b{text-decoration:underline}
 .notes{font-size:13.5px;line-height:1.5;color:#3d3a48}.notes li{margin-bottom:6px}
 .empty{color:var(--muted);text-align:center;padding:30px 20px}
+.boss{padding:16px 18px;margin-bottom:14px}
+.bossrow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.boss h2{font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.bossmsg{font-size:22px;font-weight:750;line-height:1.35;margin:0}
+.boss .range{margin:10px 0 0;font-size:15px;line-height:1.4}
+.boss .def{margin:8px 0 0}
 .rkpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:4px 0 14px}
 .rkpis.five{grid-template-columns:repeat(5,minmax(0,1fr))}
 .rkpis.three{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -74,6 +80,12 @@ tr.g td{font-weight:700;background:#fffcf3;cursor:pointer}tr.s td:first-child{pa
 </section>
 
 <main id="app">
+ <section class="card boss" id="todaybox">
+  <div class="bossrow"><h2>Today</h2><button type="button" class="btn small" id="todaycopy">Copy</button></div>
+  <p class="bossmsg" id="todaymsg">Loading…</p>
+  <p class="range" id="rangemsg"></p>
+  <p class="sub def">Sent with bots is every reply from Eggsy, whether a person sent it or Eggsy did, plus platform chatbot replies. Fully automatic is Eggsy’s own auto-send plus those platform chatbots.</p>
+ </section>
  <p class="intro">First response time = clock hours from a customer's first message to the first real reply from Lucky Egg (any reply in the stored history, including ones sent outside Eggsy CX). Automatic, AI, chatbot and internal messages don't count; creator/affiliate chats, spam and other ignored conversations are left out. Conversations are dated by the customer's first message. All dates and times are UK time.</p>
  <div class="bar">
   <button class="chip" data-p="30">Last 30 days</button>
@@ -146,12 +158,47 @@ let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>
 async function load(){
  let f=$('from').value,t=$('to').value;if(!f||!t)return;if(f>t){[f,t]=[t,f];$('from').value=f;$('to').value=t}
  $('kpis').innerHTML='<div class="card kpi"><div class="l">Loading…</div></div>';
- const [{data:d,error},{data:ad,error:ae},{data:rd,error:re},{data:pd,error:pe},{data:dd,error:de},{data:rdd,error:rde}]=await Promise.all([sb.rpc('cx_metrics',{p_from:f,p_to:t}),sb.rpc('cx_action_metrics',{p_from:f,p_to:t}),sb.rpc('cx_resolution_split',{p_from:f,p_to:t}),sb.rpc('cx_reply_route_split',{p_from:f,p_to:t}),sb.rpc('cx_reply_route_split_daily',{p_from:f,p_to:t}),sb.rpc('cx_resolution_split_daily',{p_from:f,p_to:t})]);
- if(error){$('kpis').innerHTML='';$('kpis').append(el('div','card kpi bad','Could not load metrics: '+error.message));return}
- data=d;data.actions=ae?null:ad;if(ae)data.actions_error=ae.message;data.res=re?null:rd;if(re)data.res_error=re.message;data.route=pe?null:pd;if(pe)data.route_error=pe.message;data.routeDaily=de?null:dd;if(de)data.routeDaily_error=de.message;data.resDaily=rde?null:rdd;if(rde)data.resDaily_error=rde.message;draw();
+ const today=ukToday();
+ const [{data:d,error},{data:ad,error:ae},{data:rd,error:re},{data:pd,error:pe},{data:dd,error:de},{data:rdd,error:rde},{data:td,error:te}]=await Promise.all([sb.rpc('cx_metrics',{p_from:f,p_to:t}),sb.rpc('cx_action_metrics',{p_from:f,p_to:t}),sb.rpc('cx_resolution_split',{p_from:f,p_to:t}),sb.rpc('cx_reply_route_split',{p_from:f,p_to:t}),sb.rpc('cx_reply_route_split_daily',{p_from:f,p_to:t}),sb.rpc('cx_resolution_split_daily',{p_from:f,p_to:t}),sb.rpc('cx_reply_route_split',{p_from:today,p_to:today})]);
+ if(error){$('kpis').innerHTML='';$('kpis').append(el('div','card kpi bad','Could not load metrics: '+error.message));bossLine(null);return}
+ data=d;data.actions=ae?null:ad;if(ae)data.actions_error=ae.message;data.res=re?null:rd;if(re)data.res_error=re.message;data.route=pe?null:pd;if(pe)data.route_error=pe.message;data.routeDaily=de?null:dd;if(de)data.routeDaily_error=de.message;data.resDaily=rde?null:rdd;if(rde)data.resDaily_error=rde.message;data.todayRoute=te?null:td;if(te)data.todayRoute_error=te.message;draw();
 }
 function kpi(l,v,s,c){const k=el('div','card kpi');k.append(el('div','l',l));const vv=el('div','v',v);k.append(vv);const ss=el('div','s'+(c?' '+c:''),s);k.append(ss);return k}
-function draw(){const d=data,S=d.summary||{};const vb=vsBase(S.avg_h);
+function bossBits(total){
+  const T=total||{};
+  const M=T.replies||0;
+  const N=(T.eggsy||0)+(T.native_chatbot||0);
+  const full=(T.auto||0)+(T.native_chatbot||0);
+  return {M,N,full};
+}
+function bossSentence(label, total){
+  const {M,N,full}=bossBits(total);
+  if(!M) return label+' there are no customer service replies yet.';
+  const x=Math.round(100*N/M), y=Math.round(100*full/M);
+  return label+' '+x+'% of customer service messages were sent with bots ('+y+'% fully automatic) — '+N+' of '+M+' replies.';
+}
+function bossLine(){
+  const msg=$('todaymsg'), range=$('rangemsg'), btn=$('todaycopy');
+  if(!msg) return;
+  if(!data){msg.textContent='Could not load today’s figure.';if(range)range.textContent='';return}
+  if(data.todayRoute_error){msg.textContent='Could not load today’s figure: '+data.todayRoute_error;if(btn)btn.disabled=true}
+  else{
+    const sentence=bossSentence('Today', data.todayRoute&&data.todayRoute.total);
+    msg.textContent=sentence;
+    if(btn){btn.disabled=false;btn.onclick=async()=>{
+      let ok=false;
+      try{await navigator.clipboard.writeText(sentence);ok=true}catch(e){}
+      if(!ok){const ta=document.createElement('textarea');ta.value=sentence;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.left='-9999px';document.body.append(ta);ta.select();try{ok=document.execCommand('copy')}catch(e){ok=false}ta.remove()}
+      btn.textContent=ok?'Copied':'Copy failed';setTimeout(()=>btn.textContent='Copy',1400);
+    }}
+  }
+  if(!range) return;
+  if(data.route_error){range.textContent='Could not load this range: '+data.route_error;return}
+  const from=$('from').value, to=$('to').value;
+  const label=from===to?fmtD(from):fmtD(from)+' – '+fmtD(to);
+  range.textContent=bossSentence(label, data.route&&data.route.total);
+}
+function draw(){bossLine();const d=data,S=d.summary||{};const vb=vsBase(S.avg_h);
  const K=$('kpis');K.innerHTML='';
  K.append(kpi('Average first response',fmtH(S.avg_h),vb.t,vb.c));
  K.append(kpi('Median first response',fmtH(S.median_h),S.median_h==null?'':(S.median_h<=BASE?'below':'above')+' the 11h baseline average'));
