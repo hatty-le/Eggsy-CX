@@ -41,11 +41,16 @@ tr.g td{font-weight:700;background:#fffcf3;cursor:pointer}tr.s td:first-child{pa
 .notes{font-size:13.5px;line-height:1.5;color:#3d3a48}.notes li{margin-bottom:6px}
 .empty{color:var(--muted);text-align:center;padding:30px 20px}
 .rkpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:4px 0 14px}
+.rkpis.five{grid-template-columns:repeat(5,minmax(0,1fr))}
 .rk{border:1px solid var(--line);border-radius:12px;padding:12px 14px}.rk .l{font-size:12px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:6px}.rk .v{font-size:24px;font-weight:800;margin:2px 0}.rk .s{font-size:12.5px;color:var(--muted)}
-.rk .l i,.rleg i{display:inline-block;width:10px;height:10px;border-radius:3px}
+.rkpis.five .rk{padding:12px 10px}.rkpis.five .l{font-size:11.5px;line-height:1.3;align-items:flex-start}
+.rk .l i,.rleg i{display:inline-block;width:10px;height:10px;border-radius:3px;flex:none}
+#pnote:empty{display:none}
 .sbar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:#f3ecd9;min-width:140px}.sbar span{display:block;height:100%}
 .rleg{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:8px 0 0}.rleg span{display:inline-flex;align-items:center;gap:5px}
+@media (max-width:1100px){.rkpis.five{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:900px){.rkpis{grid-template-columns:1fr 1fr}}
+@media (max-width:700px){.rkpis.five{grid-template-columns:1fr 1fr}}
 @media (max-width:900px){.kpis{grid-template-columns:1fr 1fr}}
 @media (max-width:760px){header{padding:10px 14px}.ptitle{font-size:19px}#app{padding:0 12px 12px}.kpi .v{font-size:22px}.bar label input{font-size:16px}}
 </style>
@@ -74,7 +79,7 @@ tr.g td{font-weight:700;background:#fffcf3;cursor:pointer}tr.s td:first-child{pa
  <div class="kpis" id="kpis"></div>
  <section class="card sec"><h2>Overview: bots vs people</h2><p class="sub" id="rsub">Who resolved each conversation that was marked Resolved in this date range.</p><div id="rkpis" class="rkpis"></div><div class="tw" id="rtable"></div>
   <div class="rleg" id="rleg"></div></section>
- <section class="card sec"><h2>Replies sent through Eggsy vs native platforms</h2><p class="sub" id="psub">Where our team's replies were sent from.</p><div id="pkpis" class="rkpis"></div><div class="tw" id="ptable"></div>
+ <section class="card sec"><h2>Replies sent through Eggsy vs native platforms</h2><p class="sub" id="psub">Who sent each reply: Hatty, Mich or Kim on Eggsy, Eggsy automatically, or on the native platform.</p><div id="pkpis" class="rkpis five"></div><p class="sub" id="pnote"></p><div class="tw" id="ptable"></div>
   <div class="rleg" id="pleg"></div></section>
  <section class="card sec"><h2>First response time</h2><p class="sub" id="frsub"></p><div class="chart" id="frchart"></div>
   <div class="legend"><span><i style="background:#1d1b26"></i>Average</span><span><i style="background:#e0a100"></i>Median</span><span><i style="background:none;border:2px dashed #b3261e;height:0;border-radius:0"></i>15 Oct baseline (11h average)</span></div></section>
@@ -230,27 +235,39 @@ function resSplit(d){const K=$('rkpis'),box=$('rtable'),L=$('rleg');K.innerHTML=
   t.append(b);box.append(t)}
  RCAT.forEach(([,l,c,h])=>{const s=el('span');const i=el('i');i.style.background=c;s.append(i,document.createTextNode(l));s.title=h;L.append(s)});
 }
-const PCAT=[['eggsy','Sent through Eggsy CX','#FFC83D','Queued or sent from the Eggsy CX reply box'],['native','Sent on the native platform','#1d1b26','Typed straight into Seller Central, TikTok, Walmart, Meta, Gmail or eDesk']];
+// Five send paths from cx_reply_route_split (migration cx_reply_path_split). eggsy/other stay on the payload for older readers.
+const PATHS=[['hatty','Sent by Hatty on Eggsy','#FFC83D','Replies Hatty sent from the Eggsy CX reply box'],['mich','Sent by Mich on Eggsy','#5b8def','Replies Mich sent from the Eggsy CX reply box'],['kim','Sent by Kim on Eggsy','#b06cc7','Replies Kim sent from the Eggsy CX reply box'],['auto','Auto-sent by Eggsy','#2f9e6b','Ready drafts Eggsy sent with no one checking'],['native','Sent on the native platform','#1d1b26','Sent on Seller Central, TikTok, Walmart, Meta, Gmail or eDesk. Platform chatbot replies are included here and are not counted as people']];
 const openRoute={};
-function pbar(r){const b=el('div','sbar');PCAT.forEach(([k,,c])=>{if(r[k]){const s=el('span');s.style.width=(100*r[k]/r.replies)+'%';s.style.background=c;b.append(s)}});return b}
-function routeSplit(d){const K=$('pkpis'),box=$('ptable'),L=$('pleg');K.innerHTML='';box.innerHTML='';L.innerHTML='';
+function pathParts(r){const parts=PATHS.map(([k,,c])=>[k,c,r[k]||0]);if((r.other||0)>0)parts.push(['other','#d8d2c2',r.other]);return parts}
+function pbar(r){const b=el('div','sbar');const den=r.replies||0;pathParts(r).forEach(([,c,n0])=>{if(!n0||!den)return;const s=el('span');s.style.width=(100*n0/den)+'%';s.style.background=c;s.title=n0;b.append(s)});return b}
+function routeSplit(d){const K=$('pkpis'),box=$('ptable'),L=$('pleg'),note=$('pnote');K.innerHTML='';box.innerHTML='';L.innerHTML='';if(note)note.textContent='';
  if(!d.route){box.append(el('div','empty','Could not load: '+(d.route_error||'unknown error')));return}
  const T=d.route.total||{},n=T.replies||0;
- $('psub').textContent=n+' repl'+(n===1?'y':'ies')+' written by our team between '+fmtD(d.from)+' and '+fmtD(d.to)+', split by where they were sent from. Bot and auto-replies are left out.';
+ $('psub').textContent=n+' repl'+(n===1?'y':'ies')+' between '+fmtD(d.from)+' and '+fmtD(d.to)+'. Hatty, Mich and Kim sent theirs from Eggsy. Auto-sent is Eggsy itself. Native includes platform chatbots, which are not counted as people.';
  const k=(l,c,v,s2)=>{const x=el('div','rk');const lab=el('div','l');if(c){const i=el('i');i.style.background=c;lab.append(i)}lab.append(document.createTextNode(l));x.append(lab,el('div','v',v),el('div','s',s2));return x};
- K.append(k('Through Eggsy CX','#FFC83D',pct(T.eggsy||0,n),(T.eggsy||0)+' of '+n+' replies'));
- K.append(k('Sent automatically','#2f9e6b',pct(T.auto||0,n),(T.auto||0)+' sent by Eggsy with no one checking'));
- K.append(k('On native platforms','#1d1b26',pct(T.native||0,n),(T.native||0)+' of '+n+' replies'));
+ PATHS.forEach(([key,label,color])=>{
+  const count=T[key]||0;
+  let sub=pct(count,n)+' of '+n+' repl'+(n===1?'y':'ies');
+  if(key==='native'&&(T.native_chatbot||0)) sub+=' · '+(T.native_chatbot)+' platform chatbot'+(T.native_chatbot===1?'':'s')+', not counted as people';
+  K.append(k(label,color,String(count),sub));
+ });
+ const notes=[];
+ if(T.native_chatbot) notes.push((T.native_chatbot)+' native-platform repl'+(T.native_chatbot===1?'y was':'ies were')+' sent by platform chatbots. They sit inside “Sent on the native platform” and are not counted as Hatty, Mich, Kim or Eggsy.');
+ if(T.other) notes.push((T.other)+' repl'+(T.other===1?'y was':'ies were')+' sent through Eggsy by someone other than Hatty, Mich, Kim or the auto-send. They are in the reply total'+(T.other?' and shown in grey on the split':'')+'.');
+ if(note)note.textContent=notes.join(' ');
  const rows=d.route.rows||[];if(!rows.length){box.append(el('div','empty','No team replies in this range.'))}
- else{const t=el('table');t.innerHTML='<thead><tr><th>Channel</th><th class="n">Replies</th><th>Split</th>'+PCAT.map(c=>'<th class="n">'+c[1]+'</th>').join('')+'</tr></thead>';
+ else{const t=el('table');t.innerHTML='<thead><tr><th>Channel</th><th class="n">Replies</th><th>Split</th>'+PATHS.map(c=>'<th class="n">'+c[1]+'</th>').join('')+'</tr></thead>';
   const b=el('tbody');const tot=rows.filter(r=>r.is_total).sort((a,c)=>ORDER.indexOf(a.grp)-ORDER.indexOf(c.grp));
   const row=(r,cls,name)=>{const tr=el('tr',cls);tr.append(el('td','',name),el('td','n',String(r.replies)));const sb_=el('td');sb_.append(pbar(r));tr.append(sb_);
-   PCAT.forEach(([key])=>tr.append(el('td','n',r[key]?r[key]+' ('+pct(r[key],r.replies)+')':'–')));return tr};
+   PATHS.forEach(([key])=>{const n0=r[key]||0;const td=el('td','n',n0?n0+' ('+pct(n0,r.replies)+')':'–');
+    if(key==='native'&&r.native_chatbot)td.title=r.native_chatbot+' platform chatbot repl'+(r.native_chatbot===1?'y':'ies')+', not counted as people';
+    tr.append(td)});return tr};
   tot.forEach(g=>{const subs=rows.filter(r=>!r.is_total&&r.grp===g.grp).sort((a,c)=>c.replies-a.replies);const multi=subs.length>1;
    const tr=row(g,'g',(multi?(openRoute[g.grp]?'▾ ':'▸ '):'')+(GROUPS[g.grp]||g.grp));if(multi)tr.onclick=()=>{openRoute[g.grp]=!openRoute[g.grp];routeSplit(d)};else tr.style.cursor='default';b.append(tr);
    if(multi&&openRoute[g.grp])subs.forEach(s2=>b.append(row(s2,'s',SUBL[s2.origin]||s2.origin)))});
   const ft=row(Object.assign({},T),'g','All channels');ft.style.cursor='default';b.append(ft);t.append(b);box.append(t)}
- PCAT.forEach(([,l,c,h])=>{const s2=el('span');const i=el('i');i.style.background=c;s2.append(i,document.createTextNode(l));s2.title=h;L.append(s2)});
+ PATHS.forEach(([,l,c,h])=>{const s2=el('span');const i=el('i');i.style.background=c;s2.append(i,document.createTextNode(l));s2.title=h;L.append(s2)});
+ if((T.other||0)>0){const s2=el('span');const i=el('i');i.style.background='#d8d2c2';s2.append(i,document.createTextNode('Other Eggsy sender'));s2.title='Sent through Eggsy by someone other than Hatty, Mich, Kim or the auto-send';L.append(s2)}
 }
 let showAllU=false;
 function uList(items){const box=$('ulist');box.innerHTML='';if(!items.length){box.append(el('div','empty','Nothing unanswered. 🎉'));return}
@@ -267,8 +284,8 @@ function notes(d){const box=$('notes');box.innerHTML='';const ul=el('ul');
  add('Approximate times:','Some messages were recorded from a summary rather than the original (marked "time approximate"): '+cov.filter(c=>c.approx_time_messages).map(c=>(SUBL[c.origin]&&c.grp!=='email'?(GROUPS[c.grp]+' '+SUBL[c.origin]):GROUPS[c.grp])+' '+c.approx_time_messages+' of '+c.messages).join(', ')+'. Amazon UK and US rely on these most, so treat their times as rough.');
  add('History start:','Stored history starts at different dates: '+cov.map(c=>(SUBL[c.origin]&&c.grp!=='email'?(GROUPS[c.grp]+' '+SUBL[c.origin]):GROUPS[c.grp])+' from '+new Date(c.earliest).toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'Europe/London'})).join(', ')+'. TikTok chat times are to the minute only.');
  add('Replies outside the history:','A reply only counts if it is in the stored history. Conversations with no stored reply are left out of the averages and shown as unanswered if still open.');
- add('Eggsy vs native:','A team reply counts as sent through Eggsy CX when it was queued from the Eggsy CX reply box (by you, or approved in chat). Everything else our team wrote was sent on the platform itself. Sending from Eggsy CX only went live on 5 Nov, so earlier dates are all native.');
- add('Automatic replies:','Since 5 Nov, Eggsy sends drafts in Ready automatically. These count as "AI sent automatically" once the ticket is marked Resolved (until then the ticket is in Waiting and is not counted in Bots vs people). They count as "Sent automatically" in Eggsy vs native as soon as they go out.');
+ add('Eggsy vs native:','Each reply is counted once: sent by Hatty on Eggsy, sent by Mich on Eggsy, sent by Kim on Eggsy, auto-sent by Eggsy, or sent on the native platform. The person is whoever queued it (reply_queue.queued_by), approved it (sent_log.approved_by), or is named on the message as “queued by”. Auto-sent means Eggsy queued a Ready draft itself, not a person. Native is everything else, including platform chatbot replies, which are noted separately and are not counted as people. Sending from Eggsy CX only went live on 5 Nov, so earlier dates are all native.');
+ add('Automatic replies:','Since 5 Nov, Eggsy sends drafts in Ready automatically. These count as "AI sent automatically" once the ticket is marked Resolved (until then the ticket is in Waiting and is not counted in Bots vs people). They count as "Auto-sent by Eggsy" in Eggsy vs native as soon as they go out.');
  add('Bots vs people:','A reply counts as a bot when its author is a chatbot, auto-reply, greeting or automatic notice (for example TikTok\'s chatbot or Amazon\'s AI auto-reply). Every other reply counts as a person, including replies stored as "Lucky Egg (via Amazon)" or "via Walmart", so any auto-replies sent by eDesk under those names are counted as people. "AI draft, person sent" only counts replies sent from Eggsy CX, so it starts from 5 Nov. Resolution dates before 3 Nov are approximate (the last time the conversation changed).');
  add('Clock hours:','Times are plain clock hours, including nights and weekends. The 11h baseline is the 15 Oct average first response.');
  box.append(ul)}
