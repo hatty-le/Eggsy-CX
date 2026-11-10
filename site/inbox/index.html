@@ -214,7 +214,7 @@ const STATUS={open:'Open',awaiting_approval:'Awaiting approval',awaiting_custome
 let convs=[],grp='all',sub='',dft='',draftMap={},msgHits={},readMap={},unreadOnly=false,ME='',lastSync=null,sel=null,qmap={},langMap={},emailCh={},stMap={};
 // One page, three views: /inbox/ (needs a reply from us), /waiting/ (we replied, waiting on the customer), /resolved/.
 // The bucket comes from the cx_conversation_state view in Supabase, so the nav counts and the lists always agree.
-const MODES={inbox:{title:'Inbox',path:'/inbox/',intro:'Conversations that need a reply from us: the customer wrote last and it isn’t resolved. Oldest first, so the longest wait is at the top.',empty:'Nothing needs a reply right now. 🎉',statuses:['open','awaiting_approval','awaiting_customer']},
+const MODES={inbox:{title:'Inbox',path:'/inbox/',intro:'Conversations that need a reply from us: the customer wrote last and it isn’t resolved. Newest first, like an email inbox.',empty:'Nothing needs a reply right now. 🎉',statuses:['open','awaiting_approval','awaiting_customer']},
  waiting:{title:'Waiting',path:'/waiting/',intro:'We’ve replied, or a reply is queued, sending or sent, and we’re waiting on the customer. A new customer message moves the conversation back to the Inbox.',empty:'No conversations are waiting on a customer.',statuses:['open','awaiting_approval','awaiting_customer']},
  resolved:{title:'Resolved',path:'/resolved/',intro:'Resolved customer conversations. A new customer message on a resolved conversation moves it back to the Inbox.',empty:'No resolved conversations yet.',statuses:['resolved']},
  junk:{title:'Junk',path:'/junk/',intro:'Spam, sales pitches, phishing and platform notifications: anything that isn’t a customer needing help. Eggsy never drafts or sends replies here. Use “Not junk” to move a ticket back to the Inbox.',empty:'No junk. 🎉',statuses:['ignored']}};
@@ -334,8 +334,8 @@ function chMatch(c){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];return g[2](c.
 function elsewhere(){const q=$('q').value.trim().toLowerCase();if(!q)return [];return convs.filter(c=>!inMode(c)&&chMatch(c)&&qMatch(c,q)).sort((a,b)=>new Date(b.last_message_at||0)-new Date(a.last_message_at||0))}
 function visible(){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const q=$('q').value.trim().toLowerCase();const st='';
  const v=convs.filter(c=>inMode(c)&&g[2](c.origin)&&(!sub||c.origin===sub)&&(MODE!=='inbox'||!dft||draftState(c)===dft)&&(!unreadOnly||isUnread(c))&&(!st||c.status===st)&&qMatch(c,q));
- if(MODE==='inbox'&&unreadOnly)v.sort((a,b)=>new Date((stMap[b.id]||{}).last_customer_at||0)-new Date((stMap[a.id]||{}).last_customer_at||0));
- else if(MODE==='inbox')v.sort((a,b)=>new Date(sinceOf(a))-new Date(sinceOf(b)));
+ // Inbox: newest customer message at the top, like an email inbox.
+ if(MODE==='inbox')v.sort((a,b)=>new Date((stMap[b.id]||{}).last_customer_at||sinceOf(b)||0)-new Date((stMap[a.id]||{}).last_customer_at||sinceOf(a)||0));
  else v.sort((a,b)=>new Date(b.last_message_at||0)-new Date(a.last_message_at||0));
  return v}
 const chTag=o=>el('span','tag ch-'+groupOf(o),ORIGINS[o]||o);
