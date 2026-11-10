@@ -42,6 +42,7 @@ tr.g td{font-weight:700;background:#fffcf3;cursor:pointer}tr.s td:first-child{pa
 .empty{color:var(--muted);text-align:center;padding:30px 20px}
 .rkpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:4px 0 14px}
 .rkpis.five{grid-template-columns:repeat(5,minmax(0,1fr))}
+.rkpis.three{grid-template-columns:repeat(3,minmax(0,1fr))}
 .rkpis.six{grid-template-columns:repeat(6,minmax(0,1fr))}
 .rk{border:1px solid var(--line);border-radius:12px;padding:12px 14px}.rk .l{font-size:12px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:6px}.rk .v{font-size:24px;font-weight:800;margin:2px 0}.rk .s{font-size:12.5px;color:var(--muted)}
 .rkpis.five .rk,.rkpis.six .rk{padding:12px 10px}.rkpis.five .l,.rkpis.six .l{font-size:11.5px;line-height:1.3;align-items:flex-start}
@@ -56,7 +57,7 @@ tr.g td{font-weight:700;background:#fffcf3;cursor:pointer}tr.s td:first-child{pa
 @media (max-width:1280px){.rkpis.six{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:1100px){.rkpis.five{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:900px){.rkpis{grid-template-columns:1fr 1fr}}
-@media (max-width:700px){.rkpis.five,.rkpis.six{grid-template-columns:1fr 1fr}}
+@media (max-width:700px){.rkpis.three{grid-template-columns:1fr}.rkpis.five,.rkpis.six{grid-template-columns:1fr 1fr}}
 @media (max-width:900px){.kpis{grid-template-columns:1fr 1fr}}
 @media (max-width:760px){header{padding:10px 14px}.ptitle{font-size:19px}#app{padding:0 12px 12px}.kpi .v{font-size:22px}.bar label input{font-size:16px}}
 </style>
@@ -83,7 +84,7 @@ tr.g td{font-weight:700;background:#fffcf3;cursor:pointer}tr.s td:first-child{pa
   <label>Show by<select id="by"><option value="week">Week</option><option value="day">Day</option></select></label>
  </div>
  <div class="kpis" id="kpis"></div>
- <section class="card sec"><h2>Overview: bots vs people</h2><p class="sub" id="rsub">Who resolved each conversation that was marked Resolved in this date range.</p><div id="rkpis" class="rkpis six"></div><p class="sub" id="rsum"></p><div class="tw" id="rtable"></div>
+ <section class="card sec"><h2>Overview: bots vs people</h2><p class="sub" id="rsub">Who resolved each conversation that was marked Resolved in this date range.</p><div id="rkpis" class="rkpis three"></div><p class="sub" id="rsum"></p><div class="tw" id="rtable"></div>
   <div class="rleg" id="rleg"></div></section>
  <section class="card sec"><h2>Replies sent through Eggsy vs native platforms</h2><p class="sub" id="psub">Who sent each reply: Hatty, Mich or Kim on Eggsy, Eggsy automatically, or on the native platform.</p><div id="pkpis" class="rkpis five"></div><div class="pathmode" id="pathmode"></div><div class="chart" id="pathchart"></div><p class="sub" id="pnote"></p><div class="tw" id="ptable"></div>
   <div class="rleg" id="pleg"></div></section>
@@ -215,10 +216,11 @@ function chTable(list){const box=$('chtable');box.innerHTML='';if(!list.length){
   const tr=row(g,'g',(multi?(openGrp[g.grp]?'▾ ':'▸ '):'')+(GROUPS[g.grp]||g.grp));if(multi)tr.onclick=()=>{openGrp[g.grp]=!openGrp[g.grp];chTable(list)};else tr.style.cursor='default';b.append(tr);
   if(multi&&openGrp[g.grp])subs.forEach(s=>b.append(row(s,'s',SUBL[s.origin]||s.origin)))});
  t.append(b);box.append(t)}
-const RCAT=[['ai_auto','Sent automatically by Eggsy','#2f9e6b','Eggsy wrote the reply and sent it with no one checking'],['bot','Platform bot only','#e0a100','Answered only by a chatbot or auto-reply'],['bot_then_human','Bot then person','#f2cf6b','A bot replied first, a person finished it'],['ai_drafted','AI draft sent by a person','#7fb8e6','A person sent an AI-drafted reply from Eggsy CX'],['human','People only','#1d1b26','Every reply was written by a person'],['no_reply','Closed with no reply','#d8d2c2','Resolved without a reply (e.g. customer said thanks)']];
+// Three exclusive outcomes. Closed-with-no-reply is left out of the base.
+const RCAT=[['people','People only','#1d1b26','Every reply was written by a person, with no bot and no AI draft'],['both','Bot and person','#7fb8e6','A bot replied first and a person finished it, or a person sent an AI draft'],['auto','Sent automatically','#2f9e6b','Eggsy auto-send, or only a platform bot replied. No person was involved']];
 let openRes={};
 function pct(n,d){if(!d)return '–';const p=100*n/d;return n&&p<1?'<1%':Math.round(p)+'%'}
-// Integer percentages that sum to 100. Used for the six exclusive resolution buckets.
+// Integer percentages that sum to 100.
 function largestRemainder(counts){
   const total=counts.reduce((a,b)=>a+(b||0),0);
   if(!total) return counts.map(()=>0);
@@ -229,23 +231,22 @@ function largestRemainder(counts){
   for(let k=0;k<left&&k<rank.length;k++) base[rank[k].i]++;
   return base;
 }
-function resCounts(r){return RCAT.map(([k])=>r[k]||0)}
-function sbar(r){const b=el('div','sbar');RCAT.forEach(([k,,c])=>{if(r[k]){const s=el('span');s.style.width=(100*r[k]/(r.resolved||1))+'%';s.style.background=c;s.title=k;b.append(s)}});return b}
+function resParts(r){return [r.human||0,(r.bot_then_human||0)+(r.ai_drafted||0),(r.ai_auto||0)+(r.bot||0)]}
+function resBase(r){return resParts(r).reduce((a,n)=>a+n,0)}
+function sbar(r){const b=el('div','sbar');const base=resBase(r)||1;resParts(r).forEach((n,i)=>{if(!n)return;const s=el('span');s.style.width=(100*n/base)+'%';s.style.background=RCAT[i][2];s.title=RCAT[i][1];b.append(s)});return b}
 function resSplit(d){const K=$('rkpis'),box=$('rtable'),L=$('rleg'),sum=$('rsum');K.innerHTML='';box.innerHTML='';L.innerHTML='';if(sum)sum.textContent='';
  if(!d.res){box.append(el('div','empty','Could not load: '+(d.res_error||'unknown error')));return}
- const T=d.res.total||{},n=T.resolved||0;
- $('rsub').textContent='Who resolved the '+n+' conversation'+(n===1?'':'s')+' marked Resolved between '+fmtD(d.from)+' and '+fmtD(d.to)+'. Each conversation is in one bucket, and the percentages add up to 100.';
- const counts=resCounts(T),pcts=largestRemainder(counts);
+ const T=d.res.total||{},base=resBase(T),leftOut=T.no_reply||0;
+ $('rsub').textContent='Who resolved the '+base+' conversation'+(base===1?'':'s')+' that had a reply between '+fmtD(d.from)+' and '+fmtD(d.to)+'. Each one is in one bucket, and the percentages add up to 100.';
+ const counts=resParts(T),pcts=largestRemainder(counts);
  const k=(l,c,v,s)=>{const x=el('div','rk');const lab=el('div','l');if(c){const i=el('i');i.style.background=c;lab.append(i)}lab.append(document.createTextNode(l));x.append(lab,el('div','v',v),el('div','s',s));return x};
- RCAT.forEach(([,,color,hint],i)=>{const card=k(RCAT[i][1],color,String(counts[i]),pcts[i]+'% of '+n);card.title=hint;K.append(card)});
- const involvedN=[0,1,2,3].reduce((a,i)=>a+counts[i],0),involvedP=[0,1,2,3].reduce((a,i)=>a+pcts[i],0);
- if(sum&&n) sum.textContent='Bot or AI involved: '+involvedN+' of '+n+' ('+involvedP+'%). That is the first four cards added together, not an extra bucket.';
+ RCAT.forEach(([,label,color,hint],i)=>{const card=k(label,color,String(counts[i]),(base?pcts[i]+'% of '+base:'–'));card.title=hint;K.append(card)});
+ if(sum) sum.textContent=leftOut?(leftOut+' closed with no reply '+(leftOut===1?'was':'were')+' left out of these figures.'):'';
  const rows=d.res.rows||[];if(!rows.length){box.append(el('div','empty','No conversations were resolved in this range.'));}
- else{const t=el('table');t.innerHTML='<thead><tr><th>Channel</th><th class="n">Resolved</th><th>Split</th>'+RCAT.map(c=>'<th class="n">'+c[1]+'</th>').join('')+'</tr></thead>';
+ else{const t=el('table');t.innerHTML='<thead><tr><th>Channel</th><th class="n">With a reply</th><th>Split</th>'+RCAT.map(c=>'<th class="n">'+c[1]+'</th>').join('')+'</tr></thead>';
   const b=el('tbody');const tot=rows.filter(r=>r.is_total).sort((a,c)=>ORDER.indexOf(a.grp)-ORDER.indexOf(c.grp));
-  const row=(r,cls,name)=>{const tr=el('tr',cls);tr.append(el('td','',name),el('td','n',String(r.resolved||resCounts(r).reduce((a,n0)=>a+n0,0))));const sb_=el('td');sb_.append(sbar(r));tr.append(sb_);
-   const shares=largestRemainder(resCounts(r));
-   RCAT.forEach(([key],i)=>{const n0=r[key]||0;tr.append(el('td','n',n0?n0+' ('+shares[i]+'%)':'–'))});return tr};
+  const row=(r,cls,name)=>{const tr=el('tr',cls);const parts=resParts(r),shares=largestRemainder(parts);tr.append(el('td','',name),el('td','n',String(resBase(r))));const sb_=el('td');sb_.append(sbar(r));tr.append(sb_);
+   parts.forEach((n0,i)=>tr.append(el('td','n',n0?n0+' ('+shares[i]+'%)':'–')));return tr};
   tot.forEach(g=>{const subs=rows.filter(r=>!r.is_total&&r.grp===g.grp).sort((a,c)=>c.resolved-a.resolved);const multi=subs.length>1;
    const tr=row(g,'g',(multi?(openRes[g.grp]?'▾ ':'▸ '):'')+(GROUPS[g.grp]||g.grp));if(multi)tr.onclick=()=>{openRes[g.grp]=!openRes[g.grp];resSplit(d)};else tr.style.cursor='default';b.append(tr);
    if(multi&&openRes[g.grp])subs.forEach(s=>b.append(row(s,'s',SUBL[s.origin]||s.origin)))});
@@ -361,7 +362,7 @@ function notes(d){const box=$('notes');box.innerHTML='';const ul=el('ul');
  add('Replies outside the history:','A reply only counts if it is in the stored history. Conversations with no stored reply are left out of the averages and shown as unanswered if still open.');
  add('Eggsy vs native:','Each reply is counted once: sent by Hatty on Eggsy, sent by Mich on Eggsy, sent by Kim on Eggsy, auto-sent by Eggsy, or sent on the native platform. The person is whoever queued it (reply_queue.queued_by), approved it (sent_log.approved_by), or is named on the message as “queued by”. Auto-sent means Eggsy queued a Ready draft itself, not a person. Native is everything else, including platform chatbot replies, which are noted separately and are not counted as people. Sending from Eggsy CX only went live on 5 Nov, so earlier dates are all native.');
  add('Automatic replies:','Since 5 Nov, Eggsy sends drafts in Ready automatically. These count as "AI sent automatically" once the ticket is marked Resolved (until then the ticket is in Waiting and is not counted in Bots vs people). They count as "Auto-sent by Eggsy" in Eggsy vs native as soon as they go out.');
- add('Bots vs people:','A reply counts as a bot when its author is a chatbot, auto-reply, greeting or automatic notice (for example TikTok\'s chatbot or Amazon\'s AI auto-reply). Every other reply counts as a person, including replies stored as "Lucky Egg (via Amazon)" or "via Walmart", so any auto-replies sent by eDesk under those names are counted as people. "AI draft sent by a person" only counts replies sent from Eggsy CX, so it starts from 5 Nov. The six overview cards do not overlap: sent automatically by Eggsy, platform bot only, bot then a person, AI draft sent by a person, people only, and closed with no reply. Together they are every resolved conversation. Resolution dates before 3 Nov are approximate (the last time the conversation changed).');
+ add('Bots vs people:','A reply counts as a bot when its author is a chatbot, auto-reply, greeting or automatic notice (for example TikTok\'s chatbot or Amazon\'s AI auto-reply). Every other reply counts as a person, including replies stored as "Lucky Egg (via Amazon)" or "via Walmart", so any auto-replies sent by eDesk under those names are counted as people. The overview has three buckets that do not overlap: People only, Bot and person (a bot then a person, or a person sending an AI draft), and Sent automatically (Eggsy auto-send or a platform bot alone). Conversations closed with no reply are left out. Resolution dates before 3 Nov are approximate (the last time the conversation changed).');
  add('Clock hours:','Times are plain clock hours, including nights and weekends. The 11h baseline is the 15 Oct average first response.');
  box.append(ul)}
 </script>
