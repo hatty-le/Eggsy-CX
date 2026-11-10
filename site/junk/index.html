@@ -163,6 +163,8 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
 .btn.moreact:hover{color:var(--ink)}
 .actmd h3{margin:0 0 8px;font-size:18px}
 .actmd label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}
+.fieldhint{font-size:11.5px;font-weight:500;color:#7a6a3a;margin-top:2px}
+.actmd input.autofilled,.actmd select.autofilled{background:#fffdf6}
 .actmd .hint{font-size:12.5px;color:var(--muted);margin:4px 0 8px;line-height:1.4}
 .actmd .warn{font-size:13px;background:#fff3d1;border-radius:10px;padding:8px 12px;margin:8px 0}
 .actresults{border:1px solid var(--line);border-radius:10px;max-height:180px;overflow:auto;margin-top:6px}
@@ -198,6 +200,7 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/prefill.js"></script>
 <script>
 const SUPABASE_URL='https://xodkbmtylftfmnxfnxxf.supabase.co';
 const SUPABASE_KEY='sb_publishable_gX9OKDCT6Opnt8OcsFRmiQ_xaM0O8ti'; // public publishable key: safe in the browser, data is protected by RLS
@@ -642,10 +645,11 @@ function promisedTypes(body, flag){
   if(/(return label|return postage|prepaid return|return address|send (the |it |this |your ).{0,40}back|sending .{0,20}back|return the (item|game|parcel|order|package|headset|microphone)|return your (item|game|parcel|order|package)|returning the |\barrange a return\b|\ba return to\b|rücksendung|zurückschicken|\bretoure\b|devoluci[oó]n)/i.test(body||'')) types.push('return');
   return {types, any:!!(flag&&!types.length)};
 }
+function actionSatisfies(a){const d=a&&a.details||{};return ACT_OK.includes(a.status)||(a.status==='pending'&&!!d.awaiting_details)}
 function actionGuardReason(body, flag){
   const p=promisedTypes(body, flag);
-  const has=t=>(actList||[]).some(a=>a.type===t&&ACT_OK.includes(a.status));
-  if(p.any){return (actList||[]).some(a=>ACT_OK.includes(a.status))?'':ACT_MSG}
+  const has=t=>(actList||[]).some(a=>a.type===t&&actionSatisfies(a));
+  if(p.any){return (actList||[]).some(actionSatisfies)?'':ACT_MSG}
   const missing=p.types.filter(t=>!has(t));
   if(missing.length) return 'This reply promises a '+missing.join(' and ')+' but no matching action is logged on the ticket yet. Create the '+missing.join(' and ')+' first, then send.';
   return '';
@@ -676,22 +680,68 @@ function sellerRefundUrl(origin, order){
 }
 
 const MCF_MARKET={
-  UK:{label:'United Kingdom',create_url:'https://sellercentral.amazon.co.uk/mcf/orders/create-order',marketplace_id:'A1F83G8C2ARO7P'},
-  US:{label:'United States',create_url:'https://sellercentral.amazon.com/mcf/orders/create-order',marketplace_id:'ATVPDKIKX0DER'}
+  UK:{label:'United Kingdom (sellercentral.amazon.co.uk)',create_url:'https://sellercentral.amazon.co.uk/mcf/orders/create-order',marketplace_id:'A1F83G8C2ARO7P'},
+  US:{label:'United States (sellercentral.amazon.com)',create_url:'https://sellercentral.amazon.com/mcf/orders/create-order',marketplace_id:'ATVPDKIKX0DER'},
+  DE:{label:'Germany (sellercentral.amazon.de)',create_url:'https://sellercentral.amazon.de/mcf/orders/create-order',marketplace_id:'A1PA6795UKMFR9'},
+  FR:{label:'France (sellercentral.amazon.fr)',create_url:'https://sellercentral.amazon.fr/mcf/orders/create-order',marketplace_id:'A13V1IB3VIYZZH'},
+  IT:{label:'Italy (sellercentral.amazon.it)',create_url:'https://sellercentral.amazon.it/mcf/orders/create-order',marketplace_id:'APJ6JRA9NG5V4'},
+  ES:{label:'Spain (sellercentral.amazon.es)',create_url:'https://sellercentral.amazon.es/mcf/orders/create-order',marketplace_id:'A1RKKUPIHCS9HS'},
+  NL:{label:'Netherlands (sellercentral.amazon.nl)',create_url:'https://sellercentral.amazon.nl/mcf/orders/create-order',marketplace_id:'A1805IZSGTT6HS'},
+  BE:{label:'Belgium (sellercentral.amazon.com.be)',create_url:'https://sellercentral.amazon.com.be/mcf/orders/create-order',marketplace_id:'AMEN7PMS3EDWL'},
+  SE:{label:'Sweden (sellercentral.amazon.se)',create_url:'https://sellercentral.amazon.se/mcf/orders/create-order',marketplace_id:'A2NODRKZP88ZB9'},
+  PL:{label:'Poland (sellercentral.amazon.pl)',create_url:'https://sellercentral.amazon.pl/mcf/orders/create-order',marketplace_id:'A1C3SOZRARQ6R3'},
+  CA:{label:'Canada (sellercentral.amazon.ca)',create_url:'https://sellercentral.amazon.ca/mcf/orders/create-order',marketplace_id:'A2EUQ1WTGCTBG2'},
+  AU:{label:'Australia (sellercentral.amazon.com.au)',create_url:'https://sellercentral.amazon.com.au/mcf/orders/create-order',marketplace_id:'A39IBJ37TRP1C6'}
 };
 function defaultMcfMarket(c, countryCode){
-  const o=(c&&c.origin)||'';
-  if(o==='amazon_us'||o==='tiktok_us'||o==='walmart') return 'US';
-  if(String(countryCode||'').toUpperCase()==='US') return 'US';
-  return 'UK';
+  const m=window.EggsyPrefill?EggsyPrefill.marketFor(c&&c.origin, countryCode):'UK';
+  return MCF_MARKET[m]?m:'UK';
 }
+function needsProvince(cc){return ['US','CA','AU'].indexOf(String(cc||'').toUpperCase())>=0}
+const AUTO_RANK={'from the ticket':1,'from conversation':2,'from an earlier action':3,'from Shopify order':4};
+function setAuto(input, value, source){
+  if(value==null||String(value)==='') return false;
+  if(input.dataset.user==='1') return false;
+  const rank=AUTO_RANK[source]||1, prev=+(input.dataset.autoRank||0);
+  if(input.value && !input.dataset.auto && input.tagName!=='SELECT') return false;
+  if(input.dataset.auto && input.value!==input.dataset.autoValue) return false;
+  if(input.dataset.auto && rank<prev) return false;
+  input.value=value; input.dataset.auto=source; input.dataset.autoValue=value; input.dataset.autoRank=String(rank);
+  input.classList.add('autofilled');
+  let h=input.parentElement&&input.parentElement.querySelector('.fieldhint');
+  if(!h&&input.parentElement){h=el('div','fieldhint');input.parentElement.append(h)}
+  if(h) h.textContent=source;
+  return true;
+}
+function watchAuto(input){
+  const clear=()=>{
+    if(!input.dataset.auto){if(input.value) input.dataset.user='1';return}
+    if(input.value!==input.dataset.autoValue){input.dataset.user='1';input.classList.remove('autofilled');const h=input.parentElement&&input.parentElement.querySelector('.fieldhint');if(h)h.remove();delete input.dataset.auto}
+  };
+  input.addEventListener('input',clear);input.addEventListener('change',clear);
+}
+function isPlaceholderAction(a){const d=a&&a.details||{};return !!(a&&a.type==='replacement'&&a.status==='pending'&&!isMcf(d)&&d.kind!=='part'&&d.fulfilment!=='shopify_3pl'&&d.fulfilment!=='amazon_mcf')}
+function replacementToUpdate(kind){
+  const list=actList||[];
+  const live=a=>a.type==='replacement'&&['cancelled','failed','done'].indexOf(a.status)<0;
+  if(kind==='mcf') return list.find(a=>live(a)&&isMcf(a.details))||list.find(isPlaceholderAction)||null;
+  if(kind==='part') return list.find(a=>live(a)&&a.details&&a.details.kind==='part')||list.find(isPlaceholderAction)||null;
+  return list.find(isPlaceholderAction)||null;
+}
+function ticketPrefill(c, existing){
+  const pre=window.EggsyPrefill?EggsyPrefill.prefill(c, actThreadMsgs||[]):{address:{},sources:{},marketplace:defaultMcfMarket(c),original_order_id:c.order_number||'',shipping_speed:'Standard',plain_packaging:true};
+  const prior=(actList||[]).find(a=>a!==existing&&a.details&&a.details.address&&(a.details.address.address1||a.details.address.zip));
+  if(prior&&window.EggsyPrefill) EggsyPrefill.applyAction(pre, prior);
+  return pre;
+}
+function lockField(input, value){if(value==null||value==='')return;input.value=value;input.dataset.user='1'}
 function isMcf(d){return !!(d&&(d.fulfilment==='amazon_mcf'||d.kind==='game'))}
 function mcfDestAddress(address){
   address=address||{};
   return {name:[address.firstName,address.lastName].filter(Boolean).join(' '),addressLine1:address.address1||'',addressLine2:address.address2||'',city:address.city||'',stateOrRegion:address.province||'',postalCode:address.zip||'',countryCode:(address.countryCode||'').toUpperCase(),phoneNumber:address.phone||''};
 }
 function buildMcfDetails(c, fields){
-  const market=fields.marketplace==='US'?'US':'UK';
+  const market=MCF_MARKET[fields.marketplace]?fields.marketplace:'UK';
   const meta=MCF_MARKET[market];
   const original=(fields.original_order_id||'').trim();
   const items=(fields.items||[]).map(it=>({seller_sku:it.seller_sku||it.sku||'',asin:it.asin||'',fnsku:it.fnsku||'',quantity:Math.max(1,+it.quantity||1),title:it.title||''}));
@@ -793,6 +843,10 @@ function renderActPanel(host,c,list){const sig=(list||[]).map(x=>x.id+':'+x.stat
       line=actStatusLabel(a)+' · Whole game · Amazon MCF · '+(d.marketplace||'');
       if(d.original_order_id) line+=' · Order ID '+d.original_order_id;
       if(d.mcf_order_id) line+=' · MCF '+d.mcf_order_id;
+    }else if(a.type==='replacement'&&isPlaceholderAction(a)){
+      const autoSrc=String(d.source||'').indexOf('auto:')===0;
+      line=(!autoSrc&&d.awaiting_details)?'Asking for details · nothing issued yet':'Waiting to place · promised in the reply';
+      if((d.missing_details||[]).length) line+=' · still need '+d.missing_details.join(', ');
     }else if(a.type==='replacement'){
       line=actStatusLabel(a)+' · Replacement part · Shopify 3PL';
       if(a.shopify_order_name) line+=' · '+a.shopify_order_name;
@@ -823,7 +877,8 @@ function renderActPanel(host,c,list){const sig=(list||[]).map(x=>x.id+':'+x.stat
         await reloadActions(c,host);
         if(d.outcome==='replacement') openReplacementModal(c,host);
         else openRefundModal(c,host)};acts.append(b)}
-    if(a.status==='pending'&&a.type==='replacement'&&!isMcf(d)){const b=el('button','btn ghost','Record Shopify order #');b.type='button';
+    if(isPlaceholderAction(a)){const b=el('button','btn','Fill in replacement');b.type='button';b.onclick=()=>openReplacementModal(c,host);acts.append(b)}
+    if(a.status==='pending'&&a.type==='replacement'&&!isMcf(d)&&!isPlaceholderAction(a)){const b=el('button','btn ghost','Record Shopify order #');b.type='button';
       b.onclick=()=>recordExistingOrder(c,a,host);acts.append(b)}
     if(acts.childNodes.length) row.append(acts);
     box.append(row);
@@ -864,9 +919,27 @@ async function recordMcfOrderId(c, existing, host){
   await logNote(c,'Amazon MCF replacement placed. Original order ID '+(details.original_order_id||'')+'. MCF order ID '+id.trim()+'.','note:action:'+existing.id);
   await reloadActions(c,host);
 }
+async function logAwaitingDetails(c, host){
+  const open=(actList||[]).filter(a=>a.type==='replacement'&&['cancelled','failed','done'].indexOf(a.status)<0);
+  const placeholder=open.find(isPlaceholderAction);
+  if(!placeholder&&open.length){alert('A replacement is already logged on this ticket.');return}
+  const email=(await sb.auth.getUser()).data.user.email;
+  let error,id;
+  if(placeholder){
+    const details=Object.assign({},placeholder.details||{},{awaiting_details:true});
+    const res=await sb.from('cx_actions').update({status:'pending',details,updated_at:new Date().toISOString()}).eq('id',placeholder.id).select('id').single();
+    error=res.error;id=placeholder.id;
+  }else{
+    const res=await sb.from('cx_actions').insert({conversation_id:c.id,type:'replacement',status:'pending',details:{awaiting_details:true},created_by:email}).select('id').single();
+    error=res.error;id=res.data&&res.data.id;
+  }
+  if(error){alert(error.message);return}
+  await logNote(c,'Asking the customer for details before a replacement. Nothing issued yet.','note:action:'+id);
+  closeActModal();await reloadActions(c,host);
+}
 async function openReplacementModal(c, host, existing){
   if(existing&&isMcf(existing.details)) return openMcfModal(c,host,existing);
-  if(existing&&existing.type==='replacement') return openPartReplacementModal(c,host);
+  if(existing&&existing.type==='replacement'&&!isPlaceholderAction(existing)) return openPartReplacementModal(c,host);
   const m=actModal('Send a replacement');
   m.body.append(el('p','hint','Whole games go out through Amazon Multi-Channel Fulfilment. Parts and accessories still go to the 3PL as a free Shopify order.'));
   const choice=el('div','actchoice');
@@ -876,19 +949,23 @@ async function openReplacementModal(c, host, existing){
   const part=el('button','btn ghost','Part or accessory');part.type='button';
   part.append(el('span','hint','Free Shopify order to The Finishing Line or Forceget, same routing as website orders.'));
   part.onclick=()=>openPartReplacementModal(c,host);
-  choice.append(game,part);m.body.append(choice);
+  const ask=el('button','btn ghost','Asking for details first, nothing issued yet');ask.type='button';
+  ask.append(el('span','hint','Logs a pending replacement and does not order or ship anything. A reply that only asks for details can then be sent.'));
+  ask.onclick=()=>logAwaitingDetails(c,host);
+  choice.append(game,part,ask);m.body.append(choice);
   const cancel=el('button','btn ghost','Cancel');cancel.type='button';cancel.onclick=closeActModal;
   m.bar.append(cancel);
 }
 async function openMcfModal(c, host, existing){
+  if(!existing) existing=replacementToUpdate('mcf');
   const prev=(existing&&existing.details)||{};
   const m=actModal('Amazon MCF — whole game');
   m.body.append(el('p','hint','Eggsy CX cannot place the Amazon order yet (no SP-API). Copy these fields into the MCF create-order form, then paste the MCF order ID and mark it placed. The Order ID must be the original TikTok Shop, Amazon or Shopify order number — not a new number.'));
   const marketSel=el('select');
-  [['UK','United Kingdom (sellercentral.amazon.co.uk)'],['US','United States (sellercentral.amazon.com)']].forEach(([v,l])=>{const o=el('option',null,l);o.value=v;marketSel.append(o)});
-  marketSel.value=prev.marketplace||defaultMcfMarket(c, prev.address&&prev.address.countryCode);
+  Object.entries(MCF_MARKET).forEach(([v,meta])=>{const o=el('option',null,meta.label);o.value=v;marketSel.append(o)});
+  marketSel.value=prev.marketplace&&MCF_MARKET[prev.marketplace]?prev.marketplace:defaultMcfMarket(c, prev.address&&prev.address.countryCode);
   const mw=el('div');mw.append(el('label',null,'Marketplace'),marketSel);m.body.append(mw);
-  const orderId=field('Order ID (original channel order number)',{value:prev.original_order_id||c.order_number||''});m.body.append(orderId.w);
+  const orderId=field('Order ID (original channel order number)',{value:''});m.body.append(orderId.w);
   const speed=el('select');
   [['Standard','Standard'],['Expedited','Expedited']].forEach(([v,l])=>{const o=el('option',null,l);o.value=v;speed.append(o)});
   speed.value=prev.shipping_speed||'Standard';
@@ -897,8 +974,22 @@ async function openMcfModal(c, host, existing){
   plainL.append(plain,document.createTextNode(' Plain packaging (no Amazon branding)'));m.body.append(plainL);
   const af={};
   [['firstName','First name'],['lastName','Last name'],['address1','Address line 1'],['address2','Address line 2'],['city','City'],['province','County / state'],['zip','Postcode'],['countryCode','Country code (GB, US…)'],['phone','Phone']].forEach(([k,lab])=>{
-    const f=field(lab,{value:(prev.address&&prev.address[k])||(k==='countryCode'?'GB':'')});af[k]=f.i;m.body.append(f.w);
+    const f=field(lab,{value:''});af[k]=f.i;watchAuto(f.i);m.body.append(f.w);
   });
+  watchAuto(marketSel);watchAuto(orderId.i);
+  const savedAddr=prev.address&&(prev.address.address1||prev.address.zip);
+  if(savedAddr){Object.keys(af).forEach(k=>lockField(af[k], prev.address[k]||''));}
+  if(prev.original_order_id) lockField(orderId.i, prev.original_order_id);
+  if(prev.marketplace&&MCF_MARKET[prev.marketplace]) lockField(marketSel, prev.marketplace);
+  if(!savedAddr){
+    const pre=ticketPrefill(c, existing);
+    Object.keys(af).forEach(k=>{if(pre.address&&pre.address[k]) setAuto(af[k], pre.address[k], pre.sources[k]||'from the ticket')});
+    if(!orderId.i.dataset.user&&pre.original_order_id) setAuto(orderId.i, pre.original_order_id, pre.sources.original_order_id||'from the ticket');
+    if(!marketSel.dataset.user&&pre.marketplace) setAuto(marketSel, pre.marketplace, pre.sources.marketplace||'from the ticket');
+  } else if(!orderId.i.value){
+    const pre=ticketPrefill(c, existing);
+    if(pre.original_order_id) setAuto(orderId.i, pre.original_order_id, pre.sources.original_order_id||'from the ticket');
+  }
   const itemsBox=el('div');itemsBox.append(el('label',null,'Items (enter SKU, ASIN or FNSKU)'));
   const selected=(prev.items&&prev.items.length)?prev.items.map(it=>({seller_sku:it.seller_sku||it.sku||'',asin:it.asin||'',fnsku:it.fnsku||'',quantity:it.quantity||1,title:it.title||''})):[{seller_sku:'',asin:'',fnsku:'',quantity:1,title:''}];
   const itemRows=el('div');
@@ -973,11 +1064,11 @@ async function openMcfModal(c, host, existing){
   const looked=await callCx({action:'lookup_order',conversation_id:c.id});
   if(!(prev.address&&prev.address.address1)&&looked.order&&looked.order.shippingAddress){
     const a=looked.order.shippingAddress;
-    af.firstName.value=a.firstName||'';af.lastName.value=a.lastName||'';af.address1.value=a.address1||'';af.address2.value=a.address2||'';
-    af.city.value=a.city||'';af.province.value=a.province||a.provinceCode||'';af.zip.value=a.zip||'';
-    af.countryCode.value=a.countryCodeV2||a.country||'GB';af.phone.value=a.phone||'';
-    if(!marketSel.dataset.touched) marketSel.value=defaultMcfMarket(c, af.countryCode.value);
-    m.setErr('Address filled from Shopify '+looked.order.name+'. The Order ID stays the original channel number ('+(orderId.i.value||c.order_number||'none on the ticket')+').');
+    const shop={firstName:a.firstName||'',lastName:a.lastName||'',address1:a.address1||'',address2:a.address2||'',city:a.city||'',province:a.province||a.provinceCode||'',zip:a.zip||'',countryCode:a.countryCodeV2||a.country||'',phone:a.phone||''};
+    Object.keys(shop).forEach(k=>{if(shop[k]) setAuto(af[k], shop[k], 'from Shopify order')});
+    if(!marketSel.dataset.user&&!marketSel.dataset.touched) setAuto(marketSel, defaultMcfMarket(c, af.countryCode.value), 'from Shopify order');
+    m.setErr('Address filled from Shopify '+looked.order.name+'. The Order ID stays the original channel number ('+(orderId.i.value||c.order_number||'none on the ticket')+'). Check it before you copy the fields.');
+    refreshCopy();
   }else if(looked.error==='not_configured'){
     m.setErr('Shopify is not connected, so the address could not be looked up. Fill it in from the ticket. No Amazon order will be placed from this screen.');
   }else{
@@ -988,8 +1079,14 @@ async function openMcfModal(c, host, existing){
     const details=currentDetails();
     if(!details.original_order_id){m.setErr('Order ID must be the original channel order number.',true);return}
     if(!details.items.length){m.setErr('Add at least one item with a SKU, ASIN or FNSKU.',true);return}
-    if(!details.address.address1||!details.address.city||!details.address.zip||!details.address.countryCode){m.setErr('Fill in the customer address.',true);return}
+    if(!details.address.firstName||!details.address.lastName){m.setErr('Add a first and last name.',true);return}
+    if(!details.address.address1||!details.address.city||!details.address.zip||!details.address.countryCode){m.setErr('Fill in address line 1, city, postcode and country code.',true);return}
+    if(needsProvince(details.address.countryCode)&&!details.address.province){m.setErr('County / state is required for the US, Canada and Australia.',true);return}
     if(markPlaced&&!details.mcf_order_id){m.setErr('Paste the MCF order ID from Seller Central before marking it placed.',true);return}
+    if(prev.source) details.source=prev.source;
+    if(prev.reply_queue_id) details.reply_queue_id=prev.reply_queue_id;
+    if(prev.draft_id) details.draft_id=prev.draft_id;
+    details.awaiting_details=false;
     const status=markPlaced?'created':'pending';
     const email=(await sb.auth.getUser()).data.user.email;
     let error,data;
@@ -1012,7 +1109,9 @@ async function openMcfModal(c, host, existing){
   const cancel=el('button','btn ghost','Cancel');cancel.type='button';cancel.onclick=closeActModal;
   m.bar.append(saveBtn,placed,cancel);
 }
-async function openPartReplacementModal(c, host){
+async function openPartReplacementModal(c, host, existing){
+  if(!existing) existing=replacementToUpdate('part');
+  const prev=(existing&&existing.details)||{};
   const m=actModal('Send a replacement part');
   m.body.append(el('p','hint','This is for replacement PARTS only. It creates a free Shopify order tagged eggsy-replacement so it goes to the same 3PL as website orders. Whole games should use Amazon MCF instead. Nothing is sent to the customer until you queue a reply.'));
   const itemsBox=el('div');const selected=[];
@@ -1034,16 +1133,17 @@ async function openPartReplacementModal(c, host){
   itemsBox.append(search.w,results,chosen);m.body.append(itemsBox);
   const orig=el('div');m.body.append(orig);
   const af={};
-  [['firstName','First name'],['lastName','Last name'],['address1','Address line 1'],['address2','Address line 2'],['city','City'],['province','County / state'],['zip','Postcode'],['countryCode','Country code (GB, US…)'],['phone','Phone']].forEach(([k,lab])=>{const f=field(lab,{value:k==='countryCode'?'GB':''});af[k]=f.i;m.body.append(f.w)});
+  [['firstName','First name'],['lastName','Last name'],['address1','Address line 1'],['address2','Address line 2'],['city','City'],['province','County / state'],['zip','Postcode'],['countryCode','Country code (GB, US…)'],['phone','Phone']].forEach(([k,lab])=>{const f=field(lab,{value:''});af[k]=f.i;watchAuto(f.i);m.body.append(f.w)});
+  if(prev.address&&(prev.address.address1||prev.address.zip)) Object.keys(af).forEach(k=>lockField(af[k], prev.address[k]||''));
+  else {const pre=ticketPrefill(c, existing);Object.keys(af).forEach(k=>{if(pre.address&&pre.address[k]) setAuto(af[k], pre.address[k], pre.sources[k]||'from the ticket')})}
   const reason=field('Reason',{tag:'textarea',minHeight:'64px'});m.body.append(reason.w);
   const rec=field('Or record an order already created in Shopify',{placeholder:'#11312'});m.body.append(rec.w);
   m.setErr('Loading the original order, if we can find it…');
   const looked=await callCx({action:'lookup_order',conversation_id:c.id});
   if(looked.order&&looked.order.shippingAddress){
     const a=looked.order.shippingAddress;
-    af.firstName.value=a.firstName||'';af.lastName.value=a.lastName||'';af.address1.value=a.address1||'';af.address2.value=a.address2||'';
-    af.city.value=a.city||'';af.province.value=a.province||a.provinceCode||'';af.zip.value=a.zip||'';
-    af.countryCode.value=a.countryCodeV2||a.country||'GB';af.phone.value=a.phone||'';
+    const shop={firstName:a.firstName||'',lastName:a.lastName||'',address1:a.address1||'',address2:a.address2||'',city:a.city||'',province:a.province||a.provinceCode||'',zip:a.zip||'',countryCode:a.countryCodeV2||a.country||'',phone:a.phone||''};
+    Object.keys(shop).forEach(k=>{if(shop[k]) setAuto(af[k], shop[k], 'from Shopify order')});
     const quick=el('div');quick.append(el('div','hint','Items on Shopify '+looked.order.name+' — click to add:'));
     (looked.order.lineItems&&looked.order.lineItems.nodes||[]).forEach(li=>{const b=el('button','btn ghost',li.title+' × '+li.quantity);b.type='button';
       b.onclick=()=>{selected.push({variantId:li.variant&&li.variant.id,title:li.title,sku:li.sku,price:li.originalUnitPriceSet&&li.originalUnitPriceSet.shopMoney&&li.originalUnitPriceSet.shopMoney.amount,quantity:li.quantity||1,label:li.title});drawChosen()};quick.append(b)});
@@ -1066,7 +1166,11 @@ async function openPartReplacementModal(c, host){
     if(rec.i.value.trim()){
       if(!selected.length&&!reason.i.value.trim()){m.setErr('Add what you sent, or a reason, so the ticket has a record.',true);return}
       const address={};Object.keys(af).forEach(k=>address[k]=af[k].value.trim());
-      const {data,error}=await sb.from('cx_actions').insert({conversation_id:c.id,type:'replacement',status:'created',shopify_order_name:rec.i.value.trim(),details:{kind:'part',fulfilment:'shopify_3pl',items:selected,address,reason:reason.i.value.trim(),recorded_manually:true,source_origin:c.origin,source_order:c.order_number},created_by:(await sb.auth.getUser()).data.user.email}).select('id').single();
+      const partDetails=Object.assign({},prev,{kind:'part',fulfilment:'shopify_3pl',items:selected,address,reason:reason.i.value.trim(),recorded_manually:true,source_origin:c.origin,source_order:c.order_number,awaiting_details:false});
+      const res=existing
+        ?await sb.from('cx_actions').update({status:'created',shopify_order_name:rec.i.value.trim(),details:partDetails,updated_at:new Date().toISOString()}).eq('id',existing.id).select('id').single()
+        :await sb.from('cx_actions').insert({conversation_id:c.id,type:'replacement',status:'created',shopify_order_name:rec.i.value.trim(),details:partDetails,created_by:(await sb.auth.getUser()).data.user.email}).select('id').single();
+      const data=res.data,error=res.error;
       if(error){m.setErr(error.message,true);return}
       await logNote(c,'Replacement recorded against Shopify order '+rec.i.value.trim()+(selected.length?' for '+selected.map(i=>i.title+' × '+(i.quantity||1)).join(', '):'')+'.','note:action:'+data.id);
       closeActModal();await reloadActions(c,host);return;
@@ -1081,6 +1185,9 @@ async function openPartReplacementModal(c, host){
       m.setErr(r.error||'Could not create the order',true);return;
     }
     if(r.routing_warning) alert(r.routing_warning);
+    if(existing && isPlaceholderAction(existing) && r.action && r.action.id && r.action.id!==existing.id){
+      await sb.from('cx_actions').update({status:'cancelled',updated_at:new Date().toISOString(),details:Object.assign({},existing.details||{},{superseded_by:r.action.id})}).eq('id',existing.id);
+    }
     closeActModal();await reloadActions(c,host);
   };
 }
