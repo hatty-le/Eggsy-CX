@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Inbox · Eggsy CX</title>
-<script>(function(){var M={"/waiting/":"Waiting","/resolved/":"Resolved"};var t=M[location.pathname.replace(/index\.html$/,"")];if(t)document.title=t+" · Eggsy CX"})();</script>
+<script>(function(){var M={"/waiting/":"Waiting","/resolved/":"Resolved","/junk/":"Junk"};var t=M[location.pathname.replace(/index\.html$/,"")];if(t)document.title=t+" · Eggsy CX"})();</script>
 <style>
 :root{--yolk:#FFC83D;--ink:#1d1b26;--muted:#6b6878;--bg:#FFF9EC;--card:#fff;--line:#eadfc4}
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--ink)}
@@ -101,6 +101,7 @@ details.elog div{margin-top:6px}
 .srch-h{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:10px 14px 4px}
 .snip{font-size:12.5px;color:#5a4a12;background:#fff7dd;border-radius:8px;padding:4px 8px;margin-top:4px}
 .tag.bucket{background:#1d1b26;color:#fff}.tag.b-resolved{background:#dff5e3;color:#1d5c2b}.tag.b-waiting{background:#e6f0ff;color:#1f3d7a}.tag.b-inbox{background:#FFE8A6;color:#5a4300}
+.junkbtn{margin:0 0 10px}
 .linknote{font-size:13px;color:var(--muted);margin:0 0 6px}.linknote a{color:#7a5a00;font-weight:600}
 .bubble.psum{background:#faf8f2;border:1px dashed #d9cfb4;font-size:13.5px}
 .role{display:inline-block;font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 7px;margin-left:6px;background:#fff;border:1px solid var(--line);vertical-align:1px}
@@ -206,15 +207,16 @@ const SUBS={amazon:[['amazon_uk','UK',1],['amazon_us','US',1],['amazon_de','DE',
  forms:[['shopify_form','Shopify',1],['wix_mmc_form','Wix MMC',1]],
  meta:[['instagram','Instagram',1],['facebook','Facebook',1]]};
 const groupOf=o=>(GROUPS.find(g=>g[0]!=='all'&&g[2](o))||['other'])[0];
-const STATUS={open:'Open',awaiting_approval:'Awaiting approval',awaiting_customer:'Awaiting customer',resolved:'Resolved',ignored:'Ignored'};
+const STATUS={open:'Open',awaiting_approval:'Awaiting approval',awaiting_customer:'Awaiting customer',resolved:'Resolved',ignored:'Junk'};
 let convs=[],grp='all',sub='',dft='',draftMap={},msgHits={},sel=null,qmap={},langMap={},emailCh={},stMap={};
 // One page, three views: /inbox/ (needs a reply from us), /waiting/ (we replied, waiting on the customer), /resolved/.
 // The bucket comes from the cx_conversation_state view in Supabase, so the nav counts and the lists always agree.
 const MODES={inbox:{title:'Inbox',path:'/inbox/',intro:'Conversations that need a reply from us: the customer wrote last and it isn’t resolved. Oldest first, so the longest wait is at the top.',empty:'Nothing needs a reply right now. 🎉',statuses:['open','awaiting_approval','awaiting_customer']},
  waiting:{title:'Waiting',path:'/waiting/',intro:'We’ve replied, or a reply is queued, sending or sent, and we’re waiting on the customer. A new customer message moves the conversation back to the Inbox.',empty:'No conversations are waiting on a customer.',statuses:['open','awaiting_approval','awaiting_customer']},
- resolved:{title:'Resolved',path:'/resolved/',intro:'Resolved conversations (and ignored spam or affiliate messages). A new customer message on a resolved conversation moves it back to the Inbox.',empty:'No resolved conversations yet.',statuses:['resolved','ignored']}};
-const MODE=/^\/waiting\//.test(location.pathname)?'waiting':/^\/resolved\//.test(location.pathname)?'resolved':'inbox';
-const bucketOf=c=>{const x=stMap[c.id];if(x)return x.bucket;return c.status==='resolved'||c.status==='ignored'?'resolved':c.status==='awaiting_customer'?'waiting':'inbox'};
+ resolved:{title:'Resolved',path:'/resolved/',intro:'Resolved customer conversations. A new customer message on a resolved conversation moves it back to the Inbox.',empty:'No resolved conversations yet.',statuses:['resolved']},
+ junk:{title:'Junk',path:'/junk/',intro:'Spam, sales pitches, phishing and platform notifications: anything that isn’t a customer needing help. Eggsy never drafts or sends replies here. Use “Not junk” to move a ticket back to the Inbox.',empty:'No junk. 🎉',statuses:['ignored']}};
+const MODE=/^\/waiting\//.test(location.pathname)?'waiting':/^\/resolved\//.test(location.pathname)?'resolved':/^\/junk\//.test(location.pathname)?'junk':'inbox';
+const bucketOf=c=>{const x=stMap[c.id];if(x)return x.bucket;return c.status==='ignored'?'junk':c.status==='resolved'?'resolved':c.status==='awaiting_customer'?'waiting':'inbox'};
 const inMode=c=>bucketOf(c)===MODE;
 const sinceOf=c=>{const x=stMap[c.id];return (x&&(x.needs_reply_since||x.last_customer_at))||c.last_message_at};
 (function(){const m=MODES[MODE];document.getElementById('ptitle').textContent=m.title;document.getElementById('atitle').textContent=m.title;document.getElementById('pintro').textContent=m.intro;
@@ -321,7 +323,7 @@ function drawList(){const box=$('list');box.innerHTML='';const v=visible();const
  if(q)box.append(el('div','srch-h',v.length+' in '+MODES[MODE].title));
  if(!v.length)box.append(el('div','empty',q?'No matches in '+MODES[MODE].title+'.':convs.some(inMode)?'No conversations match these filters.':MODES[MODE].empty));
  v.forEach(c=>rowFor(c,box));
- if(q)['inbox','waiting','resolved'].filter(b=>b!==MODE).forEach(b=>{const list=other.filter(c=>bucketOf(c)===b);if(!list.length)return;
+ if(q)['inbox','waiting','resolved','junk'].filter(b=>b!==MODE).forEach(b=>{const list=other.filter(c=>bucketOf(c)===b);if(!list.length)return;
   box.append(el('div','srch-h',list.length+' in '+MODES[b].title));list.forEach(c=>rowFor(c,box,b))});
 }
 function rowFor(c,box,otherBucket){{const it=el('div','item'+(sel===c.id?' sel':''));it.tabIndex=0;it.onclick=()=>openConv(c.id,true);it.onkeydown=e=>{if(e.key==='Enter')openConv(c.id,true)};
@@ -402,6 +404,12 @@ async function openConv(id,push){sel=id;drawList();const c=convs.find(x=>x.id===
  const s=el('select');Object.entries(STATUS).forEach(([k,l])=>{const o=el('option',null,l);o.value=k;if(k===c.status)o.selected=true;s.append(o)});
  s.onchange=async()=>{const {error}=await sb.from('conversations').update({status:s.value}).eq('id',c.id);if(error){alert('Could not update: '+error.message);s.value=c.status}else{c.status=s.value;await refreshStates();showElsewhere(c)}};
  add('Status',null,s);t.append(meta);
+ // One-click Junk / Not junk.
+ {const jb=el('button','btn ghost small junkbtn',c.status==='ignored'?'↩ Not junk, move to Inbox':'🗑 Move to Junk');jb.type='button';
+  jb.onclick=async()=>{jb.disabled=true;const to=c.status==='ignored'?'open':'ignored';
+   const {error}=await sb.from('conversations').update({status:to,status_changed_at:new Date().toISOString()}).eq('id',c.id);
+   if(error){alert('Could not update: '+error.message);jb.disabled=false;return}
+   c.status=to;await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();drawChips();drawList();openConv(c.id,false)};t.append(jb)}
  const ew=el('div');ew.id='elsewhere';t.append(ew);showElsewhere(c);
  kbFor(c,t);
  if(c.summary||c.subject){const d=el('details','elog');d.append(el('summary',null,'Eggsy’s notes'));if(c.subject)d.append(el('div',null,'Subject: '+c.subject));if(c.summary)d.append(el('div',null,c.summary));t.append(d)}

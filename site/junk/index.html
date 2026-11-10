@@ -1,0 +1,1150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inbox · Eggsy CX</title>
+<script>(function(){var M={"/waiting/":"Waiting","/resolved/":"Resolved","/junk/":"Junk"};var t=M[location.pathname.replace(/index\.html$/,"")];if(t)document.title=t+" · Eggsy CX"})();</script>
+<style>
+:root{--yolk:#FFC83D;--ink:#1d1b26;--muted:#6b6878;--bg:#FFF9EC;--card:#fff;--line:#eadfc4}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+a{color:inherit}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;gap:12px}.ptitle{margin:0;font-size:22px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:20px;text-decoration:none}
+.egg{width:28px;height:35px;background:#fff;border-radius:50%/60% 60% 40% 40%;box-shadow:inset 0 0 0 3px var(--ink);position:relative;flex:none}
+.egg:after{content:'';position:absolute;width:12px;height:12px;background:var(--yolk);border-radius:50%;left:8px;top:15px}
+.btn{background:var(--ink);color:#fff;border:0;border-radius:999px;padding:10px 18px;font-weight:600;text-decoration:none;cursor:pointer;font-size:14px}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.who{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:10px}
+.card{background:var(--card);border-radius:18px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+#auth{max-width:420px;margin:60px auto;padding:28px;text-align:center}
+#auth h1{margin:0 0 8px}#auth p{color:var(--muted)}
+input,select{font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#fff;width:100%}
+#auth input{margin:10px 0}
+.msg{font-size:14px;color:var(--muted);min-height:20px}
+#app{display:none;max-width:1280px;margin:0 auto;padding:0 24px 24px}
+.toolbar{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.chip{flex:none;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
+.chip.on{background:var(--yolk);border-color:var(--yolk);font-weight:700}
+.chip small{color:var(--muted);margin-left:4px}
+.pintro{color:var(--muted);font-size:13.5px;margin:-4px 0 10px}
+.elsewhere{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#eef4ff;color:#1d3b6b;border-radius:10px;padding:8px 12px;margin:8px 0;font-size:13.5px}
+.elsewhere a{font-weight:700}
+.kbbox{margin:8px 0}.kbbox summary{cursor:pointer;font-size:13.5px;font-weight:600}.kbbox ul{margin:6px 0 0;padding-left:18px;font-size:13.5px;line-height:1.5}.kbbox small{color:var(--muted)}
+.row2{display:flex;gap:8px}.row2 select{width:auto}
+.layout{display:grid;grid-template-columns:minmax(300px,400px) 1fr;gap:16px;height:calc(100vh - 170px);min-height:420px}
+#list{overflow-y:auto;padding:6px}
+.item{display:block;padding:12px 14px;border-radius:14px;cursor:pointer;border:1px solid transparent}
+.item:hover{background:#fffaf0}.item.sel{background:#FFF3D1;border-color:var(--yolk)}
+.item .top{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted)}
+.item .name{font-weight:700;font-size:15px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .sub{font-size:14px;margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:#f2ecdc;white-space:nowrap}
+.st-open{background:#ffe1e1}.st-awaiting_approval{background:var(--yolk)}.st-awaiting_customer{background:#dcecff}.st-resolved{background:#dff5e3}.st-ignored{background:#eee;color:#777}
+#thread{overflow-y:auto;padding:22px}
+.empty{color:var(--muted);text-align:center;margin-top:80px}
+.th-head h2{margin:6px 0 10px;font-size:22px}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 16px;font-size:14px;margin-bottom:12px}
+.meta div span{display:block;font-size:12px;color:var(--muted)}
+.summary{background:#FFF9EC;border-radius:12px;padding:10px 14px;font-size:14px;margin-bottom:16px}
+.bubble{max-width:85%;margin:10px 0;padding:12px 14px;border-radius:16px;white-space:pre-wrap;word-wrap:break-word;font-size:14.5px;line-height:1.45}
+.bubble .by{font-size:12px;color:var(--muted);margin-bottom:4px;white-space:normal}
+.inbound{background:#f5f2ea;border-top-left-radius:4px}
+.outbound{background:#FFE8A6;margin-left:auto;border-top-right-radius:4px}
+.draft{background:#fff;border:2px dashed var(--yolk);margin-left:auto}
+.note{background:transparent;border:1px solid var(--line);max-width:100%;font-size:13px;color:var(--muted)}
+.back{display:none}
+.bubble .badge{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:1px}
+.b-queued,.b-sending{background:#dcecff}.b-sent{background:#dff5e3}.b-failed{background:#ffe1e1;color:#8a1c14}.b-cancelled{background:#eee;color:#777}
+.bubble.qcancelled{opacity:.55;text-decoration:line-through}.bubble.qfailed{border:2px solid #f3b4ae}
+.bubble .err{font-size:12.5px;color:#8a1c14;margin-top:6px;white-space:normal}
+.bubble .acts{margin-top:8px;white-space:normal}.bubble .acts .btn{padding:6px 12px;font-size:13px}
+.composer{margin-top:18px;border-top:1px solid var(--line);padding-top:16px}
+.composer h3{margin:0 0 4px;font-size:16px}
+.composer .to{font-size:13px;color:var(--muted);margin-bottom:8px;word-break:break-word}
+.composer textarea{font:inherit;font-size:15px;width:100%;min-height:140px;border:1px solid var(--line);border-radius:12px;padding:10px 14px;resize:vertical;background:#fff}
+.composer .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.composer .hint{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.4}
+.composer .warn{font-size:13px;background:#fff3d1;border-radius:10px;padding:8px 12px;margin-bottom:8px}
+.qtag{background:#dcecff}.qtag.failed{background:#ffe1e1}
+.tag.flagtag{background:#ffe1e1;color:#8a1c14}
+.flagbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#ffe1e1;color:#8a1c14;border-radius:10px;padding:8px 12px;margin:8px 0;font-size:13.5px}
+.flagbar .btn{margin-left:auto}
+.bubble .qnote{font-size:12.5px;color:#7a5a00;background:#fff3d1;border-radius:8px;padding:6px 9px;margin-top:6px;white-space:normal}
+.bubble .okline{font-size:12px;color:var(--muted);margin-top:6px;white-space:normal}
+.chips.sub .chip{font-size:12.5px;padding:4px 11px;background:#fffdf6}
+.chips.sub .chip.on{background:#FFE8A6;border-color:#f3c84b}
+.chips.sub:empty,.chips.draft:empty{display:none}
+.chips.draft .chip{font-size:12.5px;padding:4px 11px}.chips.draft .chip.on.d-ready{background:#dff5e3;border-color:#9fd7aa}.chips.draft .chip.on.d-gaps{background:#ffe1e1;border-color:#f3b4ae}
+.tag.dready{background:#dff5e3;color:#1d5c2b}.tag.dgaps{background:#ffe1e1;color:#8a1c14}
+button.chip{font:inherit;font-size:13px;color:inherit}
+.item .line1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.item .when{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.item .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.item .ov{font-size:14px;margin-top:5px;line-height:1.35;color:#3a3746}
+.item .foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;font-size:12.5px;color:var(--muted)}
+.topic{background:#efe7ff;color:#3d2a7a}
+.ch-amazon{background:#ffe9cc}.ch-tiktok{background:#e3f6f5}.ch-email{background:#e8eefc}.ch-forms{background:#eef6e2}.ch-meta{background:#fde4f1}.ch-walmart{background:#dceaff}
+.th-head .tags{display:flex;flex-wrap:wrap;gap:6px}
+.th-head h2{margin:8px 0 10px}
+details.elog{background:#FFF9EC;border-radius:12px;padding:8px 14px;font-size:13.5px;margin-bottom:6px}
+details.elog summary{cursor:pointer;font-weight:600;color:var(--muted)}
+details.elog div{margin-top:6px}
+.hist-h{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 4px}
+.bubble .by b{color:var(--ink)}
+.bubble.platform{background:#FFE8A6}
+.bubble.internal{background:#eef1f7;margin-left:auto;border:1px dashed #b9c3d8}
+.bubble.eggsy{background:transparent;border:1px solid var(--line);max-width:100%;font-size:13px;color:var(--muted)}
+.bubble.sysnote{background:#f3f7f3;border:1px solid #d6e6d6;max-width:100%;font-size:13px}
+.atts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;white-space:normal}.att img{max-width:220px;max-height:220px;border-radius:10px;border:1px solid var(--line);cursor:zoom-in;display:block}.attph{font-size:12.5px;color:var(--muted)}.attlink{background:#fff;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font:inherit;font-size:13px;cursor:pointer}
+.srch-h{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:10px 14px 4px}
+.snip{font-size:12.5px;color:#5a4a12;background:#fff7dd;border-radius:8px;padding:4px 8px;margin-top:4px}
+.tag.bucket{background:#1d1b26;color:#fff}.tag.b-resolved{background:#dff5e3;color:#1d5c2b}.tag.b-waiting{background:#e6f0ff;color:#1f3d7a}.tag.b-inbox{background:#FFE8A6;color:#5a4300}
+.junkbtn{margin:0 0 10px}
+.linknote{font-size:13px;color:var(--muted);margin:0 0 6px}.linknote a{color:#7a5a00;font-weight:600}
+.bubble.psum{background:#faf8f2;border:1px dashed #d9cfb4;font-size:13.5px}
+.role{display:inline-block;font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 7px;margin-left:6px;background:#fff;border:1px solid var(--line);vertical-align:1px}
+.others{margin-top:18px;border-top:1px solid var(--line);padding-top:4px}
+.others a{display:block;text-decoration:none;padding:8px 10px;border-radius:10px;border:1px solid var(--line);margin-top:6px;font-size:13.5px;background:#fff}
+.others a:hover{background:#fffaf0}
+.others a .when{color:var(--muted);font-size:12px;float:right}
+.composer .lbl{font-size:12.5px;color:#7a5b00;background:#FFF3D1;border-radius:999px;display:inline-block;padding:3px 10px;margin-bottom:6px}
+.composer .lbl.edit{background:#e8eefc;color:#2a3f7a}
+.composer details.tr{font-size:13.5px;background:#f7f5ef;border-radius:10px;padding:8px 12px;margin-top:8px}
+.composer details.tr summary{cursor:pointer;font-weight:600;color:var(--muted)}
+.composer details.tr div{white-space:pre-wrap;margin-top:6px;line-height:1.45}
+.composer .newer{font-size:13px;background:#efe7ff;border-radius:10px;padding:8px 12px;margin-bottom:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.composer .newer .btn{padding:5px 12px;font-size:13px}
+.tag.lang{background:#e6f0ff;color:#1f3d7a;letter-spacing:.04em}
+.trbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:4px 0 12px;font-size:13px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;background:#fff;padding:2px}
+.seg button{font:inherit;font-size:13px;border:0;background:transparent;border-radius:999px;padding:5px 12px;cursor:pointer;color:var(--ink)}
+.seg button.on{background:#FFE8A6;font-weight:700}
+.bubble .ltag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.05em;border-radius:6px;padding:1px 5px;margin-left:6px;background:#e6f0ff;color:#1f3d7a;vertical-align:1px}
+.bubble .trnote{font-size:11.5px;color:var(--muted);margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.bubble .flip{font:inherit;font-size:11.5px;background:none;border:0;padding:0;color:#2a5bd7;text-decoration:underline;cursor:pointer}
+details.psumfold{border:1px dashed #d9cfb4;background:#faf8f2;border-radius:12px;padding:6px 12px;font-size:13px;margin:6px 0;max-width:80%}
+details.psumfold summary{cursor:pointer;color:var(--muted);font-weight:600}
+details.psumfold div{white-space:pre-wrap;margin-top:6px}
+@media (max-width:760px){.trbar{margin-top:10px}.seg button{padding:7px 12px}details.psumfold{max-width:100%}}
+@media (max-width:760px){
+ .composer textarea{min-height:200px;font-size:16px}
+ .bubble{max-width:94%}
+ .composer .bar .btn{flex:1}
+ header{padding:10px 14px}.ptitle{font-size:19px}#app{padding:0 12px 12px}
+ .layout{grid-template-columns:1fr;height:auto}
+ #list{max-height:none}
+ #thread{display:none;padding:16px}
+ .showthread #list{display:none}.showthread #thread{display:block}
+ .back{display:inline-block;margin-bottom:8px}
+ .who .email{display:none}
+}
+@media (max-width:900px){.layout{height:calc(100vh - 220px)}}
+@media (max-width:760px){.layout{height:auto}}
+
+.actbox{margin:12px 0;border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff}
+.actbox h3{margin:0 0 8px;font-size:15px}
+.actbox .hint{font-size:12.5px;color:var(--muted);margin:0 0 8px;line-height:1.4}
+.actrow{font-size:13.5px;padding:8px 0;border-top:1px solid var(--line);line-height:1.4}
+.actbtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.actov{position:fixed;inset:0;background:rgba(29,27,38,.35);z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+.actmd{background:#fff;border-radius:18px;max-width:680px;width:100%;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.12)}
+.actcopy{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:8px 0;background:#faf9fc}
+.actcopy .actcopyh{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:2px}
+.actcopy pre{margin:0;font-size:13px;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.4}
+.actchoice{display:grid;gap:10px;margin:12px 0}
+.actchoice button.btn{text-align:left;padding:14px 16px;white-space:normal;line-height:1.45}
+.actchoice button .hint{display:block;font-weight:400;margin-top:4px}
+.btn.moreact{background:transparent;color:var(--muted);border:0;padding:6px 8px;font-weight:500;font-size:12.5px;text-decoration:underline;text-underline-offset:3px;box-shadow:none}
+.btn.moreact:hover{color:var(--ink)}
+.actmd h3{margin:0 0 8px;font-size:18px}
+.actmd label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}
+.actmd .hint{font-size:12.5px;color:var(--muted);margin:4px 0 8px;line-height:1.4}
+.actmd .warn{font-size:13px;background:#fff3d1;border-radius:10px;padding:8px 12px;margin:8px 0}
+.actresults{border:1px solid var(--line);border-radius:10px;max-height:180px;overflow:auto;margin-top:6px}
+.actresults button{display:block;width:100%;text-align:left;background:#fff;border:0;border-bottom:1px solid var(--line);padding:8px 10px;cursor:pointer;font:inherit;font-size:13.5px}
+.actresults button:hover{background:#fffaf0}
+.composer .req{display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-top:8px;color:#3a3746;line-height:1.35}
+.composer .req input{width:auto;margin-top:2px}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<header><h1 class="ptitle" id="ptitle">Inbox</h1><div class="who" id="who"></div></header>
+
+<section id="auth" class="card">
+ <h1 id="atitle">Inbox</h1>
+ <p>Log in with your <b>@luckyegg.co</b> Google account.</p>
+ <div id="gsign" style="margin:16px 0 6px"></div>
+ <p class="msg" id="amsg" role="status"></p>
+</section>
+
+<main id="app">
+ <p class="pintro" id="pintro"></p>
+ <div class="toolbar">
+  <div class="chips" id="chips" aria-label="Channel"></div>
+  <div class="chips sub" id="subchips" aria-label="Marketplace or shop"></div>
+  <div class="chips draft" id="draftchips" aria-label="Draft readiness"></div>
+  <div class="row2"><input id="q" type="search" placeholder="Search Inbox, Waiting and Resolved: name, email, order, or any words in the messages…"></div>
+ </div>
+ <div class="layout" id="layout">
+  <div class="card" id="list"></div>
+  <div class="card" id="thread"><div class="empty">Pick a conversation to see the full history.</div></div>
+ </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://xodkbmtylftfmnxfnxxf.supabase.co';
+const SUPABASE_KEY='sb_publishable_gX9OKDCT6Opnt8OcsFRmiQ_xaM0O8ti'; // public publishable key: safe in the browser, data is protected by RLS
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,detectSessionInUrl:false,flowType:'pkce'}});
+const ORIGINS={email_hey:'hey@ email',shopify_form:'Shopify form',wix_mmc_form:'MMC Wix form',tiktok_uk:'TikTok UK',tiktok_eu:'TikTok EU',tiktok_us:'TikTok US',amazon_uk:'Amazon UK',amazon_us:'Amazon US',amazon_de:'Amazon DE',amazon_fr:'Amazon FR',amazon_it:'Amazon IT',amazon_es:'Amazon ES',amazon_nl:'Amazon NL',amazon_se:'Amazon SE',amazon_pl:'Amazon PL',amazon_be:'Amazon BE',amazon_other:'Amazon (other)',walmart:'Walmart',facebook:'Facebook',instagram:'Instagram'};
+const GROUPS=[['all','All',()=>true],['email','Email (hey@)',o=>o==='email_hey'],['forms','Web forms',o=>o==='shopify_form'||o==='wix_mmc_form'],['amazon','Amazon',o=>o.startsWith('amazon')],['tiktok','TikTok',o=>o.startsWith('tiktok')],['walmart','Walmart',o=>o==='walmart'],['meta','Facebook & Instagram',o=>o==='facebook'||o==='instagram']];
+// Second-level filters per channel: [origin, short label, show even when empty]
+const SUBS={amazon:[['amazon_uk','UK',1],['amazon_us','US',1],['amazon_de','DE',1],['amazon_nl','NL',1],['amazon_se','SE',1],['amazon_fr','FR'],['amazon_it','IT'],['amazon_es','ES'],['amazon_pl','PL'],['amazon_be','BE'],['amazon_other','Other']],
+ tiktok:[['tiktok_uk','UK',1],['tiktok_us','US',1],['tiktok_eu','EU',1]],
+ forms:[['shopify_form','Shopify',1],['wix_mmc_form','Wix MMC',1]],
+ meta:[['instagram','Instagram',1],['facebook','Facebook',1]]};
+const groupOf=o=>(GROUPS.find(g=>g[0]!=='all'&&g[2](o))||['other'])[0];
+const STATUS={open:'Open',awaiting_approval:'Awaiting approval',awaiting_customer:'Awaiting customer',resolved:'Resolved',ignored:'Junk'};
+let convs=[],grp='all',sub='',dft='',draftMap={},msgHits={},sel=null,qmap={},langMap={},emailCh={},stMap={};
+// One page, three views: /inbox/ (needs a reply from us), /waiting/ (we replied, waiting on the customer), /resolved/.
+// The bucket comes from the cx_conversation_state view in Supabase, so the nav counts and the lists always agree.
+const MODES={inbox:{title:'Inbox',path:'/inbox/',intro:'Conversations that need a reply from us: the customer wrote last and it isn’t resolved. Oldest first, so the longest wait is at the top.',empty:'Nothing needs a reply right now. 🎉',statuses:['open','awaiting_approval','awaiting_customer']},
+ waiting:{title:'Waiting',path:'/waiting/',intro:'We’ve replied, or a reply is queued, sending or sent, and we’re waiting on the customer. A new customer message moves the conversation back to the Inbox.',empty:'No conversations are waiting on a customer.',statuses:['open','awaiting_approval','awaiting_customer']},
+ resolved:{title:'Resolved',path:'/resolved/',intro:'Resolved customer conversations. A new customer message on a resolved conversation moves it back to the Inbox.',empty:'No resolved conversations yet.',statuses:['resolved']},
+ junk:{title:'Junk',path:'/junk/',intro:'Spam, sales pitches, phishing and platform notifications: anything that isn’t a customer needing help. Eggsy never drafts or sends replies here. Use “Not junk” to move a ticket back to the Inbox.',empty:'No junk. 🎉',statuses:['ignored']}};
+const MODE=/^\/waiting\//.test(location.pathname)?'waiting':/^\/resolved\//.test(location.pathname)?'resolved':/^\/junk\//.test(location.pathname)?'junk':'inbox';
+const bucketOf=c=>{const x=stMap[c.id];if(x)return x.bucket;return c.status==='ignored'?'junk':c.status==='resolved'?'resolved':c.status==='awaiting_customer'?'waiting':'inbox'};
+const inMode=c=>bucketOf(c)===MODE;
+const sinceOf=c=>{const x=stMap[c.id];return (x&&(x.needs_reply_since||x.last_customer_at))||c.last_message_at};
+(function(){const m=MODES[MODE];document.getElementById('ptitle').textContent=m.title;document.getElementById('atitle').textContent=m.title;document.getElementById('pintro').textContent=m.intro;
+ })();
+async function loadStates(){const {data,error}=await sb.from('cx_conversation_state').select('conversation_id,bucket,last_customer_at,last_reply_at,needs_reply_since');
+ if(error){console.warn('state',error.message);return}stMap={};(data||[]).forEach(r=>{stMap[r.conversation_id]=r})}
+async function refreshStates(){await loadStates();drawChips();drawList();EggsyNav.refreshCounts()}
+// Translation: ISO codes on messages.language; body_en holds the English translation.
+const LANGS={en:'English',de:'German',nl:'Dutch',it:'Italian',sv:'Swedish',es:'Spanish',fr:'French',pt:'Portuguese',da:'Danish',pl:'Polish',no:'Norwegian',fi:'Finnish'};
+const LNAME={german:'de',dutch:'nl',italian:'it',swedish:'sv',spanish:'es',french:'fr',english:'en'};
+const isoOf=l=>{if(!l)return null;const x=String(l).trim().toLowerCase();return LNAME[x]||x.slice(0,2)};
+const langName=l=>{const i=isoOf(l);return i?(LANGS[i]||i.toUpperCase()):''};
+const TRK='eggsy-translate';
+const trMode=()=>{try{return localStorage.getItem(TRK)==='orig'?'orig':'en'}catch(e){return 'en'}};
+const setTrMode=v=>{try{localStorage.setItem(TRK,v)}catch(e){}};
+const $=id=>document.getElementById(id);
+const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
+const fmt=d=>{if(!d)return '';const x=new Date(d),o={timeZone:'Europe/London',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'};if(x.getFullYear()!==new Date().getFullYear())o.year='numeric';return x.toLocaleString('en-GB',o)};
+
+const okEmail=EggsyAuth.okEmail;
+const setMsg=(t,bad)=>{$('amsg').textContent=t;$('amsg').style.color=bad?'#b3261e':''};
+EggsyAuth.button($('gsign'),sb,setMsg);
+sb.auth.onAuthStateChange((_e,session)=>render(session));
+EggsyAuth.handleRedirect(sb,setMsg).then(()=>sb.auth.getSession()).then(({data})=>render(data.session));
+let started=false;
+function render(session){
+ const email=session&&session.user&&session.user.email;
+ if(!email){$('auth').style.display='block';$('app').style.display='none';$('who').innerHTML='';EggsyNav.setUser(null);started=false;return}
+ $('who').innerHTML='';
+ if(!okEmail(email)){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;EggsyAuth.reject(sb,email,setMsg);return}
+ $('auth').style.display='none';$('app').style.display='block';
+ EggsyNav.setUser(email,()=>sb.auth.signOut(),sb);
+ const ret=EggsyNav.takeReturn();
+ if(ret&&ret.startsWith('/sent/')){location.replace(ret);return}
+ if(ret&&!/^\/(inbox|waiting|resolved)\//.test(ret)&&ret!=='/'){location.replace(ret);return}
+ if(ret&&ret.indexOf('?c=')>0&&!new URLSearchParams(location.search).get('c')){
+  if(ret.split('?')[0]===location.pathname)history.replaceState(null,'',ret);else{location.replace(ret);return}}
+ if(history.replaceState&&location.hash.includes('access_token'))history.replaceState(null,'',location.pathname+location.search);
+ if(!started){started=true;load()}
+}
+async function load(){
+ $('list').innerHTML='<div class="empty">Loading…</div>';
+ const {data,error}=await sb.from('conversations').select('*').order('last_message_at',{ascending:false,nullsFirst:false}).limit(5000);
+ if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load: '+error.message));return}
+ convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates(),loadDrafts()]);drawChips();drawList();
+ await openFromUrl();
+}
+// Deep link: /inbox/?c=<conversation_id>
+async function openFromUrl(){const id=new URLSearchParams(location.search).get('c');if(!id)return;
+ if(!/^[0-9a-f-]{36}$/i.test(id)){$('thread').innerHTML='';$('thread').append(el('div','empty','That conversation link is not valid.'));return}
+ if(!convs.find(c=>c.id===id)){const {data}=await sb.from('conversations').select('*').eq('id',id).maybeSingle();if(data){convs.push(data);drawList()}}
+ if(convs.find(c=>c.id===id))openConv(id,false);
+ else{$('thread').innerHTML='';$('thread').append(el('div','empty','That conversation could not be found. It may have been deleted.'));document.body.classList.add('showthread')}}
+// Eggsy's current draft per conversation (cx_draft_readiness): "gaps" when it still has [ ] notes, or promises a
+// replacement, refund or return that isn't logged yet (the same check that blocks Send); otherwise "ready".
+async function loadDrafts(){const m={};
+ const {data}=await sb.rpc('cx_draft_readiness');
+ (data||[]).forEach(r=>{const acts=(r.missing_actions||[]).map(t=>t==='any'?'action':t);m[r.conversation_id]={notes:r.notes||0,acts,partial:!!r.partial_history,att:!!r.attachment_missing,gaps:(r.notes||0)>0||acts.length>0||!!r.partial_history||!!r.attachment_missing,at:r.drafted_at}});draftMap=m}
+function draftState(c){const d=draftMap[c.id];if(!d||qmap[c.id])return 'none';return d.gaps?'gaps':'ready'}
+async function loadEmailCh(){emailCh={};const {data}=await sb.from('email_send_channels').select('origin,enabled');(data||[]).forEach(r=>{if(r.enabled)emailCh[r.origin]=true})}
+async function loadLangs(){const m={};
+ const {data}=await sb.from('messages').select('conversation_id,language').neq('language','en').not('language','is',null).limit(5000);
+ (data||[]).forEach(r=>{(m[r.conversation_id]=m[r.conversation_id]||new Set()).add(r.language)});langMap=m}
+async function loadQueueSummary(){qmap={};
+ const {data}=await sb.from('reply_queue').select('conversation_id,status').in('status',['queued','sending','failed']);
+ (data||[]).forEach(r=>{const cur=qmap[r.conversation_id];if(!cur||r.status==='failed')qmap[r.conversation_id]=r.status});}
+// Filters: ?ch=<channel>&sub=<origin> (kept alongside ?c=<conversation>)
+function readFilterUrl(){const u=new URLSearchParams(location.search);const g=u.get('ch')||'all';grp=GROUPS.some(x=>x[0]===g)?g:'all';
+ const s2=u.get('sub')||'';sub=(SUBS[grp]||[]).some(x=>x[0]===s2)?s2:'';const d=u.get('draft')||'';dft=['ready','gaps','none'].includes(d)?d:''}
+function writeFilterUrl(){const u=new URLSearchParams(location.search);
+ if(grp&&grp!=='all')u.set('ch',grp);else u.delete('ch');if(sub)u.set('sub',sub);else u.delete('sub');if(dft)u.set('draft',dft);else u.delete('draft');
+ const qs=u.toString();history.replaceState(history.state,'',location.pathname+(qs?'?'+qs:''))}
+function setFilter(g,s2){grp=g;sub=s2||'';writeFilterUrl();drawChips();drawList()}
+function drawChips(){const box=$('chips');box.innerHTML='';
+ const mc=convs.filter(inMode);
+ GROUPS.forEach(([k,label,fn])=>{const n=mc.filter(c=>fn(c.origin)).length;if(k!=='all'&&!n&&k!=='walmart'&&k!=='meta')return;
+  const ch=el('button','chip'+(grp===k?' on':''),label);ch.type='button';ch.setAttribute('aria-pressed',grp===k);ch.append(el('small',null,n));ch.onclick=()=>setFilter(k,'');box.append(ch)});
+ keepOnVisible(box);drawDraftChips();const sbx=$('subchips');sbx.innerHTML='';const list=SUBS[grp];if(!list)return;
+ const g=GROUPS.find(x=>x[0]===grp);const tot=mc.filter(c=>g[2](c.origin)).length;
+ const all=el('button','chip'+(!sub?' on':''),'All '+(grp==='meta'?'Meta':g[1]));all.type='button';all.append(el('small',null,tot));all.onclick=()=>setFilter(grp,'');sbx.append(all);
+ list.forEach(([o,lab,always])=>{const n=mc.filter(c=>c.origin===o).length;if(!n&&!always)return;
+  const ch=el('button','chip'+(sub===o?' on':''),lab);ch.type='button';ch.setAttribute('aria-pressed',sub===o);ch.append(el('small',null,n));ch.onclick=()=>setFilter(grp,o);sbx.append(ch)});
+ keepOnVisible(sbx)}
+function drawDraftChips(){const box=$('draftchips');box.innerHTML='';if(MODE!=='inbox')return;
+ const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const mc=convs.filter(c=>inMode(c)&&g[2](c.origin)&&(!sub||c.origin===sub));
+ [['','All drafts',''],['ready','✅ Ready','d-ready'],['gaps','⚠️ Gaps','d-gaps'],['none','No draft','']].forEach(([k,lab,cls])=>{const n=k?mc.filter(c=>draftState(c)===k).length:mc.length;
+  const ch=el('button','chip '+cls+(dft===k?' on':''),lab);ch.type='button';ch.setAttribute('aria-pressed',dft===k);
+  ch.title=k==='ready'?'Eggsy’s draft has everything it needs: check it and send':k==='gaps'?'Eggsy’s draft has [ ] notes, promises a replacement, refund or return that needs logging first, or was written without the full chat':k==='none'?'No draft yet, or a reply is already queued':'';
+  ch.append(el('small',null,n));ch.onclick=()=>{dft=k;writeFilterUrl();drawChips();drawList()};box.append(ch)})}
+// On narrow screens the chip rows scroll sideways; keep the selected chip in view.
+function keepOnVisible(row){const on=row.querySelector('.on');if(on&&row.scrollWidth>row.clientWidth)row.scrollLeft=Math.max(0,on.offsetLeft-row.offsetLeft-12)}
+function qMatch(c,q){return !q||[c.customer_name,c.customer_handle,c.order_number,c.subject,c.shop,c.summary,c.topic,c.overview,ORIGINS[c.origin]].join(' ').toLowerCase().includes(q)||!!msgHits[c.id]}
+function chMatch(c){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];return g[2](c.origin)&&(!sub||c.origin===sub)}
+// Search results on the other two pages (channel filters apply; the draft filter is Inbox-only).
+function elsewhere(){const q=$('q').value.trim().toLowerCase();if(!q)return [];return convs.filter(c=>!inMode(c)&&chMatch(c)&&qMatch(c,q)).sort((a,b)=>new Date(b.last_message_at||0)-new Date(a.last_message_at||0))}
+function visible(){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const q=$('q').value.trim().toLowerCase();const st='';
+ const v=convs.filter(c=>inMode(c)&&g[2](c.origin)&&(!sub||c.origin===sub)&&(MODE!=='inbox'||!dft||draftState(c)===dft)&&(!st||c.status===st)&&qMatch(c,q));
+ if(MODE==='inbox')v.sort((a,b)=>new Date(sinceOf(a))-new Date(sinceOf(b)));
+ else v.sort((a,b)=>new Date(b.last_message_at||0)-new Date(a.last_message_at||0));
+ return v}
+const chTag=o=>el('span','tag ch-'+groupOf(o),ORIGINS[o]||o);
+// List rows show a one-line overview only; the messages are shown when you open the ticket.
+function drawList(){const box=$('list');box.innerHTML='';const v=visible();const other=elsewhere();const q=$('q').value.trim();
+ if(q)box.append(el('div','srch-h',v.length+' in '+MODES[MODE].title));
+ if(!v.length)box.append(el('div','empty',q?'No matches in '+MODES[MODE].title+'.':convs.some(inMode)?'No conversations match these filters.':MODES[MODE].empty));
+ v.forEach(c=>rowFor(c,box));
+ if(q)['inbox','waiting','resolved','junk'].filter(b=>b!==MODE).forEach(b=>{const list=other.filter(c=>bucketOf(c)===b);if(!list.length)return;
+  box.append(el('div','srch-h',list.length+' in '+MODES[b].title));list.forEach(c=>rowFor(c,box,b))});
+}
+function rowFor(c,box,otherBucket){{const it=el('div','item'+(sel===c.id?' sel':''));it.tabIndex=0;it.onclick=()=>openConv(c.id,true);it.onkeydown=e=>{if(e.key==='Enter')openConv(c.id,true)};
+  const l1=el('div','line1');l1.append(el('span','name',c.customer_name||c.customer_handle||'Unknown'),MODE==='inbox'?(()=>{const w=el('span','when',fmt(sinceOf(c)));w.title='Waiting for a reply since '+fmt(sinceOf(c))+' UK';return w})():el('span','when',fmt(c.last_message_at)));
+  const tags=el('div','tags');if(otherBucket)tags.append(el('span','tag bucket b-'+otherBucket,MODES[otherBucket].title));const ct=chTag(c.origin);if(c.shop)ct.title=c.shop;tags.append(ct);
+  if(c.topic)tags.append(el('span','tag topic',c.topic));
+  if(MODE==='inbox'&&!otherBucket){const ds=draftState(c);if(ds==='ready'){const t=el('span','tag dready','✅ Ready');t.title='Draft ready to check and send';tags.append(t)}
+   else if(ds==='gaps'){const d=draftMap[c.id],bits=[];if(d.att)bits.push('photo missing');if(d.partial)bits.push('full chat not in Eggsy');if(d.acts.length)bits.push(d.acts.join(' + ')+' to log');if(d.notes)bits.push(d.notes+(d.notes===1?' note':' notes'));
+    const t=el('span','tag dgaps','⚠️ '+bits.join(', '));t.title=(d.att?'The customer sent a photo or file that is no longer in hey@, so it can’t be shown here. Check eDesk or ask them to resend. ':'')+(d.partial?'Part of this chat is only an Eggsy summary (the platform can’t be read directly), so check the full chat on the platform before sending. ':'')+(d.acts.length?'The draft promises a '+d.acts.join(' and ')+': log it in Actions before sending. ':'')+(d.notes?'The draft has [ ] notes to fill in first.':'');tags.append(t)}}
+  if(langMap[c.id])[...langMap[c.id]].forEach(l=>{const lt=el('span','tag lang',l.toUpperCase());lt.title=langName(l)+' conversation, English translation available';tags.append(lt)});
+  const ov=el('div','ov',c.overview||'No summary yet');if(!c.overview)ov.style.color='var(--muted)';
+  const hit=msgHits[c.id];const snip=hit?el('div','snip','“…'+hit.trim()+'…”'):null;
+  const foot=el('div','foot');const st=el('span');st.append(el('span','tag st-'+c.status,STATUS[c.status]||c.status));
+  const qs=qmap[c.id];if(qs){const qt=el('span','tag qtag'+(qs==='failed'?' failed':''),qs==='failed'?'Reply failed':qs==='sending'?'Reply sending':'Reply queued');qt.style.marginLeft='4px';st.append(qt)}
+  if(c.flag){const ft=el('span','tag flagtag','⚠ Needs attention');ft.title=c.flag;ft.style.marginLeft='4px';st.append(ft)}
+  foot.append(st,el('span',null,c.order_number?('Order '+(/^\d{3,6}$/.test(c.order_number)?'#':'')+c.order_number):''));
+  it.append(l1,tags,ov);if(snip)it.append(snip);it.append(foot);box.append(it)}
+}
+// Typing searches names, orders and summaries straight away, and message text (server-side) after a short pause.
+let qTimer=null,qSeq=0;
+$('q').oninput=()=>{drawList();clearTimeout(qTimer);const q=$('q').value.trim();
+ if(q.length<3){if(Object.keys(msgHits).length){msgHits={};drawList()}return}
+ qTimer=setTimeout(async()=>{const my=++qSeq;const {data,error}=await sb.rpc('cx_search_messages',{p_q:q});if(my!==qSeq||error)return;
+  const m={};(data||[]).forEach(r=>{m[r.conversation_id]=r.snippet||''});msgHits=m;
+  const miss=Object.keys(m).filter(id=>!convs.find(c=>c.id===id));
+  if(miss.length){const {data:more}=await sb.from('conversations').select('*').in('id',miss.slice(0,200));(more||[]).forEach(c=>convs.push(c))}
+  if(my===qSeq)drawList()},300)};
+// ---- Conversation view: full history, other conversations, composer with Eggsy's suggested reply ----
+const TEAM=['Mich Mahinay','Marty Pardoe','Luke Shelley','Hatty Innes'];
+// Walmart wraps agent cases in standard seller instructions; hide them so only the case text shows.
+function cleanBody(b){return String(b||'').replace(/\n?\s*1\. Always reply within 48 hours[\s\S]*?Hide Walmart Customer Care Instructions\s*/i,'').trim()}
+// Photos and files a customer attached to an email in hey@ (fetched live from Gmail by the gmail-attachment function).
+async function attCall(payload){const {data:{session}}=await sb.auth.getSession();if(!session)throw new Error('Not signed in');
+ const r=await fetch(SUPABASE_URL+'/functions/v1/gmail-attachment',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token,apikey:SUPABASE_KEY},body:JSON.stringify(payload)});
+ if(!r.ok){let e='';try{e=(await r.json()).error}catch(_){}throw new Error(e||('Error '+r.status))}return r}
+async function showAttachments(bubble,ext){let list=[];try{const j=await (await attCall({message_id:ext})).json();list=j.attachments||[];if(j.message_id)ext=j.message_id;
+  if(j.note&&/attachment/i.test(bubble.textContent)){bubble.append(el('div','attph','📎 This email is no longer in hey@ (it was deleted after Eggsy picked it up), so the attachment can’t be shown. Check the ticket in eDesk, or ask the customer to send it again.'));return}}catch(e){return}
+ if(!list.length)return;const wrap=el('div','atts');bubble.append(wrap);
+ for(const a of list){const isImg=/^image\//.test(a.mimeType);const box=el('div','att');wrap.append(box);
+  const open=async()=>{const r=await attCall({message_id:ext,attachment_id:a.id});const url=URL.createObjectURL(await r.blob());return url};
+  if(isImg){const ph=el('div','attph','Loading '+a.filename+'…');box.append(ph);
+   open().then(url=>{const im=el('img');im.src=url;im.alt=a.filename;im.title=a.filename+' (click to open full size)';im.onclick=()=>window.open(url,'_blank');ph.replaceWith(im)}).catch(e=>{ph.textContent='📎 '+a.filename+' (could not load: '+e.message+')'})}
+  else{const l=el('button','attlink','📎 '+a.filename+(a.size?' · '+Math.max(1,Math.round(a.size/1024))+' KB':''));l.type='button';l.onclick=async()=>{l.disabled=true;try{window.open(await open(),'_blank')}catch(e){alert('Could not open: '+e.message)}l.disabled=false};box.append(l)}}}
+function kindOf(m){const a=m.author||'',b=m.body||'';
+ if(m.direction==='note')return a==='Eggsy'||/^Eggsy/i.test(a)?'eggsy':'sysnote';
+ if(m.direction==='draft')return 'draft';
+ if(m.direction==='inbound')return /^\[Summary by Eggsy/.test(b)?'psum':'inbound';
+ // outbound
+ if(a==='Marty Pardoe'||a==='hey@luckyegg.co'||/-{5,} ?Forwarded message/i.test(b))return 'internal';
+ if(/via Amazon/i.test(a))return 'platform';
+ return 'team'}
+function whoLine(m,k,o){const a=m.author||'';o=o||'';
+ if(o.startsWith('tiktok')&&k==='team')return [a||'Lucky Egg',/^Customer Service/i.test(a)?'Reply sent via TikTok':'TikTok Shop message to customer'];
+ if(k==='eggsy')return ['📝 Eggsy','Eggsy log'];
+ if(k==='sysnote')return [a||'System','Platform notification'];
+ if(k==='draft')return ['✏️ '+(a||'Eggsy'),'Draft, not sent'];
+ if(k==='psum')return [a||'Customer','Customer · Eggsy’s summary of the platform chat'];
+ if(k==='inbound'&&/^Walmart customer care/i.test(a))return ['Walmart customer care','Walmart agent writing for the customer, not the customer’s own words'];
+ if(k==='inbound')return [a||'Customer','Customer'];
+ if(k==='internal')return [a==='hey@luckyegg.co'?'hey@ team':a,'Internal, team only'];
+ if(k==='platform')return ['Lucky Egg team','Reply sent via Amazon'];
+ return [a||'hey@ team',TEAM.includes(a)?'hey@ team':'Team reply']}
+function otherConvs(c){const h=(c.customer_handle||'').trim().toLowerCase(),o=(c.order_number||'').trim();
+ return convs.filter(x=>x.id!==c.id&&((h&&(x.customer_handle||'').trim().toLowerCase()===h)||(o&&(x.order_number||'').trim()===o)))
+  .sort((a,b)=>new Date(b.last_message_at)-new Date(a.last_message_at))}
+async function openConv(id,push){sel=id;drawList();const c=convs.find(x=>x.id===id);const t=$('thread');t.innerHTML='';
+ document.body.classList.add('showthread');
+ if(push){const u=new URLSearchParams(location.search);u.set('c',id);history.pushState({c:id},'','?'+u.toString())}
+ const back=el('button','btn ghost back','← All conversations');back.onclick=()=>{if(history.state&&history.state.c)history.back();else{const u=new URLSearchParams(location.search);u.delete('c');history.pushState(null,'',location.pathname+(u.toString()?'?'+u:''));window.onpopstate()}};t.append(back);
+ const h=el('div','th-head');const tg=el('div','tags');tg.append(chTag(c.origin));if(c.topic)tg.append(el('span','tag topic',c.topic));tg.append(el('span','tag st-'+c.status,STATUS[c.status]||c.status));
+ h.append(tg,el('h2',null,c.overview||c.subject||'(no subject)'));t.append(h);
+ if(c.flag){const fb=el('div','flagbar');fb.append(el('span',null,'⚠ '+c.flag));const cb=el('button','btn ghost','Clear flag');cb.type='button';
+  cb.onclick=async()=>{cb.disabled=true;const {error}=await sb.from('conversations').update({flag:null,flagged_at:null}).eq('id',c.id);if(error){alert('Could not clear: '+error.message);cb.disabled=false;return}c.flag=null;fb.remove();drawList()};fb.append(cb);t.append(fb)}
+ const meta=el('div','meta');
+ const add=(k,v,node)=>{const d=el('div');d.append(el('span',null,k));if(node)d.append(node);else d.append(document.createTextNode(v||'–'));meta.append(d)};
+ add('Customer',(c.customer_name||'')+(c.customer_handle&&c.customer_handle!==c.customer_name?' · '+c.customer_handle:''));
+ add('Channel',ORIGINS[c.origin]);add('Shop',c.shop);add('Order',c.order_number);add('Last activity',fmt(c.last_message_at)+' UK');
+ const s=el('select');Object.entries(STATUS).forEach(([k,l])=>{const o=el('option',null,l);o.value=k;if(k===c.status)o.selected=true;s.append(o)});
+ s.onchange=async()=>{const {error}=await sb.from('conversations').update({status:s.value}).eq('id',c.id);if(error){alert('Could not update: '+error.message);s.value=c.status}else{c.status=s.value;await refreshStates();showElsewhere(c)}};
+ add('Status',null,s);t.append(meta);
+ // One-click Junk / Not junk.
+ {const jb=el('button','btn ghost small junkbtn',c.status==='ignored'?'↩ Not junk, move to Inbox':'🗑 Move to Junk');jb.type='button';
+  jb.onclick=async()=>{jb.disabled=true;const to=c.status==='ignored'?'open':'ignored';
+   const {error}=await sb.from('conversations').update({status:to,status_changed_at:new Date().toISOString()}).eq('id',c.id);
+   if(error){alert('Could not update: '+error.message);jb.disabled=false;return}
+   c.status=to;await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();drawChips();drawList();openConv(c.id,false)};t.append(jb)}
+ const ew=el('div');ew.id='elsewhere';t.append(ew);showElsewhere(c);
+ kbFor(c,t);
+ if(c.summary||c.subject){const d=el('details','elog');d.append(el('summary',null,'Eggsy’s notes'));if(c.subject)d.append(el('div',null,'Subject: '+c.subject));if(c.summary)d.append(el('div',null,c.summary));t.append(d)}
+ const actHost=el('div');actHost.id='acthost';t.append(actHost);
+ t.append(el('div','hist-h','Conversation history'));
+ // Marketplaces like Walmart open a new thread for each message about an order; show them all together.
+ const linked=c.order_number?otherConvs(c).filter(x=>x.origin===c.origin&&(x.order_number||'').trim()===c.order_number.trim()):[];
+ if(linked.length){const n=el('div','linknote');n.append(document.createTextNode('Includes '+linked.length+' other '+(linked.length===1?'thread':'threads')+' about order '+c.order_number+': '));
+  linked.forEach((x,i)=>{const a=el('a',null,(x.subject||x.overview||'thread').replace(/^Message from Walmart\.com Customer: /,''));a.href='?c='+x.id;a.onclick=e=>{e.preventDefault();openConv(x.id,true)};if(i)n.append(document.createTextNode(' · '));n.append(a)});t.append(n)}
+ const box=el('div');box.append(el('div','empty','Loading messages…'));t.append(box);
+ const [mr,qr,dr,ar]=await Promise.all([
+  sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en,external_id').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true}),
+  sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address').eq('conversation_id',id).order('queued_at',{ascending:true}),
+  sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
+  sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false})]);
+ if(sel!==id)return;
+ actList=(ar&&!ar.error&&ar.data)||[];
+ actThreadMsgs=(mr&&!mr.error&&mr.data)||[];
+ actQueuedReplies=(qr&&!qr.error&&qr.data)||[];
+ actShowReplacement=false;
+ renderActPanel(actHost,c,actList);
+ callCx({action:'refresh_tracking',conversation_id:id}).then(async r=>{if(!r||!r.updated||sel!==id)return;const {data}=await sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false});actList=data||[];renderActPanel(actHost,c,actList)}).catch(()=>{});
+ box.innerHTML='';if(mr.error){box.append(el('div','empty','Could not load: '+mr.error.message));return}
+ const msgs=mr.data||[],qs=qr.error?[]:(qr.data||[]);const byMsg={};qs.forEach(q=>{if(q.message_id)byMsg[q.message_id]=q});
+ const items=msgs.map(m=>({t:m.sent_at,m}));
+ qs.forEach(q=>{if(!(q.message_id&&msgs.some(m=>m.id===q.message_id)))items.push({t:q.sent_at||q.queued_at,q})});
+ items.sort((a,b)=>new Date(a.t)-new Date(b.t));
+ const hasReal=msgs.some(m=>m.direction==='inbound'&&!/^\[Summary by Eggsy/.test(m.body||''));
+ const flips={},redraws=[];
+ const fl=[...new Set(msgs.filter(m=>m.body_en&&m.language&&m.language!=='en').map(m=>m.language))];
+ if(fl.length){const bar=el('div','trbar');const seg=el('div','seg');seg.setAttribute('role','group');seg.setAttribute('aria-label','Message language');
+  const mk=(v,l)=>{const b=el('button',trMode()===v?'on':null,l);b.type='button';b.setAttribute('aria-pressed',trMode()===v);b.onclick=()=>{setTrMode(v);[...seg.children].forEach(x=>{const on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-pressed',on)});redraws.forEach(f=>f());document.dispatchEvent(new Event('eggsy-tr'))};return b};
+  seg.append(mk('en','Show English'),mk('orig','Show original'));
+  bar.append(el('span',null,'🌐 '+fl.map(langName).join(', ')+' conversation:'),seg);h.append(bar)}
+ items.forEach(it=>{
+  if(it.m){const m=it.m;const k=kindOf(m);
+   if(k==='psum'&&hasReal){const d=el('details','psumfold');d.append(el('summary',null,'📝 Eggsy’s earlier summary · '+fmt(m.sent_at)+' (the full chat is shown here now)'),el('div',null,m.body||''));box.append(d);return}
+   const [who,role]=whoLine(m,k,c.origin);const b=el('div','bubble '+(k==='team'||k==='platform'?'outbound '+k:k==='psum'?'inbound psum':k));
+   const by=el('div','by');by.append(el('b',null,who),el('span','role',role),document.createTextNode(' · '+fmt(m.sent_at)));
+   if(m.conversation_id&&m.conversation_id!==id){const lt=linked.find(x=>x.id===m.conversation_id);by.append(el('span','ltag','Other thread'+(lt&&lt.subject?': '+lt.subject.replace(/^Message from Walmart\.com Customer: /,'').replace(/, ?\d+$/,''):'')))}
+   const foreign=m.body_en&&m.language&&m.language!=='en';
+   if(foreign){const lt=el('span','ltag',m.language.toUpperCase());lt.title='Written in '+langName(m.language);by.append(lt)}
+   const lq=byMsg[m.id];if(lq){if(lq.status==='failed')by.append(el('span','badge b-failed','Not delivered'));else by.append(el('span','badge b-sent',lq.send_route==='email'?'Sent by email ✓':'Sent from Eggsy CX'))}
+   const txt=document.createTextNode('');b.append(by,txt);
+   if(foreign){const note=el('div','trnote');const lab=el('span');const fl=el('button','flip');fl.type='button';note.append(lab,fl);b.append(note);
+    const draw=()=>{const en=(flips[m.id]!=null?flips[m.id]:trMode())==='en';txt.textContent=en?m.body_en:(m.body||'');
+     lab.textContent=en?'Translated from '+langName(m.language)+' by Eggsy.':'Original ('+langName(m.language)+').';fl.textContent=en?'Show original':'Show English'};
+    fl.onclick=()=>{const curEn=(flips[m.id]!=null?flips[m.id]:trMode())==='en';flips[m.id]=curEn?'orig':'en';draw()};
+    redraws.push(()=>{delete flips[m.id];draw()});draw()}
+   else txt.textContent=cleanBody(m.body);
+   if(lq)sentExtras(b,lq,c);
+   if(m.direction==='inbound'&&/^gmail:/.test(m.external_id||''))showAttachments(b,m.external_id);
+   box.append(b);return}
+  box.append(queueBubble(it.q,c));});
+ if(!items.length)box.append(el('div','empty','No messages stored.'));
+ if(qr.error)box.append(el('div','empty','Could not load queued replies: '+qr.error.message));
+ let sug=dr&&!dr.error&&dr.data&&dr.data[0]||null;
+ if(!sug){const dm=msgs.filter(m=>m.direction==='draft').pop();if(dm)sug={id:'msg:'+dm.id,body:dm.body,body_en:null,language:null,drafted_at:dm.sent_at}}
+ if(sug){const lastOut=Math.max(0,...msgs.filter(m=>m.direction==='outbound').map(m=>+new Date(m.sent_at)),...qs.map(q=>+new Date(q.queued_at)));
+  if(+new Date(sug.drafted_at)<=lastOut)sug=null}
+ t.append(composer(c,sug));
+ const oc=otherConvs(c);
+ if(oc.length){const w=el('div','others');w.append(el('div','hist-h','Other conversations with this customer'));
+  oc.forEach(x=>{const a=el('a');a.href='?c='+x.id;a.onclick=e=>{e.preventDefault();openConv(x.id,true)};
+   a.append(el('span','when',fmt(x.last_message_at)));const tg2=el('div','tags');tg2.style.cssText='display:flex;gap:4px;flex-wrap:wrap;margin-bottom:3px';
+   tg2.append(chTag(x.origin));if(x.topic)tg2.append(el('span','tag topic',x.topic));tg2.append(el('span','tag st-'+x.status,STATUS[x.status]||x.status));
+   a.append(tg2,document.createTextNode(x.overview||x.subject||''));w.append(a)});t.append(w)}
+ t.scrollTop=0;
+}
+function sentExtras(b,q,c){
+ if(q.status==='failed'){if(q.send_error)b.append(el('div','err',q.send_error));const acts=el('div','acts');const r=el('button','btn ghost','Edit and send again');r.onclick=()=>{const ta=document.getElementById('replybox');if(ta){ta.value=q.body;ta.dispatchEvent(new Event('input'));ta.focus();ta.scrollIntoView({block:'center'})}};acts.append(r);b.append(acts)}
+ else if(q.send_route==='email')b.append(el('div','okline','Sent by email from hey@luckyegg.co'+(q.to_address&&/amazon/.test(q.to_address)?' to the buyer’s Amazon message thread':q.to_address?' to '+q.to_address:'')+' · '+fmt(q.sent_at)+' UK. If Amazon rejects it, this ticket is flagged here within a few minutes.'))}
+const PH_RE=/\[[^\]]*\]/,PH_RE_G=/\[[^\]]*\]/g;
+const QLABEL={queued:'Queued',sending:'Sending…',sent:'Sent',failed:'Failed',cancelled:'Cancelled'};
+function queueBubble(q,c){const b=el('div','bubble outbound team q'+q.status);
+ const by=el('div','by');by.append(el('b',null,'You'+(q.queued_by?' ('+q.queued_by+')':'')),el('span','role','Eggsy CX reply'),document.createTextNode(' · queued '+fmt(q.queued_at)+(q.sent_at?' · sent '+fmt(q.sent_at):'')));
+ by.append(el('span','badge b-'+q.status,QLABEL[q.status]||q.status));b.append(by,document.createTextNode(q.body||''));
+ if(q.status==='failed'&&q.send_error)b.append(el('div','err',/^Not (sent|delivered):/.test(q.send_error)?q.send_error:'Eggsy could not post this: '+q.send_error));
+ if(q.status==='queued'&&q.email_note)b.append(el('div','qnote',q.email_note));
+ const acts=el('div','acts');
+ if(q.status==='queued'){const x=el('button','btn ghost','Cancel');x.onclick=async()=>{if(!confirm('Cancel this queued reply? Eggsy will not send it.'))return;x.disabled=true;
+   const {data,error}=await sb.from('reply_queue').update({status:'cancelled'}).eq('id',q.id).eq('status','queued').select('id');
+   if(error)alert('Could not cancel: '+error.message);else if(!data||!data.length)alert('Too late to cancel: Eggsy has already started sending this reply.');
+   await refreshAfterQueue(c.id)};acts.append(x)}
+ if(q.status==='failed'||q.status==='cancelled'){const r=el('button','btn ghost','Edit and send again');r.onclick=()=>{const ta=document.getElementById('replybox');if(ta){ta.value=q.body;ta.dispatchEvent(new Event('input'));ta.focus();ta.scrollIntoView({block:'center'})}};acts.append(r)}
+ if(acts.childNodes.length)b.append(acts);return b}
+const EMAIL_ORIGINS=['email_hey','shopify_form','wix_mmc_form'];
+function channel(c){const o=c.origin,mk=(ORIGINS[o]||o).replace('Amazon ','');
+ if(emailCh[o]&&o.startsWith('amazon'))return {label:'Reply via Amazon '+mk,instant:true,how:'Sent straight away by email from hey@luckyegg.co to the buyer’s Amazon message thread (it shows in Seller Central). If hey@ has no Amazon email for this order, Eggsy posts it in Seller Central at its next check instead.'};
+ if(emailCh[o])return {label:'Reply by email from hey@luckyegg.co',instant:true,how:'Sent straight away by email from hey@luckyegg.co.'};
+ if(o==='email_hey'||o==='shopify_form')return {label:'Reply by email from hey@luckyegg.co',how:'Sent from hey@luckyegg.co on the existing Gmail thread.'};
+ if(o==='wix_mmc_form')return {label:'Reply by email from hey@luckyegg.co',how:'Sent as a new email from hey@luckyegg.co (the Wix form has no Gmail thread to reply on).'};
+ if(o==='tiktok_us')return {label:"Reply via TikTok US",how:"Posted in TikTok Seller Center for the Lucky Egg US shop."};
+ if(o.startsWith('tiktok'))return {label:'Reply via '+ORIGINS[o],how:'Posted in '+ORIGINS[o]+' Seller Center chat.'};
+ if(o.startsWith('amazon'))return {label:'Reply via Amazon '+mk,how:'Posted in Amazon Seller Central buyer messages ('+mk+').'};
+ if(o==='walmart')return {label:'Reply via Walmart',how:'Posted in Walmart Seller Center messages.'};
+ if(o==='facebook')return {label:'Reply via Facebook Messenger',how:'Posted in Meta Business Suite inbox.'};
+ if(o==='instagram')return {label:'Reply via Instagram DM',how:'Posted in Meta Business Suite inbox.'};
+ return {label:'Reply via '+(ORIGINS[o]||o),how:''}}
+// Unsaved composer state per conversation, so a data refresh never overwrites your edits.
+const LSK=id=>'eggsy-composer:'+id;
+const lsGet=id=>{try{return JSON.parse(localStorage.getItem(LSK(id))||'{}')||{}}catch(e){return {}}};
+const lsSet=(id,v)=>{try{localStorage.setItem(LSK(id),JSON.stringify(v))}catch(e){}};
+const SIGNOFF='\n\nBest regards,\nThe Lucky Egg Team';
+function composer(c,sug){const w=el('div','composer');const ch=channel(c);
+ w.append(el('h3',null,ch.label));
+ const isEmail=EMAIL_ORIGINS.includes(c.origin);const to=isEmail?(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.customer_handle||'')?c.customer_handle:''):(c.customer_handle||c.customer_name||'');
+ w.append(el('div','to',[ 'Shop: '+(c.shop||'–'), to?('To: '+to):'', c.order_number?('Order: '+c.order_number):'' ].filter(Boolean).join(' · ')+(ch.how?' · '+ch.how:'')));
+ let blocked=false;
+ if(isEmail&&!to){blocked=true;w.append(el('div','warn','There is no customer email address on this conversation, so a reply can’t be sent from here.'))}
+ if(c.origin.startsWith('amazon')&&!c.order_number&&!(c.external_id||'').startsWith('amazon:'))w.append(el('div','warn','No Amazon order id is stored, so Eggsy may not be able to find this buyer thread.'));
+ if(c.origin==='instagram'||c.origin==='facebook')w.append(el('div','warn','Eggsy finds this chat in Meta Business Suite by the customer’s name, so check the name above is right.'));
+ const st0=lsGet(c.id);const dismissed=st0.dismissed||[];
+ if(sug&&dismissed.includes(sug.id))sug=null;
+ const lbl=el('div','lbl');const newer=el('div','newer');newer.style.display='none';
+ const ta=el('textarea');ta.id='replybox';ta.placeholder='Write your reply to '+(c.customer_name||'the customer')+'…';ta.maxLength=20000;
+ let cur=null; // draft id currently loaded
+ const setLabel=()=>{const st=lsGet(c.id);
+  if(st.text!=null&&cur&&sug&&st.draftId===sug.id){lbl.className='lbl edit';lbl.textContent='Eggsy’s suggested reply, edited by you (not sent yet)';lbl.style.display=''}
+  else if(st.text!=null){lbl.className='lbl edit';lbl.textContent='Your unsent reply (saved on this device)';lbl.style.display=''}
+  else if(cur){lbl.className='lbl';lbl.textContent='Eggsy’s suggested reply, edit freely. Nothing is sent until you press Send.';lbl.style.display=''}
+  else lbl.style.display='none'};
+ const loadSug=()=>{ta.value=sug.body||'';cur=sug.id;const st=lsGet(c.id);delete st.text;st.draftId=sug.id;lsSet(c.id,st);newer.style.display='none';setLabel();drawTr();phCheck()};
+ const trBox=el('div');
+ const drawTr=()=>{trBox.innerHTML='';if(!(cur&&sug&&sug.body_en))return;const d=el('details','tr');d.open=true;
+  d.open=trMode()==='en';d.append(el('summary',null,'English translation'+(sug.language?' (reply is in '+langName(sug.language)+')':'')+', for reference only, not sent'),el('div',null,sug.body_en));trBox.append(d)};
+ const onTr=()=>{if(!w.isConnected){document.removeEventListener('eggsy-tr',onTr);return}drawTr()};document.addEventListener('eggsy-tr',onTr);
+ if(st0.text!=null){ta.value=st0.text;cur=sug&&st0.draftId===sug.id?sug.id:null;
+  if(sug&&st0.draftId!==sug.id){newer.append(document.createTextNode('Eggsy has a newer suggested reply.'));const lb=el('button','btn ghost','Replace my text with it');lb.type='button';lb.onclick=()=>{if(confirm('Replace what you have written with Eggsy’s newer suggestion?'))loadSug()};newer.append(lb);newer.style.display=''}}
+ else if(sug){ta.value=sug.body||'';cur=sug.id}
+ else ta.value=SIGNOFF;
+ ta.oninput=()=>{const st=lsGet(c.id);if(cur&&sug&&ta.value===sug.body){delete st.text}else if(!cur&&ta.value===SIGNOFF){delete st.text}else{st.text=ta.value;st.draftId=cur||st.draftId||null}lsSet(c.id,st);setLabel();phCheck()};
+ const req=el('label','req');const reqc=el('input');reqc.type='checkbox';reqc.id='requires_action';req.append(reqc,document.createTextNode(' This reply promises a replacement, refund or return'));
+ w.append(newer,lbl,ta,trBox,req);setLabel();drawTr();
+ const bar=el('div','bar');const go=el('button','btn','Send');go.disabled=blocked;go.type='button';
+ const clr=el('button','btn ghost',sug?'Discard draft':'Clear');clr.type='button';
+ clr.onclick=()=>{if(ta.value.trim()&&ta.value!==SIGNOFF&&!confirm(cur?'Discard Eggsy’s suggested reply? You can write your own instead.':'Clear what you have written?'))return;
+  const st=lsGet(c.id);delete st.text;if(cur){st.dismissed=[...(st.dismissed||[]),cur].slice(-20)}st.draftId=null;lsSet(c.id,st);
+  cur=null;ta.value=SIGNOFF;clr.textContent='Clear';setLabel();drawTr();ta.focus();ta.setSelectionRange(0,0);phCheck()};
+ const stm=el('span','msg');bar.append(go,clr,stm);w.append(bar);
+ // Placeholder guard: never send while [ ... ] items remain (the database refuses them too).
+ const PH_MSG='Fill in the [ ] items first';
+ function phCheck(){const has=PH_RE.test(ta.value);const need=actionGuardReason(ta.value,reqc.checked);go.disabled=blocked||has||!!need;go.title=has?PH_MSG:(need||'');
+  if(has){stm.style.color='#b3261e';stm.textContent=PH_MSG+' ('+(ta.value.match(PH_RE_G)||[]).length+' left)'}else if(need){stm.style.color='#b3261e';stm.textContent=need}else if(stm.textContent.indexOf(PH_MSG)===0||stm.textContent.indexOf('This reply promises')===0||stm.textContent===ACT_MSG){stm.textContent='';stm.style.color=''}
+  if(typeof syncReplacementButton==='function') syncReplacementButton();}
+ reqc.onchange=phCheck;
+ phCheck();
+ go.onclick=async()=>{const body=ta.value.trim();
+  if(!body||body===SIGNOFF.trim()){stm.textContent='Write a reply first.';stm.style.color='#b3261e';return}
+  if(PH_RE.test(body)){phCheck();return}
+  const need=actionGuardReason(body,reqc.checked);if(need){phCheck();return}
+  if(!confirm('Send this reply?\n\n'+ch.label+(to?' to '+to:'')+'\nShop: '+(c.shop||'–')+(ch.instant?'\n\nIt is sent exactly as written, straight away.'+(/^(amazon|tiktok|walmart)/.test(c.origin)?' Replies with links to our sites, review requests or marketing are held back for you to edit.':''):'\n\nEggsy posts it exactly as written at its next check (not instantly). You can cancel until then.')))return;
+  go.disabled=true;stm.style.color='';stm.textContent='Sending to Eggsy…';
+  const {error}=await sb.from('reply_queue').insert({conversation_id:c.id,body,requires_action:!!reqc.checked});
+  if(error){go.disabled=false;stm.style.color='#b3261e';stm.textContent='Could not send: '+(/Fill in the \[ \]/.test(error.message)?PH_MSG:/promises a /.test(error.message)?error.message:error.message);phCheck();return}
+  const st=lsGet(c.id);delete st.text;if(cur)st.dismissed=[...(st.dismissed||[]),cur].slice(-20);st.draftId=null;lsSet(c.id,st);
+  ta.value='';await refreshAfterQueue(c.id);if(ch.instant)watchSend(c.id)};
+ if(ch.instant)w.append(el('div','hint','When you press Send, the reply goes straight away by email from hey@luckyegg.co. This page shows “Sent by email ✓” when it has gone, or “Failed” with the reason. If Amazon bounces it, the ticket is flagged “Needs attention” within a few minutes.'));
+ else w.append(el('div','hint','When you press Send, the reply is queued and Eggsy posts it at its next check: weekdays every 2 hours from 9am to 5pm UK time, and whenever new hey@ mail arrives. You can cancel it until Eggsy starts sending. The conversation moves to “Awaiting customer” once it has gone.'));
+ return w}
+let actList=[], shopifyConnected=null, actThreadMsgs=[], actQueuedReplies=[], actShowReplacement=false;
+const ACT_OK=['created','done','expected','received'];
+const ACT_MSG='Create the replacement, refund or return on this ticket first';
+const UK_RETURN_ADDR='The Finishing Line Ltd\nUnit DC1 Prologis Park\nHonywood Road\nBasildon\nSS14 3TS\nUnited Kingdom';
+const REPLACEMENT_GUARD_RE=/(replacement|replacements|\breplace\b|\breplaced\b|\breplacing\b|\bresend\b|\bresending\b|\breship\b|a new (copy|game|order|parcel)|ersatzlieferung|\bersatz\b|remplacement|reemplazo)/i;
+const REPLACEMENT_ASK_RE=/(send another|sending another|send me another|another one|\bnew one\b|another (copy|game|item|part|parcel)|a new (item|part)|missing parts?|spare parts?|ersetzen|ersatzteil|austauschen|\baustausch\b|remplacer|reemplazar|recambio|sostitu(?:zione|ire)|vervang(?:ing|en)|substitui(?:ção|r))/i;
+const REFUND_RE=/(refund|refunded|refunds|refunding|money back|reimburse|erstattung|erstatten|rückerstattung|geld zurück|remboursement|rembourser|reembolso|reembolsar|rimborso|terugbetaling)/i;
+const RETURN_RE=/(return label|return postage|prepaid return|return address|send (the |it |this |your |them ).{0,40}back|sending .{0,20}back|send it back|return the (item|game|parcel|order|package|headset|microphone)|return your (item|game|parcel|order|package)|returning (the|it|this|my)|\barrange a return\b|\ba return to\b|(can|could|may|want to|like to|need to) (i |we )?return|return (it|this|them)\b|rücksendung|zurückschicken|zurücksenden|\bretoure\b|retourner|renvoyer|devoluci[oó]n|devolver|restituire|reso\b|retourneren)/i;
+const ACT_TYPE_RE={replacement:null,refund:REFUND_RE,return:RETURN_RE};
+function mentionsReplacement(text){return REPLACEMENT_GUARD_RE.test(text||'')||REPLACEMENT_ASK_RE.test(text||'')}
+function mentionsType(type,text){if(type==='replacement')return mentionsReplacement(text);return ACT_TYPE_RE[type].test(text||'')}
+// An action button only shows once that action is discussed in the thread (by the customer or by us),
+// is in the reply being written, already exists on the ticket, or the agent opens "More actions".
+function shouldShowActionButton(type){
+  if(actShowReplacement) return true;
+  if((actList||[]).some(a=>a.type===type)) return true;
+  const reqc=document.getElementById('requires_action');
+  if(reqc&&reqc.checked) return true;
+  const ta=document.getElementById('replybox');
+  if(ta&&mentionsType(type,ta.value)) return true;
+  for(const m of (actThreadMsgs||[])){
+    const ours=m.direction==='outbound'||m.direction==='draft'||(m.direction&&m.direction!=='inbound'&&m.direction!=='note');
+    const customer=m.direction==='inbound';
+    if((customer||ours)&&(mentionsType(type,m.body)||mentionsType(type,m.body_en))) return true;
+  }
+  for(const q of (actQueuedReplies||[])){
+    if(q.status==='cancelled') continue;
+    if(mentionsType(type,q.body)) return true;
+  }
+  return false;
+}
+function shouldShowReplacementButton(){return shouldShowActionButton('replacement')}
+function syncReplacementButton(){
+  const ids={replacement:'act-replacement-btn',refund:'act-refund-btn',return:'act-return-btn'};
+  let anyHidden=false;
+  for(const t of Object.keys(ids)){
+    const b=document.getElementById(ids[t]);if(!b)continue;
+    const show=shouldShowActionButton(t);b.hidden=!show;if(!show)anyHidden=true;
+  }
+  const more=document.getElementById('act-more-btn');
+  if(more) more.hidden=!anyHidden;
+}
+function promisedTypes(body, flag){
+  const types=[];
+  if(REPLACEMENT_GUARD_RE.test(body||'')) types.push('replacement');
+  if(/(refund|refunded|refunds|refunding|erstattung|erstatten|rückerstattung|remboursement|reembolso)/i.test(body||'')) types.push('refund');
+  if(/(return label|return postage|prepaid return|return address|send (the |it |this |your ).{0,40}back|sending .{0,20}back|return the (item|game|parcel|order|package|headset|microphone)|return your (item|game|parcel|order|package)|returning the |\barrange a return\b|\ba return to\b|rücksendung|zurückschicken|\bretoure\b|devoluci[oó]n)/i.test(body||'')) types.push('return');
+  return {types, any:!!(flag&&!types.length)};
+}
+function actionGuardReason(body, flag){
+  const p=promisedTypes(body, flag);
+  const has=t=>(actList||[]).some(a=>a.type===t&&ACT_OK.includes(a.status));
+  if(p.any){return (actList||[]).some(a=>ACT_OK.includes(a.status))?'':ACT_MSG}
+  const missing=p.types.filter(t=>!has(t));
+  if(missing.length) return 'This reply promises a '+missing.join(' and ')+' but no matching action is logged on the ticket yet. Create the '+missing.join(' and ')+' first, then send.';
+  return '';
+}
+async function callCx(payload){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session) return {ok:false,error:'Not signed in'};
+  const res=await fetch(SUPABASE_URL+'/functions/v1/cx-actions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token,apikey:SUPABASE_KEY},body:JSON.stringify(payload)});
+  let json={}; try{json=await res.json()}catch(e){json={}}
+  if(!res.ok&&!json.error) json.error='Request failed ('+res.status+')';
+  return json;
+}
+async function ensureShopifyStatus(){
+  if(shopifyConnected!=null) return shopifyConnected;
+  const r=await callCx({action:'status'});
+  shopifyConnected=!!r.shopify_connected;
+  return shopifyConnected;
+}
+function sellerRefundUrl(origin, order){
+  const o=(order||'').replace(/^#/,'').trim();
+  const hosts={amazon_uk:'sellercentral.amazon.co.uk',amazon_us:'sellercentral.amazon.com',amazon_de:'sellercentral.amazon.de',amazon_fr:'sellercentral.amazon.fr',amazon_it:'sellercentral.amazon.it',amazon_es:'sellercentral.amazon.es',amazon_nl:'sellercentral.amazon.nl',amazon_se:'sellercentral.amazon.se',amazon_pl:'sellercentral.amazon.pl',amazon_be:'sellercentral.amazon.com.be',amazon_other:'sellercentral.amazon.com'};
+  if((origin||'').startsWith('amazon')){const host=hosts[origin]||'sellercentral.amazon.com';return o?'https://'+host+'/orders-v3/order/'+encodeURIComponent(o):'https://'+host+'/orders-v3'}
+  if(origin==='tiktok_uk') return 'https://seller-uk.tiktok.com/order';
+  if(origin==='tiktok_us') return 'https://seller.us.tiktok.com/order';
+  if((origin||'').startsWith('tiktok')) return 'https://seller-uk.tiktok.com/order';
+  if(origin==='walmart') return o?'https://seller.walmart.com/orders/'+encodeURIComponent(o):'https://seller.walmart.com/orders';
+  return null;
+}
+
+const MCF_MARKET={
+  UK:{label:'United Kingdom',create_url:'https://sellercentral.amazon.co.uk/mcf/orders/create-order',marketplace_id:'A1F83G8C2ARO7P'},
+  US:{label:'United States',create_url:'https://sellercentral.amazon.com/mcf/orders/create-order',marketplace_id:'ATVPDKIKX0DER'}
+};
+function defaultMcfMarket(c, countryCode){
+  const o=(c&&c.origin)||'';
+  if(o==='amazon_us'||o==='tiktok_us'||o==='walmart') return 'US';
+  if(String(countryCode||'').toUpperCase()==='US') return 'US';
+  return 'UK';
+}
+function isMcf(d){return !!(d&&(d.fulfilment==='amazon_mcf'||d.kind==='game'))}
+function mcfDestAddress(address){
+  address=address||{};
+  return {name:[address.firstName,address.lastName].filter(Boolean).join(' '),addressLine1:address.address1||'',addressLine2:address.address2||'',city:address.city||'',stateOrRegion:address.province||'',postalCode:address.zip||'',countryCode:(address.countryCode||'').toUpperCase(),phoneNumber:address.phone||''};
+}
+function buildMcfDetails(c, fields){
+  const market=fields.marketplace==='US'?'US':'UK';
+  const meta=MCF_MARKET[market];
+  const original=(fields.original_order_id||'').trim();
+  const items=(fields.items||[]).map(it=>({seller_sku:it.seller_sku||it.sku||'',asin:it.asin||'',fnsku:it.fnsku||'',quantity:Math.max(1,+it.quantity||1),title:it.title||''}));
+  const plain=!!fields.plain_packaging;
+  const speed=fields.shipping_speed==='Expedited'?'Expedited':'Standard';
+  return {
+    kind:'game',fulfilment:'amazon_mcf',marketplace:market,marketplace_id:meta.marketplace_id,
+    shipping_speed:speed,plain_packaging:plain,original_order_id:original,displayable_order_id:original,
+    mcf_create_url:meta.create_url,mcf_order_id:fields.mcf_order_id||null,address:fields.address||{},items,
+    reason:fields.reason||'',source_origin:c.origin,source_order:c.order_number,
+    sp_api:{
+      operation:'createFulfillmentOrder',sellerFulfillmentOrderId:original,marketplaceId:meta.marketplace_id,
+      displayableOrderId:original,displayableOrderDateTime:fields.displayableOrderDateTime||new Date().toISOString(),
+      displayableOrderComment:fields.reason||('CX replacement'+(c.order_number?' for '+c.order_number:'')),
+      shippingSpeedCategory:speed,destinationAddress:mcfDestAddress(fields.address),
+      items:items.map((it,i)=>({sellerSku:it.seller_sku||it.asin||it.fnsku,sellerFulfillmentOrderItemId:(original||'item')+'-'+(i+1),quantity:it.quantity})),
+      featureConstraints:plain?[{featureName:'BLANK_BOX',featureFulfillmentPolicy:'Required'}]:[]
+    }
+  };
+}
+function formatMcfCopy(d){
+  const dest=mcfDestAddress(d.address);
+  const lines=[
+    'Amazon Multi-Channel Fulfilment (MCF) replacement',
+    'Create-order page: '+(d.mcf_create_url||''),
+    'Marketplace: '+(d.marketplace||'')+' ('+(d.marketplace_id||'')+')',
+    'Order ID (use the original channel order number): '+(d.original_order_id||''),
+    'Shipping: '+(d.shipping_speed||'Standard'),
+    'Plain packaging (no Amazon branding): '+(d.plain_packaging?'Yes':'No'),
+    '','Ship to','Name: '+(dest.name||''),'Address line 1: '+(dest.addressLine1||''),'Address line 2: '+(dest.addressLine2||''),
+    'City: '+(dest.city||''),'County / state: '+(dest.stateOrRegion||''),'Postcode: '+(dest.postalCode||''),
+    'Country: '+(dest.countryCode||''),'Phone: '+(dest.phoneNumber||''),'','Items (SKU, ASIN or FNSKU)'
+  ];
+  (d.items||[]).forEach((it,i)=>{
+    lines.push((i+1)+'. '+(it.title?it.title+' · ':'')+'SKU '+(it.seller_sku||'–')+' · ASIN '+(it.asin||'–')+' · FNSKU '+(it.fnsku||'–')+' · qty '+(it.quantity||1));
+  });
+  if(d.reason) lines.push('','Note / reason: '+d.reason);
+  return lines.join('\n');
+}
+function copyBtn(value){
+  const b=el('button','btn ghost','Copy');b.type='button';
+  b.onclick=async()=>{try{await navigator.clipboard.writeText(value||'');b.textContent='Copied';setTimeout(()=>b.textContent='Copy',1200)}catch(err){b.textContent='Copy failed'}};
+  return b;
+}
+function copyBlock(label, value){
+  const wrap=el('div','actcopy');
+  const h=el('div','actcopyh');h.append(el('div','hint',label),copyBtn(value||''));
+  const pre=el('pre');pre.textContent=value||'–';
+  wrap.append(h,pre);return wrap;
+}
+function returnInstructions(outcome){
+  const next=outcome==='replacement'?'send a replacement':'refund you';
+  return 'Please send the item back, tracked, to:\n\n'+UK_RETURN_ADDR+'\n\nPut the order slip (or a note with your order number) in the parcel, then reply with the return tracking number. We\'ll '+next+' once we have that.';
+}
+function fmtMoney(n,cur){if(n==null||n==='')return '–';const x=Number(n);if(Number.isNaN(x))return String(n);return (cur&&cur!=='GBP'?cur+' ':'£')+x.toFixed(2)}
+function actStatusLabel(a){return ({pending:'Waiting to place',created:'Created',done:'Done',expected:'Expected',received:'Received',failed:'Failed',cancelled:'Cancelled'})[a.status]||a.status}
+function closeActModal(){document.querySelectorAll('.actov').forEach(n=>n.remove())}
+function actModal(title){
+  closeActModal();
+  const ov=el('div','actov');ov.onclick=e=>{if(e.target===ov)closeActModal()};
+  const box=el('div','actmd');
+  const h=el('h3',null,title);box.append(h);
+  const body=el('div');box.append(body);
+  const err=el('div','msg');err.style.marginTop='8px';box.append(err);
+  const bar=el('div','actbtns');bar.style.marginTop='14px';box.append(bar);
+  ov.append(box);document.body.append(ov);
+  const setErr=(t,bad)=>{err.textContent=t||'';err.style.color=bad?'#b3261e':''};
+  return {ov,box,body,bar,setErr};
+}
+function field(label, attrs){
+  const w=el('div');w.append(el('label',null,label));
+  const i=el(attrs.tag||'input');if(!attrs.tag)i.type=attrs.type||'text';
+  Object.entries(attrs).forEach(([k,v])=>{if(k==='tag'||k==='label')return;if(k==='value')i.value=v;else if(k==='text')i.textContent=v;else i[k]=v});
+  if(attrs.tag==='textarea'){i.style.minHeight=attrs.minHeight||'72px';i.style.width='100%'}
+  w.append(i);return {w,i};
+}
+async function logNote(c, body, ext){
+  await sb.rpc('cx_log_action_note',{p_conversation_id:c.id,p_body:body,p_external_id:ext||null});
+}
+async function reloadActions(c, host){
+  const {data}=await sb.from('cx_actions').select('*').eq('conversation_id',c.id).order('created_at',{ascending:false});
+  actList=data||[];
+  if(host) renderActPanel(host,c,actList);
+  const ta=document.getElementById('replybox');if(ta)ta.dispatchEvent(new Event('input'));
+}
+// When the ticket's actions change (e.g. a replacement is logged), refresh Ready/Gaps in the list.
+let lastActSig={};
+function renderActPanel(host,c,list){const sig=(list||[]).map(x=>x.id+':'+x.status).join(',');if(lastActSig[c.id]!==undefined&&lastActSig[c.id]!==sig)loadDrafts().then(()=>{drawChips();drawList()});lastActSig[c.id]=sig;
+  if(!host)return;
+  host.innerHTML='';
+  const box=el('div','actbox');
+  box.append(el('h3',null,'Actions'));
+  if(!(list||[]).length) box.append(el('div','hint','Log a replacement, refund or return here before sending a reply that promises one.'));
+  (list||[]).forEach(a=>{
+    const row=el('div','actrow');
+    const d=a.details||{};
+    let line=actStatusLabel(a)+' · '+(a.type==='replacement'?'Replacement':a.type==='refund'?'Refund':'Return');
+    if(a.type==='replacement'&&isMcf(d)){
+      line=actStatusLabel(a)+' · Whole game · Amazon MCF · '+(d.marketplace||'');
+      if(d.original_order_id) line+=' · Order ID '+d.original_order_id;
+      if(d.mcf_order_id) line+=' · MCF '+d.mcf_order_id;
+    }else if(a.type==='replacement'){
+      line=actStatusLabel(a)+' · Replacement part · Shopify 3PL';
+      if(a.shopify_order_name) line+=' · '+a.shopify_order_name;
+    }else if(a.shopify_order_name) line+=' · '+a.shopify_order_name;
+    if(a.type==='refund'&&d.amount!=null) line+=' · '+fmtMoney(d.amount,d.amount_currency);
+    if(a.type==='replacement'&&(d.items||[]).length) line+=' · '+(d.items.map(i=>(i.title||i.sku||i.seller_sku||i.asin||i.fnsku||'item')+' × '+(i.quantity||1)).join(', '));
+    if(a.tracking_number) line+=' · tracking '+((a.tracking_company?a.tracking_company+' ':'')+a.tracking_number);
+    if(d.assigned_location) line+=' · '+d.assigned_location;
+    row.append(el('div',null,line));
+    if(d.routing_warning) row.append(el('div','warn',d.routing_warning));
+    if(d.reason) row.append(el('div','hint','Reason: '+d.reason));
+    const acts=el('div','actbtns');
+    if(a.tracking_url){const l=el('a','btn ghost','Tracking');l.href=a.tracking_url;l.target='_blank';acts.append(l)}
+    if(d.seller_center_url){const l=el('a','btn ghost','Open Seller Center');l.href=d.seller_center_url;l.target='_blank';acts.append(l)}
+    if(d.mcf_create_url){const l=el('a','btn ghost','Open MCF form');l.href=d.mcf_create_url;l.target='_blank';l.rel='noopener';acts.append(l)}
+    if(a.type==='replacement'&&isMcf(d)&&(a.status==='pending'||!d.mcf_order_id)){
+      const recM=el('button','btn','Record MCF order ID');recM.type='button';recM.onclick=()=>recordMcfOrderId(c,a,host);acts.append(recM);
+      const openM=el('button','btn ghost','Open copy-ready details');openM.type='button';openM.onclick=()=>openMcfModal(c,host,a);acts.append(openM);
+    }
+    if(a.type==='refund'&&a.status==='created'&&d.manual){const b=el('button','btn','Mark refund done');b.type='button';
+      b.onclick=async()=>{b.disabled=true;const {error}=await sb.from('cx_actions').update({status:'done',completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',a.id);
+        if(error){alert(error.message);b.disabled=false;return}await logNote(c,'Manual refund marked done'+(d.amount!=null?' ('+fmtMoney(d.amount,d.amount_currency)+')':'')+'.','note:action-done:'+a.id);await reloadActions(c,host)};acts.append(b)}
+    if(a.type==='return'&&a.status==='expected'){const b=el('button','btn','Mark return received');b.type='button';
+      b.onclick=async()=>{b.disabled=true;const details=Object.assign({},d,{received_at:new Date().toISOString()});
+        const {error}=await sb.from('cx_actions').update({status:'received',details,updated_at:new Date().toISOString()}).eq('id',a.id);
+        if(error){alert(error.message);b.disabled=false;return}
+        await logNote(c,'Return marked received. Next: '+(d.outcome==='replacement'?'create the replacement':'create the refund')+'.','note:action-recv:'+a.id);
+        await reloadActions(c,host);
+        if(d.outcome==='replacement') openReplacementModal(c,host);
+        else openRefundModal(c,host)};acts.append(b)}
+    if(a.status==='pending'&&a.type==='replacement'&&!isMcf(d)){const b=el('button','btn ghost','Record Shopify order #');b.type='button';
+      b.onclick=()=>recordExistingOrder(c,a,host);acts.append(b)}
+    if(acts.childNodes.length) row.append(acts);
+    box.append(row);
+  });
+  const btns=el('div','actbtns');
+  const r1=el('button','btn','Replacement');r1.type='button';r1.id='act-replacement-btn';r1.onclick=()=>openReplacementModal(c,host);
+  const r2=el('button','btn ghost','Refund');r2.type='button';r2.id='act-refund-btn';r2.onclick=()=>openRefundModal(c,host);
+  const r3=el('button','btn ghost','Return');r3.type='button';r3.id='act-return-btn';r3.onclick=()=>openReturnModal(c,host);
+  const more=el('button','btn moreact','More actions');more.type='button';more.id='act-more-btn';more.title='Show all action buttons';
+  more.onclick=()=>{actShowReplacement=true;syncReplacementButton()};
+  btns.append(r1,r2,r3,more);box.append(btns);
+  host.append(box);
+  syncReplacementButton();
+}
+function insertIntoComposer(text){
+  const ta=document.getElementById('replybox');if(!ta||!text)return;
+  const so=SIGNOFF.trim();const i=ta.value.lastIndexOf(so);
+  if(i>=0) ta.value=ta.value.slice(0,i).replace(/\s+$/,'')+'\n\n'+text+'\n\n'+ta.value.slice(i);
+  else ta.value=(ta.value?ta.value.replace(/\s+$/,'')+'\n\n':'')+text;
+  ta.dispatchEvent(new Event('input'));
+}
+async function recordExistingOrder(c, existing, host){
+  const name=prompt('Shopify order number for this replacement (for example #11312):', existing&&existing.shopify_order_name||'');
+  if(!name)return;
+  if(existing){
+    const {error}=await sb.from('cx_actions').update({status:'created',shopify_order_name:name.trim(),updated_at:new Date().toISOString(),details:Object.assign({},existing.details||{},{recorded_manually:true,kind:'part',fulfilment:'shopify_3pl'})}).eq('id',existing.id);
+    if(error){alert(error.message);return}
+    await logNote(c,'Replacement recorded against Shopify order '+name.trim()+'.','note:action:'+existing.id);
+  }
+  await reloadActions(c,host);
+}
+async function recordMcfOrderId(c, existing, host){
+  const id=prompt('Amazon MCF order ID from Seller Central after you placed the order:', (existing.details&&existing.details.mcf_order_id)||'');
+  if(!id||!id.trim())return;
+  const details=Object.assign({},existing.details||{},{mcf_order_id:id.trim()});
+  const {error}=await sb.from('cx_actions').update({status:'created',details,updated_at:new Date().toISOString()}).eq('id',existing.id);
+  if(error){alert(error.message);return}
+  await logNote(c,'Amazon MCF replacement placed. Original order ID '+(details.original_order_id||'')+'. MCF order ID '+id.trim()+'.','note:action:'+existing.id);
+  await reloadActions(c,host);
+}
+async function openReplacementModal(c, host, existing){
+  if(existing&&isMcf(existing.details)) return openMcfModal(c,host,existing);
+  if(existing&&existing.type==='replacement') return openPartReplacementModal(c,host);
+  const m=actModal('Send a replacement');
+  m.body.append(el('p','hint','Whole games go out through Amazon Multi-Channel Fulfilment. Parts and accessories still go to the 3PL as a free Shopify order.'));
+  const choice=el('div','actchoice');
+  const game=el('button','btn','Whole game');game.type='button';
+  game.append(el('span','hint','Amazon MCF — copy these details into Seller Central, use plain packaging, then record the MCF order ID. The Order ID must be the original channel order number.'));
+  game.onclick=()=>openMcfModal(c,host);
+  const part=el('button','btn ghost','Part or accessory');part.type='button';
+  part.append(el('span','hint','Free Shopify order to The Finishing Line or Forceget, same routing as website orders.'));
+  part.onclick=()=>openPartReplacementModal(c,host);
+  choice.append(game,part);m.body.append(choice);
+  const cancel=el('button','btn ghost','Cancel');cancel.type='button';cancel.onclick=closeActModal;
+  m.bar.append(cancel);
+}
+async function openMcfModal(c, host, existing){
+  const prev=(existing&&existing.details)||{};
+  const m=actModal('Amazon MCF — whole game');
+  m.body.append(el('p','hint','Eggsy CX cannot place the Amazon order yet (no SP-API). Copy these fields into the MCF create-order form, then paste the MCF order ID and mark it placed. The Order ID must be the original TikTok Shop, Amazon or Shopify order number — not a new number.'));
+  const marketSel=el('select');
+  [['UK','United Kingdom (sellercentral.amazon.co.uk)'],['US','United States (sellercentral.amazon.com)']].forEach(([v,l])=>{const o=el('option',null,l);o.value=v;marketSel.append(o)});
+  marketSel.value=prev.marketplace||defaultMcfMarket(c, prev.address&&prev.address.countryCode);
+  const mw=el('div');mw.append(el('label',null,'Marketplace'),marketSel);m.body.append(mw);
+  const orderId=field('Order ID (original channel order number)',{value:prev.original_order_id||c.order_number||''});m.body.append(orderId.w);
+  const speed=el('select');
+  [['Standard','Standard'],['Expedited','Expedited']].forEach(([v,l])=>{const o=el('option',null,l);o.value=v;speed.append(o)});
+  speed.value=prev.shipping_speed||'Standard';
+  const sw=el('div');sw.append(el('label',null,'Shipping speed'),speed);m.body.append(sw);
+  const plainL=el('label','req');const plain=el('input');plain.type='checkbox';plain.checked=prev.plain_packaging!==false;
+  plainL.append(plain,document.createTextNode(' Plain packaging (no Amazon branding)'));m.body.append(plainL);
+  const af={};
+  [['firstName','First name'],['lastName','Last name'],['address1','Address line 1'],['address2','Address line 2'],['city','City'],['province','County / state'],['zip','Postcode'],['countryCode','Country code (GB, US…)'],['phone','Phone']].forEach(([k,lab])=>{
+    const f=field(lab,{value:(prev.address&&prev.address[k])||(k==='countryCode'?'GB':'')});af[k]=f.i;m.body.append(f.w);
+  });
+  const itemsBox=el('div');itemsBox.append(el('label',null,'Items (enter SKU, ASIN or FNSKU)'));
+  const selected=(prev.items&&prev.items.length)?prev.items.map(it=>({seller_sku:it.seller_sku||it.sku||'',asin:it.asin||'',fnsku:it.fnsku||'',quantity:it.quantity||1,title:it.title||''})):[{seller_sku:'',asin:'',fnsku:'',quantity:1,title:''}];
+  const itemRows=el('div');
+  function drawItems(){
+    itemRows.innerHTML='';
+    selected.forEach((it,idx)=>{
+      const row=el('div','actrow');
+      const title=el('input');title.placeholder='Title (optional)';title.value=it.title||'';title.oninput=()=>{it.title=title.value;refreshCopy()};
+      const sku=el('input');sku.placeholder='SKU';sku.value=it.seller_sku||'';sku.oninput=()=>{it.seller_sku=sku.value;refreshCopy()};
+      const asin=el('input');asin.placeholder='ASIN';asin.value=it.asin||'';asin.oninput=()=>{it.asin=asin.value;refreshCopy()};
+      const fn=el('input');fn.placeholder='FNSKU';fn.value=it.fnsku||'';fn.oninput=()=>{it.fnsku=fn.value;refreshCopy()};
+      const q=el('input');q.type='number';q.min='1';q.value=String(it.quantity||1);q.style.width='64px';q.onchange=()=>{it.quantity=Math.max(1,+q.value||1);refreshCopy()};
+      const rm=el('button','btn ghost','Remove');rm.type='button';rm.onclick=()=>{if(selected.length>1){selected.splice(idx,1);drawItems()}};
+      row.append(title,sku,asin,fn,q,rm);itemRows.append(row);
+    });
+    refreshCopy();
+  }
+  const add=el('button','btn ghost','Add another item');add.type='button';
+  add.onclick=()=>{selected.push({seller_sku:'',asin:'',fnsku:'',quantity:1,title:''});drawItems()};
+  const search=field('Look up a SKU from the Shopify catalogue (optional)',{placeholder:'Name or SKU'});
+  const results=el('div','actresults');results.style.display='none';
+  let tmr;search.i.oninput=()=>{clearTimeout(tmr);tmr=setTimeout(async()=>{const q=search.i.value.trim();if(q.length<2){results.style.display='none';return}
+    results.style.display='';results.textContent='Searching…';
+    const r=await callCx({action:'search_products',q});
+    results.innerHTML='';
+    if(r.error==='not_configured'||(r.ok===false&&!r.products)){results.append(el('div','hint','Shopify is not connected, so catalogue search is unavailable. Type the Amazon SKU, ASIN or FNSKU instead.'));return}
+    const prods=r.products||[];if(!prods.length){results.append(el('div','hint','No matching products.'));return}
+    prods.forEach(p=>{(p.variants||[]).forEach(v=>{const b=el('button');b.type='button';b.textContent=v.label+(v.sku?' · '+v.sku:'');
+      b.onclick=()=>{const empty=selected.find(it=>!it.seller_sku&&!it.asin&&!it.fnsku);const target=empty||{seller_sku:'',asin:'',fnsku:'',quantity:1,title:''};if(!empty) selected.push(target);
+        target.seller_sku=v.sku||'';target.title=p.title+(v.title&&v.title!=='Default Title'?' · '+v.title:'');target.quantity=target.quantity||1;drawItems();results.style.display='none'};results.append(b)})})},250)};
+  itemsBox.append(search.w,results,itemRows,add);m.body.append(itemsBox);
+  const reason=field('Reason / note',{tag:'textarea',minHeight:'64px'});reason.i.value=prev.reason||'';m.body.append(reason.w);
+  const mcfId=field('MCF order ID (after you place it in Seller Central)',{value:prev.mcf_order_id||'',placeholder:'Paste the Amazon MCF order ID'});m.body.append(mcfId.w);
+  const copyHost=el('div');m.body.append(copyHost);
+  const link=el('a','btn','Open MCF create-order page');link.target='_blank';link.rel='noopener';
+  function currentDetails(){
+    const address={};Object.keys(af).forEach(k=>address[k]=af[k].value.trim());
+    return buildMcfDetails(c,{
+      marketplace:marketSel.value,original_order_id:orderId.i.value.trim(),shipping_speed:speed.value,
+      plain_packaging:plain.checked,address,items:selected.filter(it=>it.seller_sku||it.asin||it.fnsku),
+      reason:reason.i.value.trim(),mcf_order_id:mcfId.i.value.trim(),
+      displayableOrderDateTime:prev.sp_api&&prev.sp_api.displayableOrderDateTime
+    });
+  }
+  function refreshCopy(){
+    const d=currentDetails();
+    copyHost.innerHTML='';
+    copyHost.append(el('h3',null,'Copy into Seller Central'));
+    copyHost.append(copyBlock('All fields',formatMcfCopy(d)));
+    copyHost.append(copyBlock('Order ID',d.original_order_id));
+    copyHost.append(copyBlock('Marketplace',(d.marketplace||'')+' · '+(d.marketplace_id||'')));
+    copyHost.append(copyBlock('Shipping speed',d.shipping_speed));
+    copyHost.append(copyBlock('Plain packaging',d.plain_packaging?'Yes — no Amazon branding':'No'));
+    const dest=mcfDestAddress(d.address);
+    copyHost.append(copyBlock('Customer name',dest.name));
+    copyHost.append(copyBlock('Address',[dest.addressLine1,dest.addressLine2,dest.city,dest.stateOrRegion,dest.postalCode,dest.countryCode].filter(Boolean).join('\n')));
+    copyHost.append(copyBlock('Phone',dest.phoneNumber));
+    (d.items||[]).forEach((it,i)=>{
+      copyHost.append(copyBlock('Item '+(i+1),(it.title?it.title+'\n':'')+'SKU: '+(it.seller_sku||'')+'\nASIN: '+(it.asin||'')+'\nFNSKU: '+(it.fnsku||'')+'\nQuantity: '+(it.quantity||1)));
+    });
+    link.href=d.mcf_create_url;
+    link.textContent='Open MCF create-order page ('+d.marketplace+')';
+  }
+  [marketSel,speed,plain,orderId.i,reason.i,mcfId.i].concat(Object.keys(af).map(k=>af[k])).forEach(i=>{
+    i.addEventListener('input',refreshCopy);i.addEventListener('change',refreshCopy);
+  });
+  marketSel.addEventListener('change',()=>{marketSel.dataset.touched='1'});
+  af.countryCode.addEventListener('change',()=>{if(!marketSel.dataset.touched) marketSel.value=defaultMcfMarket(c, af.countryCode.value);refreshCopy()});
+  drawItems();
+  m.body.append(link);
+  m.setErr('Loading the original order, if we can find it…');
+  const looked=await callCx({action:'lookup_order',conversation_id:c.id});
+  if(!(prev.address&&prev.address.address1)&&looked.order&&looked.order.shippingAddress){
+    const a=looked.order.shippingAddress;
+    af.firstName.value=a.firstName||'';af.lastName.value=a.lastName||'';af.address1.value=a.address1||'';af.address2.value=a.address2||'';
+    af.city.value=a.city||'';af.province.value=a.province||a.provinceCode||'';af.zip.value=a.zip||'';
+    af.countryCode.value=a.countryCodeV2||a.country||'GB';af.phone.value=a.phone||'';
+    if(!marketSel.dataset.touched) marketSel.value=defaultMcfMarket(c, af.countryCode.value);
+    m.setErr('Address filled from Shopify '+looked.order.name+'. The Order ID stays the original channel number ('+(orderId.i.value||c.order_number||'none on the ticket')+').');
+  }else if(looked.error==='not_configured'){
+    m.setErr('Shopify is not connected, so the address could not be looked up. Fill it in from the ticket. No Amazon order will be placed from this screen.');
+  }else{
+    m.setErr(orderId.i.value?'Order ID prefilled from the ticket as '+orderId.i.value+'. Check the address, then copy the fields into Seller Central.':'No original order number is stored on this ticket — paste the TikTok, Amazon or Shopify order number into Order ID.');
+  }
+  refreshCopy();
+  async function save(markPlaced){
+    const details=currentDetails();
+    if(!details.original_order_id){m.setErr('Order ID must be the original channel order number.',true);return}
+    if(!details.items.length){m.setErr('Add at least one item with a SKU, ASIN or FNSKU.',true);return}
+    if(!details.address.address1||!details.address.city||!details.address.zip||!details.address.countryCode){m.setErr('Fill in the customer address.',true);return}
+    if(markPlaced&&!details.mcf_order_id){m.setErr('Paste the MCF order ID from Seller Central before marking it placed.',true);return}
+    const status=markPlaced?'created':'pending';
+    const email=(await sb.auth.getUser()).data.user.email;
+    let error,data;
+    if(existing){
+      const res=await sb.from('cx_actions').update({status,details,updated_at:new Date().toISOString()}).eq('id',existing.id).select('id').single();
+      error=res.error;data=res.data||{id:existing.id};
+    }else{
+      const res=await sb.from('cx_actions').insert({conversation_id:c.id,type:'replacement',status,details,created_by:email}).select('id').single();
+      error=res.error;data=res.data;
+    }
+    if(error){m.setErr(error.message,true);return}
+    const note=markPlaced
+      ?('Amazon MCF replacement placed for a whole game. Original order ID '+details.original_order_id+'. MCF order ID '+details.mcf_order_id+'. '+details.marketplace+' · '+(details.plain_packaging?'plain packaging':'Amazon packaging')+' · '+details.shipping_speed+'.')
+      :('Amazon MCF replacement prepared for a whole game. Original order ID '+details.original_order_id+'. Copy the fields into Seller Central, then record the MCF order ID. The reply cannot be queued until it is marked placed.');
+    await logNote(c,note,'note:action:'+data.id);
+    closeActModal();await reloadActions(c,host);
+  }
+  const saveBtn=el('button','btn ghost','Save details');saveBtn.type='button';saveBtn.onclick=()=>save(false);
+  const placed=el('button','btn','Mark MCF order placed');placed.type='button';placed.onclick=()=>save(true);
+  const cancel=el('button','btn ghost','Cancel');cancel.type='button';cancel.onclick=closeActModal;
+  m.bar.append(saveBtn,placed,cancel);
+}
+async function openPartReplacementModal(c, host){
+  const m=actModal('Send a replacement part');
+  m.body.append(el('p','hint','This is for replacement PARTS only. It creates a free Shopify order tagged eggsy-replacement so it goes to the same 3PL as website orders. Whole games should use Amazon MCF instead. Nothing is sent to the customer until you queue a reply.'));
+  const itemsBox=el('div');const selected=[];
+  const search=field('Search products or parts',{placeholder:'Name or SKU'});
+  const results=el('div','actresults');results.style.display='none';
+  const chosen=el('div');
+  function drawChosen(){chosen.innerHTML='';selected.forEach((it,idx)=>{const row=el('div','actrow');row.append(document.createTextNode(it.label+' × '));
+    const q=el('input');q.type='number';q.min='1';q.value=String(it.quantity||1);q.style.width='64px';q.onchange=()=>{it.quantity=Math.max(1,+q.value||1)};
+    const rm=el('button','btn ghost','Remove');rm.type='button';rm.onclick=()=>{selected.splice(idx,1);drawChosen()};
+    row.append(q,rm);chosen.append(row)})}
+  let tmr;search.i.oninput=()=>{clearTimeout(tmr);tmr=setTimeout(async()=>{const q=search.i.value.trim();if(q.length<2){results.style.display='none';return}
+    results.style.display='';results.textContent='Searching…';
+    const r=await callCx({action:'search_products',q});
+    results.innerHTML='';
+    if(r.error==='not_configured'||r.ok===false&&!r.products){results.append(el('div','hint','Shopify is not connected to Eggsy CX yet, so products can’t be searched here. Create the £0 order in Shopify Admin, then record its number.'));return}
+    const prods=r.products||[];if(!prods.length){results.append(el('div','hint','No matching products.'));return}
+    prods.forEach(p=>{(p.variants||[]).forEach(v=>{const b=el('button');b.type='button';b.textContent=v.label+(v.price?' · £'+v.price:'');
+      b.onclick=()=>{selected.push({variantId:v.id,title:p.title+(v.title&&v.title!=='Default Title'?' · '+v.title:''),sku:v.sku,price:v.price,quantity:1,label:v.label});drawChosen();results.style.display='none'};results.append(b)})})},250)};
+  itemsBox.append(search.w,results,chosen);m.body.append(itemsBox);
+  const orig=el('div');m.body.append(orig);
+  const af={};
+  [['firstName','First name'],['lastName','Last name'],['address1','Address line 1'],['address2','Address line 2'],['city','City'],['province','County / state'],['zip','Postcode'],['countryCode','Country code (GB, US…)'],['phone','Phone']].forEach(([k,lab])=>{const f=field(lab,{value:k==='countryCode'?'GB':''});af[k]=f.i;m.body.append(f.w)});
+  const reason=field('Reason',{tag:'textarea',minHeight:'64px'});m.body.append(reason.w);
+  const rec=field('Or record an order already created in Shopify',{placeholder:'#11312'});m.body.append(rec.w);
+  m.setErr('Loading the original order, if we can find it…');
+  const looked=await callCx({action:'lookup_order',conversation_id:c.id});
+  if(looked.order&&looked.order.shippingAddress){
+    const a=looked.order.shippingAddress;
+    af.firstName.value=a.firstName||'';af.lastName.value=a.lastName||'';af.address1.value=a.address1||'';af.address2.value=a.address2||'';
+    af.city.value=a.city||'';af.province.value=a.province||a.provinceCode||'';af.zip.value=a.zip||'';
+    af.countryCode.value=a.countryCodeV2||a.country||'GB';af.phone.value=a.phone||'';
+    const quick=el('div');quick.append(el('div','hint','Items on Shopify '+looked.order.name+' — click to add:'));
+    (looked.order.lineItems&&looked.order.lineItems.nodes||[]).forEach(li=>{const b=el('button','btn ghost',li.title+' × '+li.quantity);b.type='button';
+      b.onclick=()=>{selected.push({variantId:li.variant&&li.variant.id,title:li.title,sku:li.sku,price:li.originalUnitPriceSet&&li.originalUnitPriceSet.shopMoney&&li.originalUnitPriceSet.shopMoney.amount,quantity:li.quantity||1,label:li.title});drawChosen()};quick.append(b)});
+    orig.append(quick);
+    m.setErr('Address filled from '+looked.order.name+'. Check it before creating the order.');
+  }else if(looked.error==='not_configured'){m.setErr('Shopify is not connected to Eggsy CX yet. You can still fill this in and record a Shopify order number after you create it in Admin.')}
+  else m.setErr(looked.order? '':'No Shopify order was found for this ticket — fill in the address and items.');
+  const preview=el('button','btn ghost','Preview (no order created)');preview.type='button';
+  const go=el('button','btn','Create free replacement');go.type='button';
+  const cancel=el('button','btn ghost','Cancel');cancel.type='button';cancel.onclick=closeActModal;
+  m.bar.append(preview,go,cancel);
+  function collect(){
+    const address={};Object.keys(af).forEach(k=>address[k]=af[k].value.trim());
+    return {conversation_id:c.id,items:selected,address,reason:reason.i.value.trim()};
+  }
+  preview.onclick=async()=>{m.setErr('Checking…');const r=await callCx(Object.assign({action:'replacement',dry_run:true},collect()));
+    if(!r.ok){m.setErr(r.error||r.message||'Could not preview',true);return}
+    m.setErr('Dry run only — no Shopify order was created. Tags: '+(r.would_create&&r.would_create.tags||[]).join(', ')+(r.shopify_connected?' Shopify is connected.':' Shopify API is not connected, so Create will ask you to record an Admin order instead.'))};
+  go.onclick=async()=>{
+    if(rec.i.value.trim()){
+      if(!selected.length&&!reason.i.value.trim()){m.setErr('Add what you sent, or a reason, so the ticket has a record.',true);return}
+      const address={};Object.keys(af).forEach(k=>address[k]=af[k].value.trim());
+      const {data,error}=await sb.from('cx_actions').insert({conversation_id:c.id,type:'replacement',status:'created',shopify_order_name:rec.i.value.trim(),details:{kind:'part',fulfilment:'shopify_3pl',items:selected,address,reason:reason.i.value.trim(),recorded_manually:true,source_origin:c.origin,source_order:c.order_number},created_by:(await sb.auth.getUser()).data.user.email}).select('id').single();
+      if(error){m.setErr(error.message,true);return}
+      await logNote(c,'Replacement recorded against Shopify order '+rec.i.value.trim()+(selected.length?' for '+selected.map(i=>i.title+' × '+(i.quantity||1)).join(', '):'')+'.','note:action:'+data.id);
+      closeActModal();await reloadActions(c,host);return;
+    }
+    if(!selected.length){m.setErr('Pick at least one product or part.',true);return}
+    if(!confirm('Create a real £0 Shopify order that will go to the 3PL like any other website order?'))return;
+    go.disabled=true;m.setErr('Creating Shopify order…');
+    const r=await callCx(Object.assign({action:'replacement',create:true,dry_run:false},collect()));
+    if(!r.ok){
+      go.disabled=false;
+      if(r.error==='not_configured'){m.setErr((r.message||'Shopify is not connected.')+' You can create the order in Shopify Admin using tags '+(r.would_create&&r.would_create.tags||[]).join(', ')+' and then paste the order number above.',true);return}
+      m.setErr(r.error||'Could not create the order',true);return;
+    }
+    if(r.routing_warning) alert(r.routing_warning);
+    closeActModal();await reloadActions(c,host);
+  };
+}
+async function openRefundModal(c, host){
+  const m=actModal('Refund');
+  const marketplace=sellerRefundUrl(c.origin,c.order_number);
+  const looked=await callCx({action:'lookup_order',conversation_id:c.id});
+  const shopifyOrder=looked&&looked.order;
+  if(shopifyOrder){
+    m.body.append(el('p','hint','Shopify order '+shopifyOrder.name+' · '+shopifyOrder.displayFinancialStatus+' · total '+((shopifyOrder.currentTotalPriceSet&&shopifyOrder.currentTotalPriceSet.shopMoney&&(shopifyOrder.currentTotalPriceSet.shopMoney.currencyCode+' '+shopifyOrder.currentTotalPriceSet.shopMoney.amount))||'')));
+    const amt=field('Amount',{value:(shopifyOrder.currentTotalPriceSet&&shopifyOrder.currentTotalPriceSet.shopMoney&&shopifyOrder.currentTotalPriceSet.shopMoney.amount)||''});
+    const restockL=el('label','req');const restock=el('input');restock.type='checkbox';restockL.append(restock,document.createTextNode(' Restock items'));
+    const notifyL=el('label','req');const notify=el('input');notify.type='checkbox';notify.checked=true;notifyL.append(notify,document.createTextNode(' Email the customer from Shopify'));
+    const reason=field('Reason',{tag:'textarea'});
+    m.body.append(amt.w,restockL,notifyL,reason.w);
+    const preview=el('button','btn ghost','Preview (no refund)');preview.type='button';
+    const go=el('button','btn','Refund in Shopify');go.type='button';
+    preview.onclick=async()=>{const r=await callCx({action:'refund',dry_run:true,conversation_id:c.id,shopify_order_id:shopifyOrder.id,amount:amt.i.value.trim(),restock:restock.checked,notify:notify.checked,reason:reason.i.value.trim()});
+      m.setErr(r.ok?('Dry run only — would refund '+((r.would_refund&&r.would_refund.amount)||amt.i.value)+' '+(r.would_refund&&r.would_refund.currency||'')+' on '+shopifyOrder.name):(r.error||r.message||'Could not preview'),!r.ok)};
+    go.onclick=async()=>{if(!confirm('This will create a real Shopify refund of '+amt.i.value+' on '+shopifyOrder.name+'. Continue?'))return;
+      go.disabled=true;const r=await callCx({action:'refund',create:true,dry_run:false,confirm:true,conversation_id:c.id,shopify_order_id:shopifyOrder.id,amount:amt.i.value.trim(),restock:restock.checked,notify:notify.checked,reason:reason.i.value.trim()});
+      if(!r.ok){go.disabled=false;m.setErr(r.error==='not_configured'?(r.message||'Shopify is not connected.'):(r.error||'Refund failed'),true);return}
+      closeActModal();await reloadActions(c,host)};
+    m.bar.append(preview,go);
+  }else{
+    m.body.append(el('p','hint',marketplace?'No Shopify order is linked, so this is logged as a manual refund. Open Seller Center, process it there, then mark it done.':'No Shopify order was found. Record the refund you process elsewhere, then mark it done.'));
+  }
+  if(marketplace||!shopifyOrder){
+    const url=marketplace||'';
+    if(url){const a=el('a','btn ghost','Open Seller Center');a.href=url;a.target='_blank';m.body.append(a)}
+    const amt=field('Amount (optional)',{placeholder:'e.g. 19.99'});
+    const reason=field('Reason',{tag:'textarea'});
+    m.body.append(amt.w,reason.w);
+    const save=el('button','btn',shopifyOrder?'Also log a manual refund':'Log refund task');save.type='button';
+    save.onclick=async()=>{
+      const details={manual:true,seller_center_url:url||null,amount:amt.i.value.trim()||null,amount_currency:'',reason:reason.i.value.trim(),source_origin:c.origin,source_order:c.order_number};
+      const {data,error}=await sb.from('cx_actions').insert({conversation_id:c.id,type:'refund',status:'created',details,created_by:(await sb.auth.getUser()).data.user.email}).select('id').single();
+      if(error){m.setErr(error.message,true);return}
+      await logNote(c,'Manual refund task logged'+(details.amount?' for '+details.amount:'')+(url?' · process it in Seller Center':'')+'.','note:action:'+data.id);
+      closeActModal();await reloadActions(c,host);
+    };
+    m.bar.append(save);
+  }
+  const cancel=el('button','btn ghost','Cancel');cancel.type='button';cancel.onclick=closeActModal;m.bar.append(cancel);
+}
+async function openReturnModal(c, host){
+  const m=actModal('Record a return');
+  m.body.append(el('p','hint','This logs the expected return and adds the return address to your draft reply. The documented website return address is The Finishing Line in Basildon. Edit it if this customer should send the parcel somewhere else.'));
+  const items=field('What is coming back',{tag:'textarea',value:'',minHeight:'56px'});
+  const reason=field('Reason',{tag:'textarea',minHeight:'56px'});
+  const outcome=el('select');[['refund','Refund once it arrives'],['replacement','Replacement once it arrives']].forEach(([v,l])=>{const o=el('option',null,l);o.value=v;outcome.append(o)});
+  const ow=el('div');ow.append(el('label',null,'When it arrives'),outcome);
+  const instr=field('Instructions to add to the reply',{tag:'textarea',minHeight:'160px'});
+  instr.i.value=returnInstructions('refund');
+  outcome.onchange=()=>{const cur=returnInstructions(outcome.value==='replacement'?'replacement':'refund');if(!instr.i.dataset.edited||instr.i.value===instr.i.dataset.prev){instr.i.value=cur}instr.i.dataset.prev=cur};
+  instr.i.dataset.prev=instr.i.value;instr.i.oninput=()=>{instr.i.dataset.edited='1'};
+  m.body.append(items.w,reason.w,ow,instr.w);
+  const go=el('button','btn','Save and add to reply');go.type='button';
+  go.onclick=async()=>{
+    const details={items:items.i.value.trim(),reason:reason.i.value.trim(),outcome:outcome.value,instructions:instr.i.value.trim(),source_origin:c.origin,source_order:c.order_number,return_address:UK_RETURN_ADDR};
+    const {data,error}=await sb.from('cx_actions').insert({conversation_id:c.id,type:'return',status:'expected',details,created_by:(await sb.auth.getUser()).data.user.email}).select('id').single();
+    if(error){m.setErr(error.message,true);return}
+    await logNote(c,'Return expected'+(details.items?': '+details.items:'')+'. Outcome on arrival: '+details.outcome+'.','note:action:'+data.id);
+    insertIntoComposer(details.instructions);
+    closeActModal();await reloadActions(c,host);
+  };
+  const cancel=el('button','btn ghost','Cancel');cancel.type='button';cancel.onclick=closeActModal;
+  m.bar.append(go,cancel);
+}
+
+// Instant channels: re-check for a few seconds so the Sent / Failed badge appears without reloading.
+async function watchSend(id){for(let i=0;i<10;i++){await new Promise(r=>setTimeout(r,2500));if(sel!==id)return;
+ const {data}=await sb.from('reply_queue').select('status,email_note').eq('conversation_id',id).in('status',['queued','sending']);
+ if(!data||!data.length||data.every(r=>r.status==='queued'&&r.email_note)){await refreshAfterQueue(id);return}}}
+// If an opened conversation belongs to another view (e.g. an old /inbox/?c= link), say where it lives now.
+function showElsewhere(c){const box=document.getElementById('elsewhere');if(!box)return;box.innerHTML='';box.className='';const b=bucketOf(c);if(b===MODE)return;
+ box.className='elsewhere';box.append(el('span',null,'This conversation is in '+MODES[b].title+'.'));const a=el('a',null,'Open it in '+MODES[b].title+' →');a.href=MODES[b].path+'?c='+c.id;box.append(a)}
+// Published knowledge-base articles for this channel (same list Eggsy's drafts use: kb_for_origin).
+async function kbFor(c,t){const d=el('details','kbbox elog');d.append(el('summary',null,'📚 Knowledge for '+(ORIGINS[c.origin]||c.origin)));t.insertBefore(d,document.querySelector('#thread .hist-h'));
+ d.ontoggle=async()=>{if(!d.open||d.dataset.done)return;d.dataset.done='1';const ul=el('ul');d.append(ul);ul.append(el('li',null,'Loading…'));
+  const {data,error}=await sb.rpc('kb_for_origin',{p_origin:c.origin});ul.innerHTML='';
+  if(error){ul.append(el('li',null,'Could not load: '+error.message));return}
+  if(!data||!data.length){ul.append(el('li',null,'No published articles yet.'));return}
+  data.forEach(a=>{const li=el('li');const l=el('a',null,a.title);l.href='/knowledge/?a='+a.id;l.target='_blank';li.append(l,el('small',null,' · '+a.category+(a.channel_specific?' · this channel':'')+(a.language!=='en'?' · '+a.language.toUpperCase():'')));ul.append(li)})}}
+async function refreshAfterQueue(id){await Promise.all([loadQueueSummary(),loadDrafts()]);await loadStates();EggsyNav.refreshCounts();drawChips();drawList();if(sel!==id)return;await openConv(id,false);
+ const qb=[...document.querySelectorAll('#thread .bubble.q-queued,#thread .bubble.qqueued')].pop();if(qb)qb.scrollIntoView({block:'center'})}
+window.onpopstate=()=>{readFilterUrl();drawChips();const id=new URLSearchParams(location.search).get('c');if(id&&convs.find(c=>c.id===id))openConv(id,false);else{sel=null;document.body.classList.remove('showthread');drawList()}};
+</script>
+</body>
+</html>

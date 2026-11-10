@@ -1,0 +1,4 @@
+-- Applied via MCP on 10 Nov 2026 (cx_junk_bucket):
+-- * cx_conversation_state (security_invoker): status 'ignored' is its own bucket 'junk' (no longer shown in Resolved), never needs a reply.
+-- * cx_bucket_counts(): adds 'junk' for the menu badge.
+-- * 50 clear-cut junk tickets in the Inbox (sales pitches, spam, phishing, platform notifications) set to 'ignored'.
