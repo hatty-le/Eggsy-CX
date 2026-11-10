@@ -102,6 +102,9 @@ details.elog div{margin-top:6px}
 .snip{font-size:12.5px;color:#5a4a12;background:#fff7dd;border-radius:8px;padding:4px 8px;margin-top:4px}
 .tag.bucket{background:#1d1b26;color:#fff}.tag.b-resolved{background:#dff5e3;color:#1d5c2b}.tag.b-waiting{background:#e6f0ff;color:#1f3d7a}.tag.b-inbox{background:#FFE8A6;color:#5a4300}
 .junkbtn{margin:0 0 10px}
+.item.unread .name{font-weight:800}.item.unread .name::before{content:'';display:inline-block;width:9px;height:9px;border-radius:50%;background:#2f6fde;margin-right:7px;vertical-align:1px}
+.item.unread{border-left:3px solid #2f6fde}
+.chip.unreadchip.on{background:#dbe7ff;border-color:#9bb8f0}.chipsep{display:inline-block;width:1px;background:var(--line);margin:2px 4px}
 .linknote{font-size:13px;color:var(--muted);margin:0 0 6px}.linknote a{color:#7a5a00;font-weight:600}
 .bubble.psum{background:#faf8f2;border:1px dashed #d9cfb4;font-size:13.5px}
 .role{display:inline-block;font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 7px;margin-left:6px;background:#fff;border:1px solid var(--line);vertical-align:1px}
@@ -208,7 +211,7 @@ const SUBS={amazon:[['amazon_uk','UK',1],['amazon_us','US',1],['amazon_de','DE',
  meta:[['instagram','Instagram',1],['facebook','Facebook',1]]};
 const groupOf=o=>(GROUPS.find(g=>g[0]!=='all'&&g[2](o))||['other'])[0];
 const STATUS={open:'Open',awaiting_approval:'Awaiting approval',awaiting_customer:'Awaiting customer',resolved:'Resolved',ignored:'Junk'};
-let convs=[],grp='all',sub='',dft='',draftMap={},msgHits={},sel=null,qmap={},langMap={},emailCh={},stMap={};
+let convs=[],grp='all',sub='',dft='',draftMap={},msgHits={},readMap={},unreadOnly=false,ME='',lastSync=null,sel=null,qmap={},langMap={},emailCh={},stMap={};
 // One page, three views: /inbox/ (needs a reply from us), /waiting/ (we replied, waiting on the customer), /resolved/.
 // The bucket comes from the cx_conversation_state view in Supabase, so the nav counts and the lists always agree.
 const MODES={inbox:{title:'Inbox',path:'/inbox/',intro:'Conversations that need a reply from us: the customer wrote last and it isn’t resolved. Oldest first, so the longest wait is at the top.',empty:'Nothing needs a reply right now. 🎉',statuses:['open','awaiting_approval','awaiting_customer']},
@@ -248,7 +251,7 @@ function render(session){
  $('who').innerHTML='';
  if(!okEmail(email)){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;EggsyAuth.reject(sb,email,setMsg);return}
  $('auth').style.display='none';$('app').style.display='block';
- EggsyNav.setUser(email,()=>sb.auth.signOut(),sb);
+ ME=String(email).toLowerCase();EggsyNav.setUser(email,()=>sb.auth.signOut(),sb);
  const ret=EggsyNav.takeReturn();
  if(ret&&ret.startsWith('/sent/')){location.replace(ret);return}
  if(ret&&!/^\/(inbox|waiting|resolved)\//.test(ret)&&ret!=='/'){location.replace(ret);return}
@@ -261,7 +264,7 @@ async function load(){
  $('list').innerHTML='<div class="empty">Loading…</div>';
  const {data,error}=await sb.from('conversations').select('*').order('last_message_at',{ascending:false,nullsFirst:false}).limit(5000);
  if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load: '+error.message));return}
- convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates(),loadDrafts()]);drawChips();drawList();
+ convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates(),loadDrafts(),loadReads()]);lastSync=new Date().toISOString();drawChips();drawList();startLiveRefresh();
  await openFromUrl();
 }
 // Deep link: /inbox/?c=<conversation_id>
@@ -276,6 +279,21 @@ async function loadDrafts(){const m={};
  const {data}=await sb.rpc('cx_draft_readiness');
  (data||[]).forEach(r=>{const acts=(r.missing_actions||[]).map(t=>t==='any'?'action':t);m[r.conversation_id]={notes:r.notes||0,acts,partial:!!r.partial_history,att:!!r.attachment_missing,gaps:(r.notes||0)>0||acts.length>0||!!r.partial_history||!!r.attachment_missing,at:r.drafted_at}});draftMap=m}
 function draftState(c){const d=draftMap[c.id];if(!d||qmap[c.id])return 'none';return d.gaps?'gaps':'ready'}
+// ---- Unread: per person. A ticket is unread when the customer has written since you last opened it.
+// Everything before unread tracking started (10 Nov 2026, 15:00 UK) counts as read.
+const READ_START=new Date('2026-11-10T15:00:00Z');
+async function loadReads(){const {data}=await sb.from('cx_reads').select('conversation_id,read_at').limit(10000);const m={};(data||[]).forEach(r=>{m[r.conversation_id]=r.read_at});readMap=m}
+function isUnread(c){const st=stMap[c.id];if(!st||st.bucket!=='inbox'||!st.last_customer_at)return false;const ra=readMap[c.id]?new Date(readMap[c.id]):READ_START;return new Date(st.last_customer_at)>ra}
+function markRead(id,when){const at=when||new Date().toISOString();readMap[id]=at;if(!ME)return;sb.from('cx_reads').upsert({conversation_id:id,user_email:ME,read_at:at},{onConflict:'conversation_id,user_email'}).then(()=>{},()=>{})}
+function unreadCount(){return convs.filter(c=>inMode(c)&&isUnread(c)).length}
+function setTitle(){const n=MODE==='inbox'?unreadCount():0;document.title=(n?'('+n+') ':'')+MODES[MODE].title+' · Eggsy CX'}
+// Check for new messages every minute (and when you come back to the tab), without disturbing the open ticket.
+let liveTimer=null;
+function startLiveRefresh(){if(liveTimer)return;liveTimer=setInterval(liveRefresh,60000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)liveRefresh()})}
+async function liveRefresh(){if(document.hidden)return;const since=lastSync;lastSync=new Date().toISOString();
+ const {data}=await sb.from('conversations').select('*').gt('updated_at',since).limit(500);
+ (data||[]).forEach(c=>{const i=convs.findIndex(x=>x.id===c.id);if(i>=0)convs[i]=c;else convs.push(c)});
+ await Promise.all([loadStates(),loadDrafts(),loadQueueSummary()]);EggsyNav.refreshCounts&&EggsyNav.refreshCounts();drawChips();drawList()}
 async function loadEmailCh(){emailCh={};const {data}=await sb.from('email_send_channels').select('origin,enabled');(data||[]).forEach(r=>{if(r.enabled)emailCh[r.origin]=true})}
 async function loadLangs(){const m={};
  const {data}=await sb.from('messages').select('conversation_id,language').neq('language','en').not('language','is',null).limit(5000);
@@ -300,8 +318,10 @@ function drawChips(){const box=$('chips');box.innerHTML='';
  list.forEach(([o,lab,always])=>{const n=mc.filter(c=>c.origin===o).length;if(!n&&!always)return;
   const ch=el('button','chip'+(sub===o?' on':''),lab);ch.type='button';ch.setAttribute('aria-pressed',sub===o);ch.append(el('small',null,n));ch.onclick=()=>setFilter(grp,o);sbx.append(ch)});
  keepOnVisible(sbx)}
-function drawDraftChips(){const box=$('draftchips');box.innerHTML='';if(MODE!=='inbox')return;
+function drawDraftChips(){const box=$('draftchips');box.innerHTML='';setTitle();if(MODE!=='inbox')return;
  const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const mc=convs.filter(c=>inMode(c)&&g[2](c.origin)&&(!sub||c.origin===sub));
+ {const n=mc.filter(isUnread).length;const u=el('button','chip unreadchip'+(unreadOnly?' on':''),'🔵 Unread');u.type='button';u.setAttribute('aria-pressed',unreadOnly);
+  u.title='Customer messages you haven’t opened yet, newest first';u.append(el('small',null,n));u.onclick=()=>{unreadOnly=!unreadOnly;drawChips();drawList()};box.append(u);box.append(el('span','chipsep'))}
  [['','All drafts',''],['ready','✅ Ready','d-ready'],['gaps','⚠️ Gaps','d-gaps'],['none','No draft','']].forEach(([k,lab,cls])=>{const n=k?mc.filter(c=>draftState(c)===k).length:mc.length;
   const ch=el('button','chip '+cls+(dft===k?' on':''),lab);ch.type='button';ch.setAttribute('aria-pressed',dft===k);
   ch.title=k==='ready'?'Eggsy’s draft has everything it needs: check it and send':k==='gaps'?'Eggsy’s draft has [ ] notes, promises a replacement, refund or return that needs logging first, or was written without the full chat':k==='none'?'No draft yet, or a reply is already queued':'';
@@ -313,8 +333,9 @@ function chMatch(c){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];return g[2](c.
 // Search results on the other two pages (channel filters apply; the draft filter is Inbox-only).
 function elsewhere(){const q=$('q').value.trim().toLowerCase();if(!q)return [];return convs.filter(c=>!inMode(c)&&chMatch(c)&&qMatch(c,q)).sort((a,b)=>new Date(b.last_message_at||0)-new Date(a.last_message_at||0))}
 function visible(){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const q=$('q').value.trim().toLowerCase();const st='';
- const v=convs.filter(c=>inMode(c)&&g[2](c.origin)&&(!sub||c.origin===sub)&&(MODE!=='inbox'||!dft||draftState(c)===dft)&&(!st||c.status===st)&&qMatch(c,q));
- if(MODE==='inbox')v.sort((a,b)=>new Date(sinceOf(a))-new Date(sinceOf(b)));
+ const v=convs.filter(c=>inMode(c)&&g[2](c.origin)&&(!sub||c.origin===sub)&&(MODE!=='inbox'||!dft||draftState(c)===dft)&&(!unreadOnly||isUnread(c))&&(!st||c.status===st)&&qMatch(c,q));
+ if(MODE==='inbox'&&unreadOnly)v.sort((a,b)=>new Date((stMap[b.id]||{}).last_customer_at||0)-new Date((stMap[a.id]||{}).last_customer_at||0));
+ else if(MODE==='inbox')v.sort((a,b)=>new Date(sinceOf(a))-new Date(sinceOf(b)));
  else v.sort((a,b)=>new Date(b.last_message_at||0)-new Date(a.last_message_at||0));
  return v}
 const chTag=o=>el('span','tag ch-'+groupOf(o),ORIGINS[o]||o);
@@ -326,7 +347,7 @@ function drawList(){const box=$('list');box.innerHTML='';const v=visible();const
  if(q)['inbox','waiting','resolved','junk'].filter(b=>b!==MODE).forEach(b=>{const list=other.filter(c=>bucketOf(c)===b);if(!list.length)return;
   box.append(el('div','srch-h',list.length+' in '+MODES[b].title));list.forEach(c=>rowFor(c,box,b))});
 }
-function rowFor(c,box,otherBucket){{const it=el('div','item'+(sel===c.id?' sel':''));it.tabIndex=0;it.onclick=()=>openConv(c.id,true);it.onkeydown=e=>{if(e.key==='Enter')openConv(c.id,true)};
+function rowFor(c,box,otherBucket){{const un=!otherBucket&&isUnread(c);const it=el('div','item'+(sel===c.id?' sel':'')+(un?' unread':''));it.tabIndex=0;it.onclick=()=>openConv(c.id,true);it.onkeydown=e=>{if(e.key==='Enter')openConv(c.id,true)};
   const l1=el('div','line1');l1.append(el('span','name',c.customer_name||c.customer_handle||'Unknown'),MODE==='inbox'?(()=>{const w=el('span','when',fmt(sinceOf(c)));w.title='Waiting for a reply since '+fmt(sinceOf(c))+' UK';return w})():el('span','when',fmt(c.last_message_at)));
   const tags=el('div','tags');if(otherBucket)tags.append(el('span','tag bucket b-'+otherBucket,MODES[otherBucket].title));const ct=chTag(c.origin);if(c.shop)ct.title=c.shop;tags.append(ct);
   if(c.topic)tags.append(el('span','tag topic',c.topic));
@@ -389,7 +410,7 @@ function whoLine(m,k,o){const a=m.author||'';o=o||'';
 function otherConvs(c){const h=(c.customer_handle||'').trim().toLowerCase(),o=(c.order_number||'').trim();
  return convs.filter(x=>x.id!==c.id&&((h&&(x.customer_handle||'').trim().toLowerCase()===h)||(o&&(x.order_number||'').trim()===o)))
   .sort((a,b)=>new Date(b.last_message_at)-new Date(a.last_message_at))}
-async function openConv(id,push){sel=id;drawList();const c=convs.find(x=>x.id===id);const t=$('thread');t.innerHTML='';
+async function openConv(id,push){sel=id;markRead(id);drawChips();drawList();const c=convs.find(x=>x.id===id);const t=$('thread');t.innerHTML='';
  document.body.classList.add('showthread');
  if(push){const u=new URLSearchParams(location.search);u.set('c',id);history.pushState({c:id},'','?'+u.toString())}
  const back=el('button','btn ghost back','← All conversations');back.onclick=()=>{if(history.state&&history.state.c)history.back();else{const u=new URLSearchParams(location.search);u.delete('c');history.pushState(null,'',location.pathname+(u.toString()?'?'+u:''));window.onpopstate()}};t.append(back);
@@ -405,6 +426,8 @@ async function openConv(id,push){sel=id;drawList();const c=convs.find(x=>x.id===
  s.onchange=async()=>{const {error}=await sb.from('conversations').update({status:s.value}).eq('id',c.id);if(error){alert('Could not update: '+error.message);s.value=c.status}else{c.status=s.value;await refreshStates();showElsewhere(c)}};
  add('Status',null,s);t.append(meta);
  // One-click Junk / Not junk.
+ if(bucketOf(c)==='inbox'){const ub=el('button','btn ghost small junkbtn','🔵 Mark as unread');ub.type='button';ub.style.marginRight='6px';
+  ub.onclick=()=>{markRead(c.id,'1970-01-01T00:00:00Z');sel=null;document.body.classList.remove('showthread');$('thread').innerHTML='';$('thread').append(el('div','empty','Marked as unread.'));drawChips();drawList()};t.append(ub)}
  {const jb=el('button','btn ghost small junkbtn',c.status==='ignored'?'↩ Not junk, move to Inbox':'🗑 Move to Junk');jb.type='button';
   jb.onclick=async()=>{jb.disabled=true;const to=c.status==='ignored'?'open':'ignored';
    const {error}=await sb.from('conversations').update({status:to,status_changed_at:new Date().toISOString()}).eq('id',c.id);
