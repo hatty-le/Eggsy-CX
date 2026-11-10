@@ -98,6 +98,9 @@ details.elog div{margin-top:6px}
 .bubble.eggsy{background:transparent;border:1px solid var(--line);max-width:100%;font-size:13px;color:var(--muted)}
 .bubble.sysnote{background:#f3f7f3;border:1px solid #d6e6d6;max-width:100%;font-size:13px}
 .atts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;white-space:normal}.att img{max-width:220px;max-height:220px;border-radius:10px;border:1px solid var(--line);cursor:zoom-in;display:block}.attph{font-size:12.5px;color:var(--muted)}.attlink{background:#fff;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font:inherit;font-size:13px;cursor:pointer}
+.srch-h{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:10px 14px 4px}
+.snip{font-size:12.5px;color:#5a4a12;background:#fff7dd;border-radius:8px;padding:4px 8px;margin-top:4px}
+.tag.bucket{background:#1d1b26;color:#fff}.tag.b-resolved{background:#dff5e3;color:#1d5c2b}.tag.b-waiting{background:#e6f0ff;color:#1f3d7a}.tag.b-inbox{background:#FFE8A6;color:#5a4300}
 .linknote{font-size:13px;color:var(--muted);margin:0 0 6px}.linknote a{color:#7a5a00;font-weight:600}
 .bubble.psum{background:#faf8f2;border:1px dashed #d9cfb4;font-size:13.5px}
 .role{display:inline-block;font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 7px;margin-left:6px;background:#fff;border:1px solid var(--line);vertical-align:1px}
@@ -182,7 +185,7 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
   <div class="chips" id="chips" aria-label="Channel"></div>
   <div class="chips sub" id="subchips" aria-label="Marketplace or shop"></div>
   <div class="chips draft" id="draftchips" aria-label="Draft readiness"></div>
-  <div class="row2"><input id="q" type="search" placeholder="Search name, email, order, topic…"></div>
+  <div class="row2"><input id="q" type="search" placeholder="Search Inbox, Waiting and Resolved: name, email, order, or any words in the messages…"></div>
  </div>
  <div class="layout" id="layout">
   <div class="card" id="list"></div>
@@ -204,7 +207,7 @@ const SUBS={amazon:[['amazon_uk','UK',1],['amazon_us','US',1],['amazon_de','DE',
  meta:[['instagram','Instagram',1],['facebook','Facebook',1]]};
 const groupOf=o=>(GROUPS.find(g=>g[0]!=='all'&&g[2](o))||['other'])[0];
 const STATUS={open:'Open',awaiting_approval:'Awaiting approval',awaiting_customer:'Awaiting customer',resolved:'Resolved',ignored:'Ignored'};
-let convs=[],grp='all',sub='',dft='',draftMap={},sel=null,qmap={},langMap={},emailCh={},stMap={};
+let convs=[],grp='all',sub='',dft='',draftMap={},msgHits={},sel=null,qmap={},langMap={},emailCh={},stMap={};
 // One page, three views: /inbox/ (needs a reply from us), /waiting/ (we replied, waiting on the customer), /resolved/.
 // The bucket comes from the cx_conversation_state view in Supabase, so the nav counts and the lists always agree.
 const MODES={inbox:{title:'Inbox',path:'/inbox/',intro:'Conversations that need a reply from us: the customer wrote last and it isn’t resolved. Oldest first, so the longest wait is at the top.',empty:'Nothing needs a reply right now. 🎉',statuses:['open','awaiting_approval','awaiting_customer']},
@@ -254,7 +257,7 @@ function render(session){
 }
 async function load(){
  $('list').innerHTML='<div class="empty">Loading…</div>';
- const {data,error}=await sb.from('conversations').select('*').order('last_message_at',{ascending:false,nullsFirst:false}).limit(1000);
+ const {data,error}=await sb.from('conversations').select('*').order('last_message_at',{ascending:false,nullsFirst:false}).limit(5000);
  if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load: '+error.message));return}
  convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates(),loadDrafts()]);drawChips();drawList();
  await openFromUrl();
@@ -303,31 +306,49 @@ function drawDraftChips(){const box=$('draftchips');box.innerHTML='';if(MODE!=='
   ch.append(el('small',null,n));ch.onclick=()=>{dft=k;writeFilterUrl();drawChips();drawList()};box.append(ch)})}
 // On narrow screens the chip rows scroll sideways; keep the selected chip in view.
 function keepOnVisible(row){const on=row.querySelector('.on');if(on&&row.scrollWidth>row.clientWidth)row.scrollLeft=Math.max(0,on.offsetLeft-row.offsetLeft-12)}
+function qMatch(c,q){return !q||[c.customer_name,c.customer_handle,c.order_number,c.subject,c.shop,c.summary,c.topic,c.overview,ORIGINS[c.origin]].join(' ').toLowerCase().includes(q)||!!msgHits[c.id]}
+function chMatch(c){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];return g[2](c.origin)&&(!sub||c.origin===sub)}
+// Search results on the other two pages (channel filters apply; the draft filter is Inbox-only).
+function elsewhere(){const q=$('q').value.trim().toLowerCase();if(!q)return [];return convs.filter(c=>!inMode(c)&&chMatch(c)&&qMatch(c,q)).sort((a,b)=>new Date(b.last_message_at||0)-new Date(a.last_message_at||0))}
 function visible(){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const q=$('q').value.trim().toLowerCase();const st='';
- const v=convs.filter(c=>inMode(c)&&g[2](c.origin)&&(!sub||c.origin===sub)&&(MODE!=='inbox'||!dft||draftState(c)===dft)&&(!st||c.status===st)&&(!q||[c.customer_name,c.customer_handle,c.order_number,c.subject,c.shop,c.summary,c.topic,c.overview,ORIGINS[c.origin]].join(' ').toLowerCase().includes(q)));
+ const v=convs.filter(c=>inMode(c)&&g[2](c.origin)&&(!sub||c.origin===sub)&&(MODE!=='inbox'||!dft||draftState(c)===dft)&&(!st||c.status===st)&&qMatch(c,q));
  if(MODE==='inbox')v.sort((a,b)=>new Date(sinceOf(a))-new Date(sinceOf(b)));
  else v.sort((a,b)=>new Date(b.last_message_at||0)-new Date(a.last_message_at||0));
  return v}
 const chTag=o=>el('span','tag ch-'+groupOf(o),ORIGINS[o]||o);
 // List rows show a one-line overview only; the messages are shown when you open the ticket.
-function drawList(){const box=$('list');box.innerHTML='';const v=visible();
- if(!v.length){box.append(el('div','empty',convs.some(inMode)?'No conversations match these filters.':MODES[MODE].empty));return}
- v.forEach(c=>{const it=el('div','item'+(sel===c.id?' sel':''));it.tabIndex=0;it.onclick=()=>openConv(c.id,true);it.onkeydown=e=>{if(e.key==='Enter')openConv(c.id,true)};
+function drawList(){const box=$('list');box.innerHTML='';const v=visible();const other=elsewhere();const q=$('q').value.trim();
+ if(q)box.append(el('div','srch-h',v.length+' in '+MODES[MODE].title));
+ if(!v.length)box.append(el('div','empty',q?'No matches in '+MODES[MODE].title+'.':convs.some(inMode)?'No conversations match these filters.':MODES[MODE].empty));
+ v.forEach(c=>rowFor(c,box));
+ if(q)['inbox','waiting','resolved'].filter(b=>b!==MODE).forEach(b=>{const list=other.filter(c=>bucketOf(c)===b);if(!list.length)return;
+  box.append(el('div','srch-h',list.length+' in '+MODES[b].title));list.forEach(c=>rowFor(c,box,b))});
+}
+function rowFor(c,box,otherBucket){{const it=el('div','item'+(sel===c.id?' sel':''));it.tabIndex=0;it.onclick=()=>openConv(c.id,true);it.onkeydown=e=>{if(e.key==='Enter')openConv(c.id,true)};
   const l1=el('div','line1');l1.append(el('span','name',c.customer_name||c.customer_handle||'Unknown'),MODE==='inbox'?(()=>{const w=el('span','when',fmt(sinceOf(c)));w.title='Waiting for a reply since '+fmt(sinceOf(c))+' UK';return w})():el('span','when',fmt(c.last_message_at)));
-  const tags=el('div','tags');const ct=chTag(c.origin);if(c.shop)ct.title=c.shop;tags.append(ct);
+  const tags=el('div','tags');if(otherBucket)tags.append(el('span','tag bucket b-'+otherBucket,MODES[otherBucket].title));const ct=chTag(c.origin);if(c.shop)ct.title=c.shop;tags.append(ct);
   if(c.topic)tags.append(el('span','tag topic',c.topic));
-  if(MODE==='inbox'){const ds=draftState(c);if(ds==='ready'){const t=el('span','tag dready','✅ Ready');t.title='Draft ready to check and send';tags.append(t)}
+  if(MODE==='inbox'&&!otherBucket){const ds=draftState(c);if(ds==='ready'){const t=el('span','tag dready','✅ Ready');t.title='Draft ready to check and send';tags.append(t)}
    else if(ds==='gaps'){const d=draftMap[c.id],bits=[];if(d.att)bits.push('photo missing');if(d.partial)bits.push('full chat not in Eggsy');if(d.acts.length)bits.push(d.acts.join(' + ')+' to log');if(d.notes)bits.push(d.notes+(d.notes===1?' note':' notes'));
     const t=el('span','tag dgaps','⚠️ '+bits.join(', '));t.title=(d.att?'The customer sent a photo or file that is no longer in hey@, so it can’t be shown here. Check eDesk or ask them to resend. ':'')+(d.partial?'Part of this chat is only an Eggsy summary (the platform can’t be read directly), so check the full chat on the platform before sending. ':'')+(d.acts.length?'The draft promises a '+d.acts.join(' and ')+': log it in Actions before sending. ':'')+(d.notes?'The draft has [ ] notes to fill in first.':'');tags.append(t)}}
   if(langMap[c.id])[...langMap[c.id]].forEach(l=>{const lt=el('span','tag lang',l.toUpperCase());lt.title=langName(l)+' conversation, English translation available';tags.append(lt)});
   const ov=el('div','ov',c.overview||'No summary yet');if(!c.overview)ov.style.color='var(--muted)';
+  const hit=msgHits[c.id];const snip=hit?el('div','snip','“…'+hit.trim()+'…”'):null;
   const foot=el('div','foot');const st=el('span');st.append(el('span','tag st-'+c.status,STATUS[c.status]||c.status));
   const qs=qmap[c.id];if(qs){const qt=el('span','tag qtag'+(qs==='failed'?' failed':''),qs==='failed'?'Reply failed':qs==='sending'?'Reply sending':'Reply queued');qt.style.marginLeft='4px';st.append(qt)}
   if(c.flag){const ft=el('span','tag flagtag','⚠ Needs attention');ft.title=c.flag;ft.style.marginLeft='4px';st.append(ft)}
   foot.append(st,el('span',null,c.order_number?('Order '+(/^\d{3,6}$/.test(c.order_number)?'#':'')+c.order_number):''));
-  it.append(l1,tags,ov,foot);box.append(it)});
+  it.append(l1,tags,ov);if(snip)it.append(snip);it.append(foot);box.append(it)}
 }
-$('q').oninput=drawList;
+// Typing searches names, orders and summaries straight away, and message text (server-side) after a short pause.
+let qTimer=null,qSeq=0;
+$('q').oninput=()=>{drawList();clearTimeout(qTimer);const q=$('q').value.trim();
+ if(q.length<3){if(Object.keys(msgHits).length){msgHits={};drawList()}return}
+ qTimer=setTimeout(async()=>{const my=++qSeq;const {data,error}=await sb.rpc('cx_search_messages',{p_q:q});if(my!==qSeq||error)return;
+  const m={};(data||[]).forEach(r=>{m[r.conversation_id]=r.snippet||''});msgHits=m;
+  const miss=Object.keys(m).filter(id=>!convs.find(c=>c.id===id));
+  if(miss.length){const {data:more}=await sb.from('conversations').select('*').in('id',miss.slice(0,200));(more||[]).forEach(c=>convs.push(c))}
+  if(my===qSeq)drawList()},300)};
 // ---- Conversation view: full history, other conversations, composer with Eggsy's suggested reply ----
 const TEAM=['Mich Mahinay','Marty Pardoe','Luke Shelley','Hatty Innes'];
 // Walmart wraps agent cases in standard seller instructions; hide them so only the case text shows.
