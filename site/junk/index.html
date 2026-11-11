@@ -276,8 +276,9 @@ async function openFromUrl(){const id=new URLSearchParams(location.search).get('
  if(!convs.find(c=>c.id===id)){const {data}=await sb.from('conversations').select('*').eq('id',id).maybeSingle();if(data){convs.push(data);drawList()}}
  if(convs.find(c=>c.id===id))openConv(id,false);
  else{$('thread').innerHTML='';$('thread').append(el('div','empty','That conversation could not be found. It may have been deleted.'));document.body.classList.add('showthread')}}
-// Eggsy's current draft per conversation (cx_draft_readiness): "gaps" when it still has [ ] notes, or promises a
-// replacement, refund or return that isn't logged yet (the same check that blocks Send); otherwise "ready".
+// Eggsy's current draft per conversation (cx_draft_readiness): "gaps" when it still has [ ] notes, a photo
+// that can't be shown, or was written without the full chat. Promising a replacement, refund or return
+// does not block Send; queueing the reply adds a pending action automatically.
 async function loadDrafts(){const m={};
  const {data}=await sb.rpc('cx_draft_readiness');
  (data||[]).forEach(r=>{const acts=(r.missing_actions||[]).map(t=>t==='any'?'action':t);m[r.conversation_id]={notes:r.notes||0,acts,partial:!!r.partial_history,att:!!r.attachment_missing,gaps:(r.notes||0)>0||acts.length>0||!!r.partial_history||!!r.attachment_missing,at:r.drafted_at}});draftMap=m}
@@ -327,7 +328,7 @@ function drawDraftChips(){const box=$('draftchips');box.innerHTML='';setTitle();
   u.title='Customer messages you haven’t opened yet, newest first';u.append(el('small',null,n));u.onclick=()=>{unreadOnly=!unreadOnly;drawChips();drawList()};box.append(u);box.append(el('span','chipsep'))}
  [['','All drafts',''],['ready','✅ Ready','d-ready'],['gaps','⚠️ Gaps','d-gaps'],['none','No draft','']].forEach(([k,lab,cls])=>{const n=k?mc.filter(c=>draftState(c)===k).length:mc.length;
   const ch=el('button','chip '+cls+(dft===k?' on':''),lab);ch.type='button';ch.setAttribute('aria-pressed',dft===k);
-  ch.title=k==='ready'?'Eggsy’s draft has everything it needs: check it and send':k==='gaps'?'Eggsy’s draft has [ ] notes, promises a replacement, refund or return that needs logging first, or was written without the full chat':k==='none'?'No draft yet, or a reply is already queued':'';
+  ch.title=k==='ready'?'Eggsy’s draft has everything it needs: check it and send':k==='gaps'?'Eggsy’s draft has [ ] notes, a photo that can’t be shown, or was written without the full chat. A reply that promises a replacement, refund or return can still be sent: a pending action is added to the ticket automatically.':k==='none'?'No draft yet, or a reply is already queued':'';
   ch.append(el('small',null,n));ch.onclick=()=>{dft=k;writeFilterUrl();drawChips();drawList()};box.append(ch)})}
 // On narrow screens the chip rows scroll sideways; keep the selected chip in view.
 function keepOnVisible(row){const on=row.querySelector('.on');if(on&&row.scrollWidth>row.clientWidth)row.scrollLeft=Math.max(0,on.offsetLeft-row.offsetLeft-12)}
@@ -355,8 +356,8 @@ function rowFor(c,box,otherBucket){{const un=!otherBucket&&isUnread(c);const it=
   const tags=el('div','tags');if(otherBucket)tags.append(el('span','tag bucket b-'+otherBucket,MODES[otherBucket].title));const ct=chTag(c.origin);if(c.shop)ct.title=c.shop;tags.append(ct);
   if(c.topic)tags.append(el('span','tag topic',c.topic));
   if(MODE==='inbox'&&!otherBucket){const ds=draftState(c);if(ds==='ready'){const t=el('span','tag dready','✅ Ready');t.title='Draft ready to check and send';tags.append(t)}
-   else if(ds==='gaps'){const d=draftMap[c.id],bits=[];if(d.att)bits.push('photo missing');if(d.partial)bits.push('full chat not in Eggsy');if(d.acts.length)bits.push(d.acts.join(' + ')+' to log');if(d.notes)bits.push(d.notes+(d.notes===1?' note':' notes'));
-    const t=el('span','tag dgaps','⚠️ '+bits.join(', '));t.title=(d.att?'The customer sent a photo or file that is no longer in hey@, so it can’t be shown here. Check eDesk or ask them to resend. ':'')+(d.partial?'Part of this chat is only an Eggsy summary (the platform can’t be read directly), so check the full chat on the platform before sending. ':'')+(d.acts.length?'The draft promises a '+d.acts.join(' and ')+': log it in Actions before sending. ':'')+(d.notes?'The draft has [ ] notes to fill in first.':'');tags.append(t)}}
+   else if(ds==='gaps'){const d=draftMap[c.id],bits=[];if(d.att)bits.push('photo missing');if(d.partial)bits.push('full chat not in Eggsy');if(d.acts.length)bits.push(d.acts.join(' + ')+' pending');if(d.notes)bits.push(d.notes+(d.notes===1?' note':' notes'));
+    const t=el('span','tag dgaps','⚠️ '+bits.join(', '));t.title=(d.att?'The customer sent a photo or file that is no longer in hey@, so it can’t be shown here. Check eDesk or ask them to resend. ':'')+(d.partial?'Part of this chat is only an Eggsy summary (the platform can’t be read directly), so check the full chat on the platform before sending. ':'')+(d.acts.length?'The draft promises a '+d.acts.join(' and ')+': a pending action will be added to the ticket automatically when you send. ':'')+(d.notes?'The draft has [ ] notes to fill in first.':'');tags.append(t)}}
   if(langMap[c.id])[...langMap[c.id]].forEach(l=>{const lt=el('span','tag lang',l.toUpperCase());lt.title=langName(l)+' conversation, English translation available';tags.append(lt)});
   const ov=el('div','ov',c.overview||'No summary yet');if(!c.overview)ov.style.color='var(--muted)';
   const hit=msgHits[c.id];const snip=hit?el('div','snip','“…'+hit.trim()+'…”'):null;
@@ -568,7 +569,7 @@ function composer(c,sug){const w=el('div','composer');const ch=channel(c);
  else if(sug){ta.value=sug.body||'';cur=sug.id}
  else ta.value=SIGNOFF;
  ta.oninput=()=>{const st=lsGet(c.id);if(cur&&sug&&ta.value===sug.body){delete st.text}else if(!cur&&ta.value===SIGNOFF){delete st.text}else{st.text=ta.value;st.draftId=cur||st.draftId||null}lsSet(c.id,st);setLabel();phCheck()};
- const req=el('label','req');const reqc=el('input');reqc.type='checkbox';reqc.id='requires_action';req.append(reqc,document.createTextNode(' This reply promises a replacement, refund or return'));
+ const req=el('label','req');const reqc=el('input');reqc.type='checkbox';reqc.id='requires_action';req.title='Optional. It does not block Send. A reply that promises a replacement, refund or return adds a pending action to the ticket automatically.';req.append(reqc,document.createTextNode(' This reply promises a replacement, refund or return'));
  w.append(newer,lbl,ta,trBox,req);setLabel();drawTr();
  const bar=el('div','bar');const go=el('button','btn','Send');go.disabled=blocked;go.type='button';
  const clr=el('button','btn ghost',sug?'Discard draft':'Clear');clr.type='button';
@@ -577,28 +578,26 @@ function composer(c,sug){const w=el('div','composer');const ch=channel(c);
   cur=null;ta.value=SIGNOFF;clr.textContent='Clear';setLabel();drawTr();ta.focus();ta.setSelectionRange(0,0);phCheck()};
  const stm=el('span','msg');bar.append(go,clr,stm);w.append(bar);
  // Placeholder guard: never send while [ ... ] items remain (the database refuses them too).
+ // A promised replacement, refund or return does not block Send.
  const PH_MSG='Fill in the [ ] items first';
- function phCheck(){const has=PH_RE.test(ta.value);const need=actionGuardReason(ta.value,reqc.checked);go.disabled=blocked||has||!!need;go.title=has?PH_MSG:(need||'');
-  if(has){stm.style.color='#b3261e';stm.textContent=PH_MSG+' ('+(ta.value.match(PH_RE_G)||[]).length+' left)'}else if(need){stm.style.color='#b3261e';stm.textContent=need}else if(stm.textContent.indexOf(PH_MSG)===0||stm.textContent.indexOf('This reply promises')===0||stm.textContent===ACT_MSG){stm.textContent='';stm.style.color=''}
+ function phCheck(){const has=PH_RE.test(ta.value);go.disabled=blocked||has;go.title=has?PH_MSG:'';
+  if(has){stm.style.color='#b3261e';stm.textContent=PH_MSG+' ('+(ta.value.match(PH_RE_G)||[]).length+' left)'}else if(stm.textContent.indexOf(PH_MSG)===0){stm.textContent='';stm.style.color=''}
   if(typeof syncReplacementButton==='function') syncReplacementButton();}
  reqc.onchange=phCheck;
  phCheck();
  go.onclick=async()=>{const body=ta.value.trim();
   if(!body||body===SIGNOFF.trim()){stm.textContent='Write a reply first.';stm.style.color='#b3261e';return}
   if(PH_RE.test(body)){phCheck();return}
-  const need=actionGuardReason(body,reqc.checked);if(need){phCheck();return}
   if(!confirm('Send this reply?\n\n'+ch.label+(to?' to '+to:'')+'\nShop: '+(c.shop||'–')+(ch.instant?'\n\nIt is sent exactly as written, straight away.'+(/^(amazon|tiktok|walmart)/.test(c.origin)?' Replies with links to our sites, review requests or marketing are held back for you to edit.':''):'\n\nEggsy posts it exactly as written at its next check (not instantly). You can cancel until then.')))return;
   go.disabled=true;stm.style.color='';stm.textContent='Sending to Eggsy…';
   const {error}=await sb.from('reply_queue').insert({conversation_id:c.id,body,requires_action:!!reqc.checked});
   if(error){go.disabled=false;stm.style.color='#b3261e';stm.textContent='Could not send: '+(/Fill in the \[ \]/.test(error.message)?PH_MSG:/promises a /.test(error.message)?error.message:error.message);phCheck();return}
   const st=lsGet(c.id);delete st.text;if(cur)st.dismissed=[...(st.dismissed||[]),cur].slice(-20);st.draftId=null;lsSet(c.id,st);
   ta.value='';await refreshAfterQueue(c.id);if(ch.instant)watchSend(c.id)};
- if(ch.instant)w.append(el('div','hint','When you press Send, the reply goes straight away by email from hey@luckyegg.co. This page shows “Sent by email ✓” when it has gone, or “Failed” with the reason. If Amazon bounces it, the ticket is flagged “Needs attention” within a few minutes.'));
- else w.append(el('div','hint','When you press Send, the reply is queued and Eggsy posts it at its next check: weekdays every 2 hours from 9am to 5pm UK time, and whenever new hey@ mail arrives. You can cancel it until Eggsy starts sending. The conversation moves to “Awaiting customer” once it has gone.'));
+ if(ch.instant)w.append(el('div','hint','When you press Send, the reply goes straight away by email from hey@luckyegg.co. This page shows “Sent by email ✓” when it has gone, or “Failed” with the reason. If Amazon bounces it, the ticket is flagged “Needs attention” within a few minutes. If the reply promises a replacement, refund or return, a pending action is added to the ticket automatically.'));
+ else w.append(el('div','hint','When you press Send, the reply is queued and Eggsy posts it at its next check: weekdays every 2 hours from 9am to 5pm UK time, and whenever new hey@ mail arrives. You can cancel it until Eggsy starts sending. The conversation moves to “Awaiting customer” once it has gone. If the reply promises a replacement, refund or return, a pending action is added to the ticket automatically.'));
  return w}
 let actList=[], shopifyConnected=null, actThreadMsgs=[], actQueuedReplies=[], actShowReplacement=false;
-const ACT_OK=['created','done','expected','received'];
-const ACT_MSG='Create the replacement, refund or return on this ticket first';
 const UK_RETURN_ADDR='The Finishing Line Ltd\nUnit DC1 Prologis Park\nHonywood Road\nBasildon\nSS14 3TS\nUnited Kingdom';
 const REPLACEMENT_GUARD_RE=/(replacement|replacements|\breplace\b|\breplaced\b|\breplacing\b|\bresend\b|\bresending\b|\breship\b|a new (copy|game|order|parcel)|ersatzlieferung|\bersatz\b|remplacement|reemplazo)/i;
 const REPLACEMENT_ASK_RE=/(send another|sending another|send me another|another one|\bnew one\b|another (copy|game|item|part|parcel)|a new (item|part)|missing parts?|spare parts?|ersetzen|ersatzteil|austauschen|\baustausch\b|remplacer|reemplazar|recambio|sostitu(?:zione|ire)|vervang(?:ing|en)|substitui(?:ção|r))/i;
@@ -637,22 +636,6 @@ function syncReplacementButton(){
   }
   const more=document.getElementById('act-more-btn');
   if(more) more.hidden=!anyHidden;
-}
-function promisedTypes(body, flag){
-  const types=[];
-  if(REPLACEMENT_GUARD_RE.test(body||'')) types.push('replacement');
-  if(/(refund|refunded|refunds|refunding|erstattung|erstatten|rückerstattung|remboursement|reembolso)/i.test(body||'')) types.push('refund');
-  if(/(return label|return postage|prepaid return|return address|send (the |it |this |your ).{0,40}back|sending .{0,20}back|return the (item|game|parcel|order|package|headset|microphone)|return your (item|game|parcel|order|package)|returning the |\barrange a return\b|\ba return to\b|rücksendung|zurückschicken|\bretoure\b|devoluci[oó]n)/i.test(body||'')) types.push('return');
-  return {types, any:!!(flag&&!types.length)};
-}
-function actionSatisfies(a){const d=a&&a.details||{};return ACT_OK.includes(a.status)||(a.status==='pending'&&!!d.awaiting_details)}
-function actionGuardReason(body, flag){
-  const p=promisedTypes(body, flag);
-  const has=t=>(actList||[]).some(a=>a.type===t&&actionSatisfies(a));
-  if(p.any){return (actList||[]).some(actionSatisfies)?'':ACT_MSG}
-  const missing=p.types.filter(t=>!has(t));
-  if(missing.length) return 'This reply promises a '+missing.join(' and ')+' but no matching action is logged on the ticket yet. Create the '+missing.join(' and ')+' first, then send.';
-  return '';
 }
 async function callCx(payload){
   const {data:{session}}=await sb.auth.getSession();
@@ -834,7 +817,7 @@ function renderActPanel(host,c,list){const sig=(list||[]).map(x=>x.id+':'+x.stat
   host.innerHTML='';
   const box=el('div','actbox');
   box.append(el('h3',null,'Actions'));
-  if(!(list||[]).length) box.append(el('div','hint','Log a replacement, refund or return here before sending a reply that promises one.'));
+  if(!(list||[]).length) box.append(el('div','hint','A reply that promises a replacement, refund or return adds a pending action here automatically when you send. You can also log one yourself.'));
   (list||[]).forEach(a=>{
     const row=el('div','actrow');
     const d=a.details||{};
@@ -1100,7 +1083,7 @@ async function openMcfModal(c, host, existing){
     if(error){m.setErr(error.message,true);return}
     const note=markPlaced
       ?('Amazon MCF replacement placed for a whole game. Original order ID '+details.original_order_id+'. MCF order ID '+details.mcf_order_id+'. '+details.marketplace+' · '+(details.plain_packaging?'plain packaging':'Amazon packaging')+' · '+details.shipping_speed+'.')
-      :('Amazon MCF replacement prepared for a whole game. Original order ID '+details.original_order_id+'. Copy the fields into Seller Central, then record the MCF order ID. The reply cannot be queued until it is marked placed.');
+      :('Amazon MCF replacement prepared for a whole game. Original order ID '+details.original_order_id+'. Copy the fields into Seller Central, then record the MCF order ID.');
     await logNote(c,note,'note:action:'+data.id);
     closeActModal();await reloadActions(c,host);
   }
