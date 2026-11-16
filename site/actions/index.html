@@ -35,7 +35,7 @@ td{padding:12px;border-bottom:1px solid #f3ecd9;vertical-align:top}
 tr:last-child td{border-bottom:0}
 .when{white-space:nowrap}.when small{display:block;color:var(--muted);font-size:12px}
 .tag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:#f2ecdc;white-space:nowrap}
-.k-product_fault{background:#ffe1e1;color:#8a1c14}.k-game_idea{background:#e7defc;color:#4b2a8a}.k-feedback{background:#dcecff;color:#1d4f86}
+.k-product_fault{background:#ffe1e1;color:#8a1c14}.k-game_idea{background:#e7defc;color:#4b2a8a}.k-feedback{background:#dcecff;color:#1d4f86}.k-advice{background:#F3F0FF;color:#4b2a8a}
 .what b{display:block;margin:4px 0 2px}.what .det{color:var(--muted);font-size:13px;line-height:1.4;max-width:460px}
 .cust b{display:block}.cust span{color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}
 .none{color:var(--muted);font-size:13px}
@@ -74,7 +74,7 @@ details.add{margin:0 0 12px}details.add summary{cursor:pointer;font-weight:600;f
  <p class="intro">Jobs to do after replying to a customer. Game ideas and feedback go to Marty and Rob. Product faults go on the Customer Feedback Log, then tell Rob and Marty on Slack. <b>Copy Slack note</b> gives you a ready message to paste. Mark each one done when it's handled.</p>
  <details class="add card" style="padding:12px 16px"><summary>+ Add an action</summary>
   <form class="addf" id="addf">
-   <label>Type<select id="nkind"><option value="product_fault">Product fault</option><option value="game_idea">Game idea</option><option value="feedback">Feedback</option><option value="other">Other</option></select></label>
+   <label>Type<select id="nkind"><option value="product_fault">Product fault</option><option value="game_idea">Game idea</option><option value="feedback">Feedback</option><option value="advice">Advice from Marty</option><option value="other">Other</option></select></label>
    <label>What needs doing<input id="ntitle" required placeholder="e.g. Pass game idea to Marty and Rob"></label>
    <label>Who<input id="nwho" placeholder="Marty, Rob"></label>
    <label>Conversation link (optional)<input id="nconv" placeholder="Paste /inbox/?c=… link"></label>
@@ -83,7 +83,7 @@ details.add{margin:0 0 12px}details.add summary{cursor:pointer;font-weight:600;f
  </details>
  <div class="bar">
   <div class="tabs" role="tablist"><button type="button" class="on" data-s="open">Open</button><button type="button" data-s="done">Done</button></div>
-  <label>Type<select id="kind"><option value="">All types</option><option value="product_fault">Product fault</option><option value="game_idea">Game idea</option><option value="feedback">Feedback</option><option value="other">Other</option></select></label>
+  <label>Type<select id="kind"><option value="">All types</option><option value="product_fault">Product fault</option><option value="game_idea">Game idea</option><option value="feedback">Feedback</option><option value="advice">Advice from Marty</option><option value="other">Other</option></select></label>
   <label class="q">Search<input id="q" type="search" placeholder="Customer, product, details…"></label>
  </div>
  <p class="count" id="count"></p>
@@ -96,7 +96,7 @@ details.add{margin:0 0 12px}details.add summary{cursor:pointer;font-weight:600;f
 const SUPABASE_URL='https://xodkbmtylftfmnxfnxxf.supabase.co';
 const SUPABASE_KEY='sb_publishable_gX9OKDCT6Opnt8OcsFRmiQ_xaM0O8ti'; // public publishable key: safe in the browser, data is protected by RLS
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,detectSessionInUrl:false,flowType:'pkce'}});
-const KIND_LABEL={product_fault:'Product fault',game_idea:'Game idea',feedback:'Feedback',other:'Other'};
+const KIND_LABEL={product_fault:'Product fault',game_idea:'Game idea',feedback:'Feedback',advice:'Advice from Marty',other:'Other'};
 const CHANNEL={amazon_uk:'Amazon UK',amazon_us:'Amazon US',amazon_de:'Amazon DE',amazon_nl:'Amazon NL',amazon_es:'Amazon ES',amazon_fr:'Amazon FR',amazon_it:'Amazon IT',tiktok_uk:'TikTok UK',tiktok_us:'TikTok US',shopify_form:'Website form',email_hey:'Email (hey@)',walmart:'Walmart',wix:'Wix',other:'Other'};
 const $=id=>document.getElementById(id);
 const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
@@ -139,7 +139,7 @@ function visible(){const q=$('q').value.trim().toLowerCase(),k=$('kind').value;
    (!q||[r.title,r.details,r.assignees,c.customer_name,c.customer_handle,c.order_number,chName(c)].join(' ').toLowerCase().includes(q))})}
 function slackNote(r){const c=r.conversations||{};
  const who=c.customer_name||c.customer_handle||'a customer';
- const head=r.kind==='product_fault'?'Product fault reported':r.kind==='game_idea'?'Game idea from a customer':'Customer feedback';
+ const head=r.kind==='product_fault'?'Product fault reported':r.kind==='game_idea'?'Game idea from a customer':r.kind==='advice'?'Hi Marty, could I get your advice on a customer ticket? Question':'Customer feedback';
  const lines=[head+' ('+(chName(c)||'unknown channel')+'): '+(r.details||c.overview||r.title)];
  lines.push('Customer: '+who+(c.order_number?', order '+c.order_number:''));
  if(r.kind==='product_fault')lines.push('Added to the Customer Feedback Log.');
@@ -180,7 +180,7 @@ function draw(){const box=$('list');box.innerHTML='';
 }
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{view=b.dataset.s;document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));draw()});
 ['q','kind'].forEach(id=>{$(id).addEventListener('input',draw);$(id).addEventListener('change',draw)});
-const DEFAULTS={product_fault:['Add to Customer Feedback Log and tell Rob and Marty on Slack','Customer Feedback Log, Rob, Marty'],game_idea:['Pass game idea to Marty and Rob','Marty, Rob'],feedback:['Pass feedback to Marty and Rob','Marty, Rob'],other:['','']};
+const DEFAULTS={product_fault:['Add to Customer Feedback Log and tell Rob and Marty on Slack','Customer Feedback Log, Rob, Marty'],game_idea:['Pass game idea to Marty and Rob','Marty, Rob'],feedback:['Pass feedback to Marty and Rob','Marty, Rob'],advice:['Waiting on advice from Marty','Marty'],other:['','']};
 function fillDefaults(){const d=DEFAULTS[$('nkind').value];$('ntitle').value=d[0];$('nwho').value=d[1]}
 $('nkind').onchange=fillDefaults;fillDefaults();
 $('addf').onsubmit=async e=>{e.preventDefault();

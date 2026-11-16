@@ -102,6 +102,10 @@ details.elog div{margin-top:6px}
 .snip{font-size:12.5px;color:#5a4a12;background:#fff7dd;border-radius:8px;padding:4px 8px;margin-top:4px}
 .tag.bucket{background:#1d1b26;color:#fff}.tag.b-resolved{background:#dff5e3;color:#1d5c2b}.tag.b-waiting{background:#e6f0ff;color:#1f3d7a}.tag.b-inbox{background:#FFE8A6;color:#5a4300}
 .junkbtn{margin:0 0 10px}
+.marty{margin:0 0 10px}.marty .btn{margin-right:6px}
+.marty-box{background:#F3F0FF;border:1px solid #d9d0ff;border-radius:10px;padding:10px 12px;margin-top:6px;font-size:14px}
+.marty-box textarea{width:100%;min-height:70px;margin:6px 0;font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px;box-sizing:border-box}
+.marty-box .hint{font-size:12.5px;color:var(--muted);line-height:1.4}
 .item.unread .name{font-weight:800}.item.unread .name::before{content:'';display:inline-block;width:9px;height:9px;border-radius:50%;background:#2f6fde;margin-right:7px;vertical-align:1px}
 .item.unread{border-left:3px solid #2f6fde}
 .chip.unreadchip.on{background:#dbe7ff;border-color:#9bb8f0}.chipsep{display:inline-block;width:1px;background:var(--line);margin:2px 4px}
@@ -229,6 +233,53 @@ const sinceOf=c=>{const x=stMap[c.id];return (x&&(x.needs_reply_since||x.last_cu
  })();
 async function loadStates(){const {data,error}=await sb.from('cx_conversation_state').select('conversation_id,bucket,last_customer_at,last_reply_at,needs_reply_since');
  if(error){console.warn('state',error.message);return}stMap={};(data||[]).forEach(r=>{stMap[r.conversation_id]=r})}
+
+// ---- Ask Marty: copies a ready Slack message for Marty, opens his DM, and logs an open "advice" follow-up.
+// While it is open the ticket shows "waiting on Marty" in Gaps and Eggsy never auto-sends it.
+const MARTY_DM='https://slack.com/app_redirect?channel=U0584KALCEM';
+async function martyOpen(cid){const {data}=await sb.from('cx_followups').select('id,created_at,details').eq('conversation_id',cid).eq('kind','advice').eq('status','open').order('created_at',{ascending:false}).limit(1);return (data||[])[0]||null}
+async function martyLast(c){const {data:ms}=await sb.from('messages').select('body,body_en').eq('conversation_id',c.id).eq('direction','inbound').order('sent_at',{ascending:false}).limit(1);
+ return (ms&&ms[0])?(ms[0].body_en||ms[0].body||'').trim():''}
+// Built synchronously inside the click so Safari allows the clipboard write and the new tab.
+function martyNote(c,question,last){
+ const clip=s=>s.length>900?s.slice(0,900)+'…':s;
+ const ta=document.getElementById('replybox');const draft=ta&&ta.value.trim()&&ta.value.trim()!==SIGNOFF.trim()?ta.value.trim():'';
+ const L=['Hi Marty, could I get your advice on a customer ticket?','',
+  '*My question:* '+question,'',
+  '*Customer:* '+(c.customer_name||c.customer_handle||'Unknown')+' ('+(ORIGINS[c.origin]||c.origin)+(c.order_number?', order '+c.order_number:'')+')'];
+ if(c.overview)L.push('*Summary:* '+c.overview);
+ if(last)L.push('','*Their latest message:*','> '+clip(last).replace(/\n+/g,'\n> '));
+ if(draft)L.push('','*Our draft reply so far:*','> '+clip(draft).replace(/\n+/g,'\n> '));
+ L.push('','Ticket: '+location.origin+'/inbox/?c='+c.id);
+ return L.join('\n')}
+function askMarty(c,t){
+ const host=el('div','marty');t.append(host);
+ const draw=async()=>{host.innerHTML='';const open=await martyOpen(c.id);if(sel!==c.id)return;
+  if(open){const box=el('div','marty-box');box.append(el('b',null,'💬 Waiting on Marty’s advice'),document.createTextNode(' since '+fmt(open.created_at)+' UK'));
+   if(open.details)box.append(el('div','hint','Question: '+open.details));
+   box.append(el('div','hint','Eggsy won’t auto-send this ticket until you mark Marty’s advice as answered. Edit the draft with his advice, then send.'));
+   const bar=el('div');bar.style.marginTop='8px';
+   const done=el('button','btn small','✓ Marty answered');done.type='button';
+   done.onclick=async()=>{done.disabled=true;const {error}=await sb.from('cx_followups').update({status:'done',done_at:new Date().toISOString(),done_by:ME||null}).eq('id',open.id);
+    if(error){alert('Could not update: '+error.message);done.disabled=false;return}await loadDrafts();drawChips();drawList();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();draw()};
+   const re=el('button','btn ghost small','Open Marty’s DM');re.type='button';re.onclick=()=>window.open(MARTY_DM,'_blank');
+   bar.append(done,re);box.append(bar);host.append(box);return}
+  const b=el('button','btn ghost small','💬 Ask Marty for advice');b.type='button';host.append(b);
+  b.onclick=()=>{b.remove();const box=el('div','marty-box');
+   box.append(el('b',null,'Ask Marty on Slack'),el('div','hint','Write your question. Eggsy copies a message with the customer’s latest message, your draft and a link to this ticket, then opens Marty’s DM so you can paste it (Cmd+V) and send.'));
+   const q=el('textarea');q.placeholder='e.g. Is it OK to send a free replacement mic when they bought it from a retailer?';box.append(q);
+   const bar=el('div');const go=el('button','btn small','Copy message and open Slack');go.type='button';const no=el('button','btn ghost small','Cancel');no.type='button';const m=el('span','hint');
+   no.onclick=()=>draw();let last='';martyLast(c).then(v=>last=v,()=>{});
+   go.onclick=async()=>{const question=q.value.trim();if(!question){m.textContent=' Write your question first.';q.focus();return}
+    go.disabled=true;const text=martyNote(c,question,last);
+    const cp=navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(text):Promise.reject();
+    window.open(MARTY_DM,'_blank');
+    cp.catch(()=>prompt('Copy this and paste it to Marty on Slack:',text));
+    const {error}=await sb.from('cx_followups').insert({conversation_id:c.id,kind:'advice',title:'Waiting on advice from Marty',details:question,assignees:'Marty',created_by:ME||null});
+    if(error){go.disabled=false;m.textContent=' Copied, but could not log it on the ticket: '+error.message;return}
+    await loadDrafts();drawChips();drawList();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();draw()};
+   bar.append(go,no,m);box.append(bar);host.append(box);q.focus()}};
+ draw()}
 async function refreshStates(){await loadStates();drawChips();drawList();EggsyNav.refreshCounts()}
 // Translation: ISO codes on messages.language; body_en holds the English translation.
 const LANGS={en:'English',de:'German',nl:'Dutch',it:'Italian',sv:'Swedish',es:'Spanish',fr:'French',pt:'Portuguese',da:'Danish',pl:'Polish',no:'Norwegian',fi:'Finnish'};
@@ -356,8 +407,8 @@ function rowFor(c,box,otherBucket){{const un=!otherBucket&&isUnread(c);const it=
   const tags=el('div','tags');if(otherBucket)tags.append(el('span','tag bucket b-'+otherBucket,MODES[otherBucket].title));const ct=chTag(c.origin);if(c.shop)ct.title=c.shop;tags.append(ct);
   if(c.topic)tags.append(el('span','tag topic',c.topic));
   if(MODE==='inbox'&&!otherBucket){const ds=draftState(c);if(ds==='ready'){const t=el('span','tag dready','✅ Ready');t.title='Draft ready to check and send';tags.append(t)}
-   else if(ds==='gaps'){const d=draftMap[c.id],bits=[];if(d.att)bits.push('photo missing');if(d.partial)bits.push('full chat not in Eggsy');if(d.acts.length)bits.push(d.acts.join(' + ')+' pending');if(d.notes)bits.push(d.notes+(d.notes===1?' note':' notes'));
-    const t=el('span','tag dgaps','⚠️ '+bits.join(', '));t.title=(d.att?'The customer sent a photo or file that is no longer in hey@, so it can’t be shown here. Check eDesk or ask them to resend. ':'')+(d.partial?'Part of this chat is only an Eggsy summary (the platform can’t be read directly), so check the full chat on the platform before sending. ':'')+(d.acts.length?'The draft promises a '+d.acts.join(' and ')+': a pending action will be added to the ticket automatically when you send. ':'')+(d.notes?'The draft has [ ] notes to fill in first.':'');tags.append(t)}}
+   else if(ds==='gaps'){const d=draftMap[c.id],bits=[];if(d.att)bits.push('photo missing');if(d.partial)bits.push('full chat not in Eggsy');if(d.acts.includes('marty'))bits.push('waiting on Marty');const pa=d.acts.filter(a=>a!=='marty');if(pa.length)bits.push(pa.join(' + ')+' pending');if(d.notes)bits.push(d.notes+(d.notes===1?' note':' notes'));
+    const t=el('span','tag dgaps','⚠️ '+bits.join(', '));t.title=(d.att?'The customer sent a photo or file that is no longer in hey@, so it can’t be shown here. Check eDesk or ask them to resend. ':'')+(d.partial?'Part of this chat is only an Eggsy summary (the platform can’t be read directly), so check the full chat on the platform before sending. ':'')+(d.acts.includes('marty')?'Sent to Marty for advice: Eggsy won’t auto-send it until someone marks Marty’s advice as answered. ':'')+(pa.length?'The draft promises a '+pa.join(' and ')+': a pending action will be added to the ticket automatically when you send. ':'')+(d.notes?'The draft has [ ] notes to fill in first.':'');tags.append(t)}}
   if(langMap[c.id])[...langMap[c.id]].forEach(l=>{const lt=el('span','tag lang',l.toUpperCase());lt.title=langName(l)+' conversation, English translation available';tags.append(lt)});
   const ov=el('div','ov',c.overview||'No summary yet');if(!c.overview)ov.style.color='var(--muted)';
   const hit=msgHits[c.id];const snip=hit?el('div','snip','“…'+hit.trim()+'…”'):null;
@@ -437,6 +488,7 @@ async function openConv(id,push){sel=id;markRead(id);drawChips();drawList();cons
    const {error}=await sb.from('conversations').update({status:to,status_changed_at:new Date().toISOString()}).eq('id',c.id);
    if(error){alert('Could not update: '+error.message);jb.disabled=false;return}
    c.status=to;await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();drawChips();drawList();openConv(c.id,false)};t.append(jb)}
+ askMarty(c,t);
  const ew=el('div');ew.id='elsewhere';t.append(ew);showElsewhere(c);
  kbFor(c,t);
  if(c.summary||c.subject){const d=el('details','elog');d.append(el('summary',null,'Eggsy’s notes'));if(c.subject)d.append(el('div',null,'Subject: '+c.subject));if(c.summary)d.append(el('div',null,c.summary));t.append(d)}
