@@ -139,10 +139,11 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
  .composer textarea{min-height:200px;font-size:16px}
  .bubble{max-width:94%}
  .composer .bar .btn{flex:1}
- header{padding:10px 14px}.ptitle{font-size:19px}#app{padding:0 12px 12px}
+ header{padding:10px 14px}.ptitle{font-size:19px}#app{padding:0 12px 12px}.lockstrip{padding:6px 14px}
  .layout{grid-template-columns:1fr;height:auto}
  #list{max-height:none}
  #thread{display:none;padding:16px}
+ #thread>.lockbanner{margin:-16px -16px 12px}
  .showthread #list{display:none}.showthread #thread{display:block}
  .back{display:inline-block;margin-bottom:8px}
  .who .email{display:none}
@@ -159,6 +160,23 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
 .chbtn.on .chcount{background:#1d1b26}
 .moretoggle{color:var(--muted);font-weight:650;font-size:13px}
 .morebox{display:flex;flex-direction:column;gap:2px;padding-left:8px}
+.emerg{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#c81e1e;color:#fff;font-weight:900;font-size:13px;line-height:1;flex:none;box-shadow:0 0 0 2px #fff}
+.chbtn.on .emerg,.chip.on .emerg{box-shadow:0 0 0 2px var(--yolk)}
+.chbtn.locked{box-shadow:inset 3px 0 0 #c81e1e}
+.chip .emerg{width:16px;height:16px;font-size:12px}
+.lockbanner{background:#c81e1e;color:#fff;border-radius:12px;padding:12px 16px;margin:0 0 12px}
+.lockbanner[hidden],.lockstrip[hidden]{display:none !important}
+.locktitle{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;line-height:1.3}
+.lockbanner .emerg,.lockstrip .emerg{background:#fff;color:#c81e1e;box-shadow:none}
+.lockbanner .emerg{width:22px;height:22px;font-size:15px}
+.lockdetail,.locksince{margin:4px 0 0;font-size:14px;line-height:1.45}
+.locksince{font-size:13px;opacity:.92}
+#thread>.lockbanner{margin:-22px -22px 14px;border-radius:18px 18px 12px 12px}
+.lockblock+.lockblock{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.35)}
+.lockstrip{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#c81e1e;color:#fff;font-size:13px;font-weight:700;padding:6px 24px;margin:0 0 8px}
+.lockstrip .emerg{width:16px;height:16px;font-size:12px}
+.locklink{background:rgba(255,255,255,.16);border:0;color:#fff;font:inherit;font-weight:800;border-radius:999px;padding:2px 10px;cursor:pointer}
+.locklink:hover{background:rgba(255,255,255,.28)}
 .workbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .workbar #q{flex:1;min-width:180px}
 .filterwrap{position:relative}
@@ -236,6 +254,7 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
 <body>
 <script src="/nav.js"></script>
 <header><h1 class="ptitle" id="ptitle">Inbox</h1><div class="who" id="who"></div></header>
+<div id="lockstrip" class="lockstrip" hidden role="status"></div>
 
 <section id="auth" class="card">
  <h1 id="atitle">Inbox</h1>
@@ -247,6 +266,7 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
 <main id="app" class="inboxapp">
  <aside class="chside" id="chside" aria-label="Channels"></aside>
  <div class="inboxmain">
+  <div id="lockbanner" class="lockbanner" hidden role="alert"></div>
   <p class="pintro" id="pintro"></p>
   <div class="toolbar">
    <div class="workbar">
@@ -396,9 +416,9 @@ EggsyAuth.handleRedirect(sb,setMsg).then(()=>sb.auth.getSession()).then(({data})
 let started=false;
 function render(session){
  const email=session&&session.user&&session.user.email;
- if(!email){$('auth').style.display='block';$('app').style.display='none';$('who').innerHTML='';EggsyNav.setUser(null);started=false;return}
+ if(!email){$('auth').style.display='block';$('app').style.display='none';$('who').innerHTML='';EggsyNav.setUser(null);started=false;hideLockouts();return}
  $('who').innerHTML='';
- if(!okEmail(email)){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;EggsyAuth.reject(sb,email,setMsg);return}
+ if(!okEmail(email)){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;hideLockouts();EggsyAuth.reject(sb,email,setMsg);return}
  $('auth').style.display='none';$('app').style.display='grid';
  ME=String(email).toLowerCase();EggsyNav.setUser(email,()=>sb.auth.signOut(),sb);
  const ret=EggsyNav.takeReturn();
@@ -412,8 +432,8 @@ function render(session){
 async function load(){
  $('list').innerHTML='<div class="empty">Loading…</div>';
  const {data,error}=await sb.from('conversations').select('*').order('last_message_at',{ascending:false,nullsFirst:false}).limit(5000);
- if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load: '+error.message));return}
- convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates(),loadDrafts(),loadReads(),loadPreviews()]);lastSync=new Date().toISOString();drawChips();drawList();startLiveRefresh();
+ if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load: '+error.message));readFilterUrl();await loadChannelAccess();drawLockStrip();drawLockBanner();return}
+ convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates(),loadDrafts(),loadReads(),loadPreviews(),loadChannelAccess()]);lastSync=new Date().toISOString();drawChips();drawList();startLiveRefresh();
  await openFromUrl();
 }
 // Deep link: /inbox/?c=<conversation_id>
@@ -443,7 +463,7 @@ function startLiveRefresh(){if(liveTimer)return;liveTimer=setInterval(liveRefres
 async function liveRefresh(){if(document.hidden)return;const since=lastSync;lastSync=new Date().toISOString();
  const {data}=await sb.from('conversations').select('*').gt('updated_at',since).limit(500);
  (data||[]).forEach(c=>{const i=convs.findIndex(x=>x.id===c.id);if(i>=0)convs[i]=c;else convs.push(c)});
- await Promise.all([loadStates(),loadDrafts(),loadQueueSummary(),loadPreviews()]);EggsyNav.refreshCounts&&EggsyNav.refreshCounts();drawChips();drawList()}
+ await Promise.all([loadStates(),loadDrafts(),loadQueueSummary(),loadPreviews(),loadChannelAccess()]);EggsyNav.refreshCounts&&EggsyNav.refreshCounts();drawChips();drawList()}
 async function loadEmailCh(){emailCh={};const {data}=await sb.from('email_send_channels').select('origin,enabled');(data||[]).forEach(r=>{if(r.enabled)emailCh[r.origin]=true})}
 async function loadLangs(){const m={};
  const {data}=await sb.from('messages').select('conversation_id,language').neq('language','en').not('language','is',null).limit(5000);
@@ -1475,25 +1495,61 @@ function customerAt(c){const p=previewMap[c.id];if(p&&p.customer_at)return p.cus
 function inScope(c){if(MODE!=='inbox')return inMode(c);const b=bucketOf(c);if(scope==='all')return b==='inbox'||b==='waiting'||b==='resolved';return b==='inbox'}
 function messageWhen(m,origin){if(m.platform_sent_at)return m.platform_sent_at;if(m.body_raw&&window.EggsyDisplay){const t=EggsyDisplay.tiktokCustomerAt(m.body_raw,m.sent_at,origin);if(t)return t}return m.sent_at}
 let moreOpen=false,filterOpen=false;
+// channel_access is maintained outside the inbox. It is not in the realtime publication, so the
+// existing once-a-minute refresh picks up lock and unlock. Keys: tiktok_uk/us/eu, amazon, walmart, facebook, instagram.
+const ACCESS_OF={tiktok:['tiktok_uk','tiktok_us','tiktok_eu'],amazon:['amazon'],walmart:['walmart'],meta:['facebook','instagram']};
+const ACCESS_NAME={tiktok_uk:'TikTok UK',tiktok_us:'TikTok US',tiktok_eu:'TikTok EU',amazon:'Amazon',walmart:'Walmart',facebook:'Facebook',instagram:'Instagram'};
+const ACCESS_ORDER=['tiktok_uk','tiktok_us','tiktok_eu','amazon','walmart','facebook','instagram'];
+let accessRows=[];
+function accessFor(channel){return accessRows.find(r=>r.channel===channel)||null}
+function isLocked(channel){const r=accessFor(channel);return !!(r&&r.locked_out)}
+function keysForGroup(k){return ACCESS_OF[k]||[]}
+function viewKeys(){if((grp==='tiktok'||grp==='meta')&&sub&&keysForGroup(grp).indexOf(sub)>=0)return [sub];return keysForGroup(grp)}
+function groupIsLocked(k){return keysForGroup(k).some(isLocked)}
+function emergMark(label){const s=el('span','emerg','!');s.title=label||'Urgent: locked out';s.setAttribute('role','img');s.setAttribute('aria-label',s.title);return s}
+function hideLockouts(){const strip=$('lockstrip');if(strip){strip.hidden=true;strip.innerHTML=''}const host=$('lockbanner');if(host){host.hidden=true;host.innerHTML=''}}
+function londonClock(d){if(!d)return '';const x=new Date(d);if(isNaN(x.getTime()))return '';return x.toLocaleString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})}
+function accessKeyForOrigin(origin){const o=String(origin||'');if(/^tiktok_(uk|us|eu)$/.test(o))return o;if(o.indexOf('amazon')===0)return 'amazon';if(o==='walmart'||o==='facebook'||o==='instagram')return o;return null}
+async function loadChannelAccess(){const {data,error}=await sb.from('channel_access').select('channel,locked_out,message,detail,locked_since');
+ if(error){console.warn('channel_access',error.message);return}accessRows=data||[]}
+function drawLockStrip(){const strip=$('lockstrip');if(!strip)return;const rows=ACCESS_ORDER.map(accessFor).filter(r=>r&&r.locked_out);
+ strip.innerHTML='';if(!rows.length){strip.hidden=true;return}strip.hidden=false;strip.append(emergMark('Urgent: locked out'),el('span',null,'Locked out:'));
+ rows.forEach(r=>{const b=el('button','locklink',ACCESS_NAME[r.channel]||r.channel);b.type='button';
+  b.onclick=()=>{const g=r.channel.indexOf('tiktok')===0?'tiktok':(r.channel==='facebook'||r.channel==='instagram')?'meta':r.channel;setFilter(g,(g==='tiktok'||g==='meta')?r.channel:'')};
+  strip.append(b)})}
+function paintLockBanner(host,rows,nameShops){host.innerHTML='';if(!rows.length){host.hidden=true;return}host.hidden=false;
+ rows.forEach(r=>{const block=el('div','lockblock');const title=el('div','locktitle');const msg=(r.message&&String(r.message).trim())||'Urgent: locked out';
+  const mark=emergMark(msg);mark.setAttribute('aria-hidden','true');title.append(mark);
+  title.append(document.createTextNode(nameShops?((ACCESS_NAME[r.channel]||r.channel)+': '+msg):msg));block.append(title);
+  if(r.detail&&String(r.detail).trim())block.append(el('p','lockdetail',String(r.detail).trim()));
+  if(r.locked_since){const since=el('p','locksince','since '+londonClock(r.locked_since)+' UK');since.title='Europe/London';block.append(since)}
+  host.append(block)})}
+function drawLockBanner(){const host=$('lockbanner');if(!host)return;paintLockBanner(host,viewKeys().map(accessFor).filter(r=>r&&r.locked_out),grp==='tiktok'||grp==='meta')}
+function threadLockBanner(origin){const key=accessKeyForOrigin(origin);const row=key&&accessFor(key);if(!row||!row.locked_out)return null;
+ const host=el('div','lockbanner');host.setAttribute('role','alert');paintLockBanner(host,[row],/^tiktok_/.test(key)||key==='facebook'||key==='instagram');return host}
 function channelUnread(fn){return convs.filter(c=>bucketOf(c)==='inbox'&&fn(c.origin)&&isUnread(c)).length}
-function drawChips(){setTitle();const side=$('chside');if(!side)return;side.innerHTML='';
+function drawChips(){setTitle();drawLockStrip();drawLockBanner();const side=$('chside');if(!side)return;side.innerHTML='';
  side.append(el('div','chside-h','Channels'));
  const primary=[['email','Email'],['tiktok','TikTok'],['amazon','Amazon']];
  const more=[['forms','Web forms'],['walmart','Walmart'],['meta','Facebook & Instagram']];
  if(more.some(x=>x[0]===grp))moreOpen=true;
- function chButton(k,label){const g=GROUPS.find(x=>x[0]===k);const n=channelUnread(g[2]);const b=el('button','chbtn'+(grp===k?' on':''));b.type='button';b.setAttribute('aria-pressed',grp===k?'true':'false');
+ function chButton(k,label){const g=GROUPS.find(x=>x[0]===k);const n=channelUnread(g[2]);const locked=groupIsLocked(k);const b=el('button','chbtn'+(grp===k?' on':'')+(locked?' locked':''));b.type='button';b.setAttribute('aria-pressed',grp===k?'true':'false');
+  if(locked)b.append(emergMark(label+': Urgent: locked out'));
   b.append(el('span',null,label));if(n){const c=el('span','chcount',String(n));c.title=n+' unread';b.append(c)}
   b.onclick=()=>{filterOpen=false;setFilter(k,'')};return b}
  side.append(chButton('all','All channels'));
  primary.forEach(p=>side.append(chButton(p[0],p[1])));
- const wrap=el('div','morewrap');const mb=el('button','chbtn moretoggle',moreOpen?'More channels ▾':'More channels ▸');mb.type='button';mb.setAttribute('aria-expanded',moreOpen?'true':'false');
+ const wrap=el('div','morewrap');const moreLocked=more.some(p=>groupIsLocked(p[0]));
+ const mb=el('button','chbtn moretoggle'+(moreLocked?' locked':''));mb.type='button';mb.setAttribute('aria-expanded',moreOpen?'true':'false');
+ if(moreLocked)mb.append(emergMark('A channel in More is locked out'));
+ mb.append(document.createTextNode(moreOpen?'More channels ▾':'More channels ▸'));
  const box=el('div','morebox');box.hidden=!moreOpen;mb.onclick=()=>{moreOpen=!moreOpen;drawChips()};
  more.forEach(p=>box.append(chButton(p[0],p[1])));wrap.append(mb,box);side.append(wrap);
  const scopebar=$('scopebar');scopebar.innerHTML='';scopebar.style.display='none';
  const shops=$('shopbar');shops.innerHTML='';
  if(grp==='tiktok'){const g=GROUPS.find(x=>x[0]==='tiktok');const tot=convs.filter(c=>inScope(c)&&g[2](c.origin)).length;
   const all=el('button','chip'+(!sub?' on':''),'All');all.type='button';all.append(el('small',null,tot));all.onclick=()=>setFilter('tiktok','');shops.append(all);
-  SUBS.tiktok.forEach(([o,lab])=>{const n=convs.filter(c=>inScope(c)&&c.origin===o).length;const b=el('button','chip'+(sub===o?' on':''),lab);b.type='button';b.append(el('small',null,n));b.onclick=()=>setFilter('tiktok',o);shops.append(b)})}
+  SUBS.tiktok.forEach(([o,lab])=>{const n=convs.filter(c=>inScope(c)&&c.origin===o).length;const b=el('button','chip'+(sub===o?' on':''),lab);b.type='button';if(isLocked(o))b.insertBefore(emergMark((ACCESS_NAME[o]||lab)+': Urgent: locked out'),b.firstChild);b.append(el('small',null,n));b.onclick=()=>setFilter('tiktok',o);shops.append(b)})}
  const menu=$('filtermenu');menu.innerHTML='';menu.hidden=!filterOpen;
  function addItem(label,on,fn){const b=el('button','fitem'+(on?' on':''),label);b.type='button';b.onclick=e=>{e.stopPropagation();fn()};menu.append(b)}
  if(MODE==='inbox'){addItem(unreadOnly?'Unread only ✓':'Unread only',unreadOnly,()=>{unreadOnly=!unreadOnly;writeFilterUrl();drawChips();drawList()});
@@ -1572,6 +1628,7 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;dr
  if(!c){t.append(el('div','empty','That conversation could not be found.'));return}
  if(push){const u=new URLSearchParams(location.search);u.set('c',id);history.pushState({c:id},'','?'+u.toString())}
  const back=el('button','btn ghost back','← All conversations');back.onclick=()=>{if(history.state&&history.state.c)history.back();else{const u=new URLSearchParams(location.search);u.delete('c');history.pushState(null,'',location.pathname+(u.toString()?'?'+u:''));window.onpopstate()}};t.append(back);
+ const lb=threadLockBanner(c.origin);if(lb)t.append(lb);
  const top=el('div','topacts');
  if(bucketOf(c)==='inbox'){const ub=el('button','btn ghost','Mark unread');ub.type='button';ub.onclick=()=>{markRead(c.id,'1970-01-01T00:00:00Z');sel=null;document.body.classList.remove('showthread');$('thread').innerHTML='';$('thread').append(el('div','empty','Marked as unread.'));drawChips();drawList()};top.append(ub)}
  const done=el('button','btn','Done');done.type='button';done.onclick=()=>closeTicket(c,'done');top.append(done);
