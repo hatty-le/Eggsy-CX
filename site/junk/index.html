@@ -734,7 +734,8 @@ const REPLACEMENT_GUARD_RE=/(replacement|replacements|\breplace\b|\breplaced\b|\
 const REPLACEMENT_ASK_RE=/(send another|sending another|send me another|another one|\bnew one\b|another (copy|game|item|part|parcel)|a new (item|part)|missing parts?|spare parts?|ersetzen|ersatzteil|austauschen|\baustausch\b|remplacer|reemplazar|recambio|sostitu(?:zione|ire)|vervang(?:ing|en)|substitui(?:ção|r))/i;
 const REFUND_RE=/(refund|refunded|refunds|refunding|money back|reimburse|erstattung|erstatten|rückerstattung|geld zurück|remboursement|rembourser|reembolso|reembolsar|rimborso|terugbetaling)/i;
 const RETURN_RE=/(return label|return postage|prepaid return|return address|send (the |it |this |your |them ).{0,40}back|sending .{0,20}back|send it back|return the (item|game|parcel|order|package|headset|microphone)|return your (item|game|parcel|order|package)|returning (the|it|this|my)|\barrange a return\b|\ba return to\b|(can|could|may|want to|like to|need to) (i |we )?return|return (it|this|them)\b|rücksendung|zurückschicken|zurücksenden|\bretoure\b|retourner|renvoyer|devoluci[oó]n|devolver|restituire|reso\b|retourneren)/i;
-const ACT_TYPE_RE={replacement:null,refund:REFUND_RE,return:RETURN_RE};
+const SAMPLE_RE=/(\bsamples?\b|free (game|copy|product|one)|gifted|\bgift(ed)? (a|the|me)\b|\bcollab|\bcreator\b|\binfluencer|\bpartnership\b|\bpr package|\bto review\b|showcase|affiliate)/i;
+const ACT_TYPE_RE={replacement:null,refund:REFUND_RE,return:RETURN_RE,sample:SAMPLE_RE};
 function mentionsReplacement(text){return REPLACEMENT_GUARD_RE.test(text||'')||REPLACEMENT_ASK_RE.test(text||'')}
 function mentionsType(type,text){if(type==='replacement')return mentionsReplacement(text);return ACT_TYPE_RE[type].test(text||'')}
 // An action button only shows once that action is discussed in the thread (by the customer or by us),
@@ -759,7 +760,7 @@ function shouldShowActionButton(type){
 }
 function shouldShowReplacementButton(){return shouldShowActionButton('replacement')}
 function syncReplacementButton(){
-  const ids={replacement:'act-replacement-btn',refund:'act-refund-btn',return:'act-return-btn'};
+  const ids={replacement:'act-replacement-btn',refund:'act-refund-btn',return:'act-return-btn',sample:'act-sample-btn'};
   let anyHidden=false;
   for(const t of Object.keys(ids)){
     const b=document.getElementById(ids[t]);if(!b)continue;
@@ -948,11 +949,12 @@ function renderActPanel(host,c,list){const sig=(list||[]).map(x=>x.id+':'+x.stat
   host.innerHTML='';
   const box=el('div','actbox');
   box.append(el('h3',null,'Actions'));
-  if(!(list||[]).length) box.append(el('div','hint','A reply that promises a replacement, refund or return adds a pending action here automatically when you send. You can also log one yourself.'));
+  if(!(list||[]).length) box.append(el('div','hint','A reply that promises a replacement, refund or return adds a pending action here automatically when you send. You can also log one yourself, or log a free creator sample.'));
   (list||[]).forEach(a=>{
     const row=el('div','actrow');
     const d=a.details||{};
-    let line=actStatusLabel(a)+' · '+(a.type==='replacement'?'Replacement':a.type==='refund'?'Refund':'Return');
+    let line=actStatusLabel(a)+' · '+(a.type==='replacement'?'Replacement':a.type==='refund'?'Refund':a.type==='sample'?'Sample':'Return');
+    if(a.type==='sample'){line=({pending:'To request',created:'Requested on monday',done:'Sent',cancelled:'Cancelled',failed:'Failed'}[a.status]||actStatusLabel(a))+' · Sample'+(d.recipient?' for '+d.recipient:'')+(d.games?' · '+d.games:'')}
     if(a.type==='replacement'&&isMcf(d)){
       line=actStatusLabel(a)+' · Whole game · Amazon MCF · '+(d.marketplace||'');
       if(d.original_order_id) line+=' · Order ID '+d.original_order_id;
@@ -991,6 +993,16 @@ function renderActPanel(host,c,list){const sig=(list||[]).map(x=>x.id+':'+x.stat
         await reloadActions(c,host);
         if(d.outcome==='replacement') openReplacementModal(c,host);
         else openRefundModal(c,host)};acts.append(b)}
+    if(a.type==='sample'&&['done','cancelled'].indexOf(a.status)<0){
+      const cp=el('button','btn ghost','Copy details');cp.type='button';cp.onclick=async()=>{try{await navigator.clipboard.writeText(sampleCopy(d));cp.textContent='Copied'}catch(e){prompt('Copy this:',sampleCopy(d))}};acts.append(cp);
+      const mb=el('a','btn ghost','Open monday sample board');mb.href=SAMPLE_BOARD;mb.target='_blank';mb.rel='noopener';acts.append(mb);
+      const ed=el('button','btn ghost','Edit');ed.type='button';ed.onclick=()=>openSampleModal(c,host,a);acts.append(ed);
+      const nx=el('button','btn',a.status==='pending'?'Mark requested on monday':'Mark sample sent');nx.type='button';
+      nx.onclick=async()=>{nx.disabled=true;const to=a.status==='pending'?'created':'done';const patch={status:to,updated_at:new Date().toISOString()};if(to==='done')patch.completed_at=new Date().toISOString();
+        const {error}=await sb.from('cx_actions').update(patch).eq('id',a.id);if(error){alert(error.message);nx.disabled=false;return}
+        await logNote(c,to==='created'?'Sample request logged on the monday sample board'+(d.recipient?' for '+d.recipient:'')+'.':'Sample marked sent'+(d.games?' ('+d.games+')':'')+'.','note:action-'+to+':'+a.id);await reloadActions(c,host)};acts.append(nx);
+      const cx=el('button','btn ghost','Cancel sample');cx.type='button';cx.onclick=async()=>{if(!confirm('Cancel this sample request?'))return;const {error}=await sb.from('cx_actions').update({status:'cancelled',updated_at:new Date().toISOString()}).eq('id',a.id);if(error){alert(error.message);return}await logNote(c,'Sample request cancelled.','note:action-cancel:'+a.id);await reloadActions(c,host)};acts.append(cx);
+    }
     if(isPlaceholderAction(a)){const b=el('button','btn','Fill in replacement');b.type='button';b.onclick=()=>openReplacementModal(c,host);acts.append(b)}
     if(a.status==='pending'&&a.type==='replacement'&&!isMcf(d)&&!isPlaceholderAction(a)){const b=el('button','btn ghost','Record Shopify order #');b.type='button';
       b.onclick=()=>recordExistingOrder(c,a,host);acts.append(b)}
@@ -1001,9 +1013,10 @@ function renderActPanel(host,c,list){const sig=(list||[]).map(x=>x.id+':'+x.stat
   const r1=el('button','btn','Replacement');r1.type='button';r1.id='act-replacement-btn';r1.onclick=()=>openReplacementModal(c,host);
   const r2=el('button','btn ghost','Refund');r2.type='button';r2.id='act-refund-btn';r2.onclick=()=>openRefundModal(c,host);
   const r3=el('button','btn ghost','Return');r3.type='button';r3.id='act-return-btn';r3.onclick=()=>openReturnModal(c,host);
+  const r4=el('button','btn ghost','Sample');r4.type='button';r4.id='act-sample-btn';r4.onclick=()=>openSampleModal(c,host);
   const more=el('button','btn moreact','More actions');more.type='button';more.id='act-more-btn';more.title='Show all action buttons';
   more.onclick=()=>{actShowReplacement=true;syncReplacementButton()};
-  btns.append(r1,r2,r3,more);box.append(btns);
+  btns.append(r1,r2,r3,r4,more);box.append(btns);
   host.append(box);
   syncReplacementButton();
 }
@@ -1304,6 +1317,40 @@ async function openPartReplacementModal(c, host, existing){
     }
     closeActModal();await reloadActions(c,host);
   };
+}
+
+// ---- Sample: a free game for a creator or influencer. Logged on the ticket, copied into the monday sample request board.
+const SAMPLE_BOARD='https://luckyegg-squad.monday.com/boards/5095969023';
+function sampleCopy(d){return ['Sample for: '+(d.recipient||''),'Handle / profile: '+(d.handle||''),'Game(s): '+(d.games||'')+(d.quantity&&d.quantity!=='1'?' × '+d.quantity:''),'Ship to:',d.address||'','Email: '+(d.email||''),'Phone: '+(d.phone||''),'Why: '+(d.reason||''),'Eggsy ticket: '+(d.ticket_url||'')].join('\n')}
+async function openSampleModal(c, host, existing){
+  const prev=(existing&&existing.details)||{};
+  const m=actModal(existing?'Edit sample request':'Sample for a creator');
+  m.body.append(el('p','hint','Logs a free sample on this ticket. Copy the details into the monday sample request board (it posts to #request-for-samples), then mark it requested. Mark it sent once it ships.'));
+  const who=field('Sample for (name)',{value:prev.recipient||c.customer_name||''});
+  const handle=field('Handle / profile link',{value:prev.handle||(c.customer_handle&&c.customer_handle!==c.customer_name?c.customer_handle:''),placeholder:'@username or link'});
+  const games=field('Game(s)',{value:prev.games||'',placeholder:'e.g. Sorry What?! Family Edition'});
+  const qty=field('Quantity',{value:prev.quantity||'1'});qty.i.style.width='80px';
+  const addr=field('Shipping address',{tag:'textarea',minHeight:'84px',value:prev.address||''});
+  const email=field('Email (optional)',{value:prev.email||(/@/.test(c.customer_handle||'')?c.customer_handle:'')});
+  const phone=field('Phone (optional)',{value:prev.phone||''});
+  const reason=field('Why / notes',{tag:'textarea',minHeight:'56px',value:prev.reason||c.overview||''});
+  m.body.append(who.w,handle.w,games.w,qty.w,addr.w,email.w,phone.w,reason.w);
+  const details=()=>Object.assign({},prev,{recipient:who.i.value.trim(),handle:handle.i.value.trim(),games:games.i.value.trim(),quantity:qty.i.value.trim()||'1',address:addr.i.value.trim(),email:email.i.value.trim(),phone:phone.i.value.trim(),reason:reason.i.value.trim(),ticket_url:location.origin+'/inbox/?c='+c.id,source_origin:c.origin,source_order:c.order_number||null});
+  if(!prev.address){callCx({action:'lookup_order',conversation_id:c.id}).then(r=>{const a=r&&r.order&&r.order.shippingAddress;if(!a||addr.i.value.trim())return;
+    addr.i.value=[[a.firstName,a.lastName].filter(Boolean).join(' '),a.address1,a.address2,a.city,a.province||a.provinceCode,a.zip,a.countryCodeV2||a.country].filter(Boolean).join('\n');if(a.phone&&!phone.i.value)phone.i.value=a.phone;m.setErr('Address filled from Shopify '+r.order.name+'. Check it is where the sample should go.')},()=>{})}
+  const save=async(copyOpen)=>{const d=details();
+    if(!d.recipient||!d.games){m.setErr('Add who the sample is for and which game.',true);return}
+    if(copyOpen){const cp=navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(sampleCopy(d)):Promise.reject();window.open(SAMPLE_BOARD,'_blank');cp.catch(()=>prompt('Copy this into the monday sample request:',sampleCopy(d)))}
+    const email_=(await sb.auth.getUser()).data.user.email;
+    const res=existing?await sb.from('cx_actions').update({details:d,updated_at:new Date().toISOString()}).eq('id',existing.id).select('id').single()
+      :await sb.from('cx_actions').insert({conversation_id:c.id,type:'sample',status:'pending',details:d,created_by:email_}).select('id').single();
+    if(res.error){m.setErr(res.error.message,true);return}
+    if(!existing)await logNote(c,'Sample logged for '+d.recipient+': '+d.games+(d.quantity!=='1'?' × '+d.quantity:'')+'. Next: add it to the monday sample request board.','note:action:'+res.data.id);
+    closeActModal();await reloadActions(c,host)};
+  const go=el('button','btn','Save, copy details and open monday');go.type='button';go.onclick=()=>save(true);
+  const only=el('button','btn ghost','Save only');only.type='button';only.onclick=()=>save(false);
+  const cancel=el('button','btn ghost','Cancel');cancel.type='button';cancel.onclick=closeActModal;
+  m.bar.append(go,only,cancel);
 }
 async function openRefundModal(c, host){
   const m=actModal('Refund');
