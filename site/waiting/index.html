@@ -200,6 +200,8 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
  .chbtn{width:auto;white-space:nowrap;background:#fff;border:1px solid var(--line)}
  .threadgrid{grid-template-columns:1fr}
 }
+.item.unread{border-left:0}
+.item.unread .name::before{content:none;display:none}
 
 .actbox{margin:12px 0;border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff}
 .actbox h3{margin:0 0 8px;font-size:15px}
@@ -1386,7 +1388,7 @@ async function kbFor(c,t){const d=el('details','kbbox elog');d.append(el('summar
   data.forEach(a=>{const li=el('li');const l=el('a',null,a.title);l.href='/knowledge/?a='+a.id;l.target='_blank';li.append(l,el('small',null,' · '+a.category+(a.channel_specific?' · this channel':'')+(a.language!=='en'?' · '+a.language.toUpperCase():'')));ul.append(li)})}}
 async function refreshAfterQueue(id){await Promise.all([loadQueueSummary(),loadDrafts()]);await loadStates();EggsyNav.refreshCounts();drawChips();drawList();if(sel!==id)return;await openConv(id,false);
  const qb=[...document.querySelectorAll('#thread .bubble.q-queued,#thread .bubble.qqueued')].pop();if(qb)qb.scrollIntoView({block:'center'})}
-async function loadPreviews(){const {data,error}=await sb.from('cx_latest_inbound').select('conversation_id,preview,customer_at');
+async function loadPreviews(){const {data,error}=await sb.from('cx_latest_inbound').select('conversation_id,preview,customer_at,buyer_name');
  if(error){console.warn('preview',error.message);return}
  previewMap={};(data||[]).forEach(r=>{previewMap[r.conversation_id]=r})}
 function customerAt(c){const p=previewMap[c.id];if(p&&p.customer_at)return p.customer_at;const x=stMap[c.id];return (x&&x.last_customer_at)||null}
@@ -1445,8 +1447,9 @@ function rowMarks(c){const marks=[];
 function avatarFor(name){const parts=String(name||'?').trim().split(/\s+/).filter(Boolean);const letters=((parts[0]||'?')[0]+(parts[1]?parts[1][0]:'')).toUpperCase();
  const hue=[...String(name||'?')].reduce((n,ch)=>n+ch.charCodeAt(0),0)%360;const d=el('span','avatar',letters.slice(0,2));d.style.background='hsl('+hue+' 42% 38%)';d.setAttribute('aria-hidden','true');return d}
 function rowFor(c,box,otherBucket){const un=!otherBucket&&isUnread(c);const it=el('div','item'+(sel===c.id?' sel':'')+(un?' unread':''));it.tabIndex=0;it.onclick=()=>openConv(c.id,true);it.onkeydown=e=>{if(e.key==='Enter')openConv(c.id,true)};
- const l1=el('div','line1');if(String(c.origin).startsWith('tiktok'))l1.append(avatarFor(c.customer_name||c.customer_handle||'?'));
- const nm=el('span','name',c.customer_name||c.customer_handle||'Unknown');const when=el('span','when',fmt(customerAt(c)));when.title='Customer wrote '+fmt(customerAt(c))+' UK';
+ const shown=((previewMap[c.id]&&previewMap[c.id].buyer_name)||c.customer_name||c.customer_handle||'Unknown');
+ const l1=el('div','line1');if(String(c.origin).startsWith('tiktok'))l1.append(avatarFor(shown));
+ const nm=el('span','name',shown);const when=el('span','when',fmt(customerAt(c)));when.title='Customer wrote '+fmt(customerAt(c))+' UK';
  l1.append(nm,when);
  const line=(previewMap[c.id]&&previewMap[c.id].preview)||'';
  const prev=el('div','preview',line||'');if(!line)prev.style.display='none';
@@ -1509,7 +1512,7 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;dr
   cb.onclick=async()=>{cb.disabled=true;const {error}=await sb.from('conversations').update({flag:null,flagged_at:null}).eq('id',c.id);if(error){alert('Could not clear: '+error.message);cb.disabled=false;return}c.flag=null;fb.remove();drawList()};fb.append(cb);t.append(fb)}
  const style=threadKind(c.origin);
  if(style==='mail')t.append(el('h2','subjectline',c.subject||'(no subject)'));
- else t.append(el('h2','subjectline',c.customer_name||c.customer_handle||'Conversation'));
+ else t.append(el('h2','subjectline',(previewMap[c.id]&&previewMap[c.id].buyer_name)||c.customer_name||c.customer_handle||'Conversation'));
  const grid=el('div',style==='bubble'&&String(c.origin).startsWith('tiktok')?'threadgrid':'');
  const main=el('div','threadmain');const side=el('aside','ordercard');side.hidden=true;
  const actHost=el('div');actHost.id='acthost';
@@ -1598,6 +1601,7 @@ async function refreshAfterQueue(id){await Promise.all([loadQueueSummary(),loadD
 if(!window.__eggsyFilterBound){window.__eggsyFilterBound=true;document.addEventListener('click',e=>{const menu=$('filtermenu');if(!menu||menu.hidden)return;if(e.target.closest&&e.target.closest('.filterwrap'))return;filterOpen=false;menu.hidden=true});
  const fb=document.getElementById('filterbtn');if(fb)fb.addEventListener('click',e=>{e.stopPropagation();filterOpen=!filterOpen;drawChips()})}
 
+function setFilter(g,s2){grp=g;sub=s2||'';if(sel){const cur=convs.find(x=>x.id===sel);if(!cur||!chMatch(cur)){sel=null;document.body.classList.remove('showthread');const t=$('thread');if(t){t.innerHTML='';t.append(el('div','empty','Pick a conversation.'))}}}writeFilterUrl();drawChips();drawList()}
 window.onpopstate=()=>{readFilterUrl();drawChips();const id=new URLSearchParams(location.search).get('c');if(id&&convs.find(c=>c.id===id))openConv(id,false);else{sel=null;document.body.classList.remove('showthread');drawList()}};
 </script>
 </body>
