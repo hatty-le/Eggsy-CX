@@ -25,6 +25,7 @@ supabase/
   migrations/                  16 dated SQL migrations (complete)
   functions/
     send-email-reply/          email relay (hey@) for approved replies and bounce sweep
+    forward-to-marketing/      staff "Send to marketing" forward from hey@ (does not send to the customer)
     cx-actions/                replacements, refunds, returns, tracking refresh
     gmail-push/                hey@ Gmail push + history sync + watch renewal
   schema_snapshot.sql          live public-schema inventory (tables, functions, triggers, cron)
@@ -65,9 +66,9 @@ Never commit values. Never paste them into chat, Slack or email.
 | `SUPABASE_URL` | all three functions (usually provided automatically) |
 | `SUPABASE_SERVICE_ROLE_KEY` | all three functions (usually provided automatically) |
 | `SUPABASE_ANON_KEY` | `cx-actions` (staff JWT passthrough) |
-| `GMAIL_CLIENT_ID` | `send-email-reply`, `gmail-push` |
-| `GMAIL_CLIENT_SECRET` | `send-email-reply`, `gmail-push` |
-| `GMAIL_REFRESH_TOKEN` | `send-email-reply`, `gmail-push` (hey@ OAuth) |
+| `GMAIL_CLIENT_ID` | `send-email-reply`, `forward-to-marketing`, `gmail-push` |
+| `GMAIL_CLIENT_SECRET` | `send-email-reply`, `forward-to-marketing`, `gmail-push` |
+| `GMAIL_REFRESH_TOKEN` | `send-email-reply`, `forward-to-marketing`, `gmail-push` (hey@ OAuth) |
 | `SHOPIFY_ADMIN_ACCESS_TOKEN` | `cx-actions` (Shopify Admin; not required until refunds go live) |
 | `SHOPIFY_STORE_DOMAIN` | `cx-actions` |
 

@@ -191,6 +191,8 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
 .avatar{width:28px;height:28px;border-radius:50%;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:none}
 .topacts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
 .topacts .btn{padding:7px 12px}
+.topacts .mkt{display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center}
+.topacts .btn.sentmkt:disabled{background:#146c2e;color:#fff;opacity:1;cursor:default}
 .notespanel{background:#FFF9EC;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:13.5px}
 .notespanel[hidden]{display:none}
 .notespanel .noteitem{padding:8px 0;border-top:1px solid var(--line);white-space:pre-wrap}
@@ -439,7 +441,7 @@ async function load(){
  $('list').innerHTML='<div class="empty">Loading…</div>';
  const {data,error}=await fetchAll((from,to)=>sb.from('conversations').select('*').order('last_message_at',{ascending:false,nullsFirst:false}).order('id').range(from,to),5000);
  if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load: '+error.message));readFilterUrl();await loadChannelAccess();drawLockStrip();drawLockBanner();return}
- convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates(),loadDrafts(),loadReads(),loadPreviews(),loadChannelAccess()]);lastSync=new Date().toISOString();drawChips();drawList();startLiveRefresh();
+ convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates(),loadDrafts(),loadReads(),loadPreviews(),loadChannelAccess(),loadMarketingTo()]);lastSync=new Date().toISOString();drawChips();drawList();startLiveRefresh();
  await openFromUrl();
 }
 // Deep link: /inbox/?c=<conversation_id>
@@ -1622,6 +1624,45 @@ function orderFacts(c,msgs){const raws=(msgs||[]).map(m=>m.body_raw||'').filter(
   raws.forEach(raw=>{const o=EggsyDisplay.amazonOrder(raw,{orderNumber:best.orderId,marketplace:best.marketplace});if(o.orderId)best.orderId=o.orderId;if(o.game)best.game=o.game;if(o.shipped)best.shipped=o.shipped;if(o.fulfilment)best.fulfilment=o.fulfilment});
   return {kind:'amazon',fields:[['Order',best.orderId],['Marketplace',best.marketplace],['Game',best.game],['Shipped',best.shipped],['FBA or FBM',best.fulfilment]]}}
  return null}
+// Send to marketing: forwards from hey@ to the address in cx_settings.marketing_forward_to.
+// Nothing is sent to the customer. A successful send is noted and the ticket moves to Resolved.
+let MARKETING_TO='will.h@luckyegg.co';
+async function loadMarketingTo(){const {data}=await sb.from('cx_settings').select('value').eq('key','marketing_forward_to').maybeSingle();
+ const v=data&&data.value;const s=typeof v==='string'?v:(v&&typeof v.email==='string'?v.email:'');
+ if(/^[^@\s]+@luckyegg\.co$/i.test(String(s).trim()))MARKETING_TO=String(s).trim().toLowerCase()}
+async function marketingSent(id){const {data}=await sb.from('messages').select('external_id,body').eq('conversation_id',id).like('external_id','note:marketing-forward%').limit(8);
+ return !!(data||[]).some(r=>r.external_id!=='note:marketing-forward:pending'||String(r.body||'').indexOf('Sent to marketing')===0)}
+function marketingControls(c,top){
+ const host=el('span','mkt');top.append(host);
+ const draw=async()=>{if(sel!==c.id||!host.isConnected)return;host.innerHTML='';
+  const sent=await marketingSent(c.id);if(sel!==c.id||!host.isConnected)return;
+  if(sent){const done=el('button','btn sentmkt','Sent to marketing ✓');done.type='button';done.disabled=true;done.title='Sent to '+MARKETING_TO+'. Nothing was sent to the customer.';
+   const again=el('button','btn ghost','Send again');again.type='button';again.title='Send another copy to '+MARKETING_TO;
+   again.onclick=()=>sendMarketing(c,true,draw,again);host.append(done,again);return}
+  const b=el('button','btn','Send to marketing');b.type='button';b.title='Forward this ticket to '+MARKETING_TO+'. Nothing is sent to the customer.';
+  b.onclick=()=>sendMarketing(c,false,draw,b);host.append(b)};
+ draw()}
+async function sendMarketing(c,again,draw,btn){
+ const addr=MARKETING_TO;
+ const msg=again
+  ?'Send this to marketing again ('+addr+')?\n\nIt was already sent. Nothing is sent to the customer.'
+  :'Send this ticket to marketing ('+addr+')?\n\nNothing is sent to the customer. The ticket will move to Resolved.';
+ if(!confirm(msg))return;
+ if(btn){btn.disabled=true;btn.textContent='Sending…'}
+ const {data:{session}}=await sb.auth.getSession();
+ if(!session){alert('Sign in again, then try Send to marketing.');draw();return}
+ let r={},status=0;
+ try{const res=await fetch(SUPABASE_URL+'/functions/v1/forward-to-marketing',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token,apikey:SUPABASE_KEY},body:JSON.stringify({conversation_id:c.id,again:!!again})});
+  status=res.status;r=await res.json().catch(()=>({}))}
+ catch(e){r={message:'Could not reach Eggsy. Check your connection and try again.'}}
+ if(!r.ok){alert('Could not send to marketing: '+(r.message||r.error||('Error '+status)));
+  if(r.sent){await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();if(sel===c.id)openConv(c.id,false);return}
+  draw();return}
+ if(r.to)MARKETING_TO=r.to;
+ c.status='resolved';
+ await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();
+ if(!inScope(c)){sel=null;document.body.classList.remove('showthread');const t=$('thread');t.innerHTML='';t.append(el('div','empty','Sent to marketing ('+(r.to||addr)+'). Ticket moved to Resolved.'));drawList()}
+ else openConv(c.id,false)}
 async function closeTicket(c,how){const {error}=await sb.from('conversations').update({status:'resolved',status_changed_at:new Date().toISOString()}).eq('id',c.id);
  if(error){alert('Could not update: '+error.message);return}
  c.status='resolved';
@@ -1636,6 +1677,7 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;dr
  const back=el('button','btn ghost back','← All conversations');back.onclick=()=>{if(history.state&&history.state.c)history.back();else{const u=new URLSearchParams(location.search);u.delete('c');history.pushState(null,'',location.pathname+(u.toString()?'?'+u:''));window.onpopstate()}};t.append(back);
  const lb=threadLockBanner(c.origin);if(lb)t.append(lb);
  const top=el('div','topacts');
+ marketingControls(c,top);
  if(bucketOf(c)==='inbox'){const ub=el('button','btn ghost','Mark unread');ub.type='button';ub.onclick=()=>{markRead(c.id,'1970-01-01T00:00:00Z');sel=null;document.body.classList.remove('showthread');$('thread').innerHTML='';$('thread').append(el('div','empty','Marked as unread.'));drawChips();drawList()};top.append(ub)}
  const done=el('button','btn','Done');done.type='button';done.onclick=()=>closeTicket(c,'done');top.append(done);
  if(String(c.origin).startsWith('amazon')){const nr=el('button','btn ghost','No response needed');nr.type='button';nr.onclick=()=>closeTicket(c,'none');top.append(nr)}
