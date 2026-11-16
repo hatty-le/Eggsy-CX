@@ -186,6 +186,8 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
 .orderstrip span,.ordercard .ol{display:block;font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .orderstrip b,.ordercard .ov{font-size:14px;font-weight:700;word-break:break-word}
 .threadgrid{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:12px;align-items:start}
+.threadgrid:has(> aside[hidden]){grid-template-columns:minmax(0,1fr)}
+.threadmain{min-width:0}.threadmain .composer textarea,#replybox{width:100%;box-sizing:border-box}
 .ordercard .ov{font-weight:650;line-height:1.35}
 .ordercard .actbtns{margin-top:10px}
 .tpls{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
@@ -1591,11 +1593,12 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;dr
  const style=threadKind(c.origin);
  if(style==='mail')t.append(el('h2','subjectline',c.subject||'(no subject)'));
  else t.append(el('h2','subjectline',(previewMap[c.id]&&previewMap[c.id].buyer_name)||c.customer_name||c.customer_handle||'Conversation'));
- const grid=el('div',style==='bubble'&&String(c.origin).startsWith('tiktok')?'threadgrid':'');
+ // The order card column only exists when there is an order card; otherwise the thread and reply box use the full width.
+ const grid=el('div');
  const main=el('div','threadmain');const side=el('aside','ordercard');side.hidden=true;
  const actHost=el('div');actHost.id='acthost';
  if(String(c.origin).startsWith('tiktok')){grid.append(main,side);t.append(grid)}else t.append(main);
- askMarty(c,main);
+ askMarty(c,main);forwardSales(c,main);
  const orderHost=String(c.origin).startsWith('amazon')?el('div'):null;if(orderHost)main.append(orderHost);
  const msgHost=el('div');msgHost.append(el('div','empty','Loading messages…'));main.append(msgHost);
  const compHost=el('div');main.append(compHost);
@@ -1614,7 +1617,7 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;dr
  actQueuedReplies=(qr&&!qr.error&&qr.data)||[];
  const facts=window.EggsyDisplay?orderFacts(c,actThreadMsgs):null;
  if(facts&&String(c.origin).startsWith('amazon')&&orderHost){const strip=el('div','orderstrip');facts.fields.forEach(([k,v])=>{const d=el('div');d.append(el('span',null,k),el('b',null,v||''));strip.append(d)});orderHost.append(strip)}
- if(facts&&String(c.origin).startsWith('tiktok')){side.hidden=false;const head=el('div');facts.fields.forEach(([k,v])=>{const d=el('div');d.style.marginTop='8px';d.append(el('span','ol',k),el('div','ov',v||''));head.append(d)});
+ if(facts&&String(c.origin).startsWith('tiktok')){side.hidden=false;grid.classList.add('threadgrid');const head=el('div');facts.fields.forEach(([k,v])=>{const d=el('div');d.style.marginTop='8px';d.append(el('span','ol',k),el('div','ov',v||''));head.append(d)});
   const quick=el('div','actbtns');
   const rep=el('button','btn','Send replacement');rep.type='button';rep.onclick=()=>openReplacementModal(c,actHost);
   const refb=el('button','btn ghost','Refund');refb.type='button';refb.onclick=()=>openRefundModal(c,actHost);
