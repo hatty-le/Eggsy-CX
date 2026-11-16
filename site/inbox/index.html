@@ -314,6 +314,37 @@ function martyNote(c,question,last){
  if(draft)L.push('','*Our draft reply so far:*','> '+clip(draft).replace(/\n+/g,'\n> '));
  L.push('','Ticket: '+location.origin+'/inbox/?c='+c.id);
  return L.join('\n')}
+
+// ---- Forward to Claudia BB (sales): forwards the customer's email from hey@ to claudia.bb@luckyegg.co
+// (her reply goes straight to the sender), logs a note and resolves the ticket. Tickets with no email
+// (TikTok, Facebook...) fall back to copying a Slack message and opening her DM.
+const SALES_DM='https://slack.com/app_redirect?channel=U0938NCK00G';
+function forwardSales(c,t){
+ const host=el('div','marty');t.append(host);
+ const b=el('button','btn ghost small','📨 Forward to Claudia BB (sales)');b.type='button';host.append(b);
+ b.onclick=()=>{b.remove();const box=el('div','marty-box');
+  box.append(el('b',null,'Forward to Claudia BB (sales)'),el('div','hint','For wholesale, retail, stockist and other sales enquiries. Eggsy forwards the original email from hey@ to Claudia, and her reply goes straight to the sender. The ticket is then marked Resolved here. If they write back to hey@ it reopens.'));
+  const q=el('textarea');q.placeholder='Optional note for Claudia, e.g. “Retailer in Ireland asking about trade prices”';box.append(q);
+  const bar=el('div');const go=el('button','btn small','Forward to Claudia');go.type='button';const no=el('button','btn ghost small','Cancel');no.type='button';const m=el('span','hint');
+  no.onclick=()=>{host.innerHTML='';host.append(b)};
+  const finish=async(how)=>{await logNote(c,'Forwarded to Claudia BB (sales) '+how+' by '+(ME||'a teammate')+(q.value.trim()?': '+q.value.trim():'.'),'note:fwd-sales:'+Date.now());
+   await sb.from('conversations').update({status:'resolved',status_changed_at:new Date().toISOString(),summary:'Forwarded to Claudia BB (sales)'}).eq('id',c.id);
+   c.status='resolved';await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();
+   box.innerHTML='';box.append(el('b',null,'✓ Forwarded to Claudia BB '+how+'. Ticket marked Resolved.'))};
+  go.onclick=async()=>{go.disabled=true;m.textContent=' Forwarding…';
+   const {data:{session}}=await sb.auth.getSession();
+   let r={};try{const res=await fetch(SUPABASE_URL+'/functions/v1/forward-email',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session&&session.access_token),apikey:SUPABASE_KEY},body:JSON.stringify({conversation_id:c.id,to:'claudia-bb',note:q.value.trim(),origin_url:location.origin})});r=await res.json().catch(()=>({}))}catch(e){r={error:'network'}}
+   if(r.ok){await finish('by email');return}
+   if(r.error==='no_email'){
+    // No email to forward: offer Slack instead (must be a click, so the browser allows the clipboard and new tab).
+    go.disabled=false;go.textContent='Copy message and open Claudia’s Slack';m.textContent=' This ticket has no email in hey@, so send it to her on Slack instead.';
+    go.onclick=async()=>{const last=await martyLast(c).catch(()=>'');
+     const L=['Hi Claudia, a sales enquiry came in through '+(ORIGINS[c.origin]||c.origin)+':','','*From:* '+(c.customer_name||c.customer_handle||'Unknown')+(c.order_number?' (order '+c.order_number+')':'')];
+     if(q.value.trim())L.push('*Note:* '+q.value.trim());if(c.overview)L.push('*Summary:* '+c.overview);if(last)L.push('','> '+last.slice(0,900).replace(/\n+/g,'\n> '));L.push('','Ticket: '+location.origin+'/inbox/?c='+c.id);
+     const text=L.join('\n');const cp=navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(text):Promise.reject();window.open(SALES_DM,'_blank');cp.catch(()=>prompt('Copy this and paste it to Claudia on Slack:',text));
+     await finish('on Slack')};return}
+   go.disabled=false;m.textContent=' Could not forward: '+(r.message||r.error||'unknown error')};
+  bar.append(go,no,m);box.append(bar);host.append(box);q.focus()}}
 function askMarty(c,t){
  const host=el('div','marty');t.append(host);
  const draw=async()=>{host.innerHTML='';const open=await martyOpen(c.id);if(sel!==c.id)return;
@@ -552,7 +583,7 @@ async function openConv(id,push){sel=id;markRead(id);drawChips();drawList();cons
    const {error}=await sb.from('conversations').update({status:to,status_changed_at:new Date().toISOString()}).eq('id',c.id);
    if(error){alert('Could not update: '+error.message);jb.disabled=false;return}
    c.status=to;await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();drawChips();drawList();openConv(c.id,false)};t.append(jb)}
- askMarty(c,t);
+ askMarty(c,t);forwardSales(c,t);
  const ew=el('div');ew.id='elsewhere';t.append(ew);showElsewhere(c);
  kbFor(c,t);
  if(c.summary||c.subject){const d=el('details','elog');d.append(el('summary',null,'Eggsy’s notes'));if(c.subject)d.append(el('div',null,'Subject: '+c.subject));if(c.summary)d.append(el('div',null,c.summary));t.append(d)}
