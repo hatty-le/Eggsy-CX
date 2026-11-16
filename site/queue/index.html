@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Send queue · Eggsy CX</title>
+<style>
+:root{--yolk:#FFC83D;--ink:#1d1b26;--muted:#6b6878;--bg:#FFF9EC;--card:#fff;--line:#eadfc4}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+a{color:inherit}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;gap:12px}
+.ptitle{margin:0;font-size:22px}
+.btn{background:var(--ink);color:#fff;border:0;border-radius:999px;padding:10px 18px;font-weight:600;text-decoration:none;cursor:pointer;font-size:14px;display:inline-block}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.small{padding:6px 12px;font-size:13px}
+.card{background:var(--card);border-radius:18px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+#auth{max-width:420px;margin:60px auto;padding:28px;text-align:center}
+#auth h1{margin:0 0 8px}#auth p{color:var(--muted)}
+input,select{font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#fff;width:100%}
+#auth input{margin:10px 0}
+.msg{font-size:14px;color:var(--muted);min-height:20px}
+#app{display:none;max-width:1280px;margin:0 auto;padding:0 24px 24px}
+.intro{color:var(--muted);font-size:14px;margin:0 0 12px}
+.filters{display:grid;grid-template-columns:2fr 1fr auto;gap:8px;margin-bottom:12px;align-items:end}
+.filters label{font-size:12px;color:var(--muted);display:block}
+.filters label input,.filters label select{margin-top:3px}
+.count{font-size:13px;color:var(--muted);margin:0 0 8px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:12px;border-bottom:1px solid #f3ecd9;vertical-align:top}
+tr:last-child td{border-bottom:0}
+.when{white-space:nowrap}.when small{display:block;color:var(--muted);font-size:12px}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:#f2ecdc;white-space:nowrap}
+.r-queued{background:#dcecff}.r-auto{background:#d7f2e3;color:#1d5c3a}.r-chat{background:#FFE8A6}.r-email{background:#dff5e3}
+.cust b{display:block}.cust span{color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}
+.body{white-space:pre-wrap;word-wrap:break-word;line-height:1.4;max-width:520px}
+.body.clip{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.more{background:none;border:0;padding:4px 0 0;color:#7a5a00;font:inherit;font-size:13px;font-weight:600;cursor:pointer;text-decoration:underline}
+.none{color:var(--muted);font-size:13px}
+.empty{color:var(--muted);text-align:center;padding:48px 20px;line-height:1.5}
+.empty b{color:var(--ink);display:block;font-size:17px;margin-bottom:6px}
+@media (max-width:1100px){.filters{grid-template-columns:1fr 1fr 1fr}.filters .q{grid-column:1/-1}}
+@media (max-width:760px){
+ header{padding:10px 14px}.ptitle{font-size:19px}#app{padding:0 12px 12px}
+ .filters{grid-template-columns:1fr 1fr}
+ .filters input,.filters select{font-size:16px}
+ thead{display:none}
+ table,tbody,tr,td{display:block;width:100%}
+ tr{padding:12px 14px;border-bottom:1px solid var(--line)}
+ td{border:0;padding:3px 0}
+ td[data-k]:before{content:attr(data-k);display:block;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+ .body{max-width:none}
+}
+.tabs{display:flex;gap:6px;margin:0 0 12px}.tabs button{font:inherit;font-size:14px;font-weight:650;border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;cursor:pointer}.tabs button.on{background:var(--yolk);border-color:var(--yolk)}.tabs small{margin-left:6px;font-weight:800}
+.s-queued{background:#dcecff}.s-sending{background:#FFE8A6}.s-failed{background:#ffe1e1;color:#8a1c14}.s-stuck{background:#ffe1e1;color:#8a1c14;margin-left:4px}
+.err{color:#8a1c14;font-size:12.5px;margin-top:4px;max-width:260px}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<header><h1 class="ptitle">Send queue</h1><a class="btn ghost small" href="/inbox/">← Back to inbox</a></header>
+
+<section id="auth" class="card">
+ <h1>Send queue</h1>
+ <p>Log in with your <b>@luckyegg.co</b> Google account.</p>
+ <div id="gsign" style="margin:16px 0 6px"></div>
+ <p class="msg" id="amsg" role="status"></p>
+</section>
+
+<main id="app">
+ <p class="intro">Replies that have been sent from Eggsy but haven’t gone out yet, oldest first. Email and Amazon-by-email replies go within a minute. TikTok, Walmart, Facebook and Seller Central replies wait for Grok’s next check. Anything waiting more than 2 hours is flagged, because Grok may be signed out. Sent replies move to the Sent log. Times are UK time.</p>
+ <div class="tabs" id="tabs"></div>
+ <div class="filters">
+  <label class="q">Search<input id="q" type="search" placeholder="Customer, order, reply text…"></label>
+  <label>Channel<select id="ch"><option value="">All channels</option></select></label>
+  <button class="btn ghost" id="clear" type="button">Clear</button>
+ </div>
+ <p class="count" id="count"></p>
+ <div class="card" id="list"><div class="empty">Loading…</div></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://xodkbmtylftfmnxfnxxf.supabase.co';
+const SUPABASE_KEY='sb_publishable_gX9OKDCT6Opnt8OcsFRmiQ_xaM0O8ti'; // public publishable key: safe in the browser, data is protected by RLS
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,detectSessionInUrl:false,flowType:'pkce'}});
+const ORIGINS={email_hey:'hey@ email',shopify_form:'Shopify form',wix_mmc_form:'MMC Wix form',tiktok_uk:'TikTok UK',tiktok_eu:'TikTok EU',tiktok_us:'TikTok US',amazon_uk:'Amazon UK',amazon_us:'Amazon US',amazon_de:'Amazon DE',amazon_fr:'Amazon FR',amazon_it:'Amazon IT',amazon_es:'Amazon ES',amazon_nl:'Amazon NL',amazon_se:'Amazon SE',amazon_pl:'Amazon PL',amazon_be:'Amazon BE',amazon_other:'Amazon (other)',walmart:'Walmart',facebook:'Facebook',instagram:'Instagram'};
+const STUCK_MS=2*3600e3;
+const COLS='id,conversation_id,origin,shop,body,status,queued_by,queued_at,sending_at,send_error,email_note,auto_sent,to_address,conversations(customer_name,customer_handle,order_number)';
+const $=id=>document.getElementById(id);
+const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
+const okEmail=EggsyAuth.okEmail;
+const ukWhen=d=>{const x=new Date(d);
+ const date=x.toLocaleDateString('en-GB',{timeZone:'Europe/London',weekday:'short',day:'numeric',month:'short'});
+ const time=x.toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'});
+ return {date,time}};
+const ago=d=>{const m=Math.round((Date.now()-new Date(d))/60000);if(m<60)return m+' min ago';const h=Math.floor(m/60);if(h<48)return h+'h '+(m%60)+'m ago';return Math.floor(h/24)+' days ago'};
+let rows=[],emailCh={},tab='waiting',ME='';
+
+const setMsg=(t,bad)=>{$('amsg').textContent=t;$('amsg').style.color=bad?'#b3261e':''};
+EggsyAuth.button($('gsign'),sb,setMsg);
+sb.auth.onAuthStateChange((_e,session)=>render(session));
+EggsyAuth.handleRedirect(sb,setMsg).then(()=>sb.auth.getSession()).then(({data})=>render(data.session));
+let started=false;
+function render(session){
+ const email=session&&session.user&&session.user.email;
+ if(!email){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;return}
+ if(!okEmail(email)){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;EggsyAuth.reject(sb,email,setMsg);return}
+ ME=String(email).toLowerCase();EggsyNav.setUser(email,()=>sb.auth.signOut(),sb);EggsyNav.takeReturn();
+ $('auth').style.display='none';$('app').style.display='block';
+ if(!started){started=true;load();setInterval(load,60000)}
+}
+async function load(){
+ const since=new Date(Date.now()-14*864e5).toISOString();
+ const [q,ch]=await Promise.all([
+  sb.from('reply_queue').select(COLS).in('status',['queued','sending']).order('queued_at',{ascending:true}).limit(2000),
+  sb.from('email_send_channels').select('origin,enabled')]);
+ const f=await sb.from('reply_queue').select(COLS).in('status',['failed','queued','sending','sent']).gte('queued_at',since).order('queued_at',{ascending:true}).limit(3000);
+ if(q.error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load the queue: '+q.error.message));return}
+ emailCh={};(ch.data||[]).forEach(r=>{if(r.enabled)emailCh[r.origin]=true});
+ // A failed reply drops off once the same ticket has a later reply queued or sent.
+ const recent=f.data||[];
+ const failed=recent.filter(r=>r.status==='failed'&&!recent.some(o=>o.conversation_id===r.conversation_id&&o.id!==r.id&&new Date(o.queued_at)>new Date(r.queued_at)));
+ rows=(q.data||[]).concat(failed);
+ const sel=$('ch');const cur=sel.value;sel.innerHTML='<option value="">All channels</option>';
+ [...new Set(rows.map(r=>ORIGINS[r.origin]||r.origin))].sort().forEach(c=>{const o=el('option',null,c);o.value=c;sel.append(o)});sel.value=cur;
+ draw();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();
+}
+function route(r){if(emailCh[r.origin]&&!r.email_note)return 'Email from hey@ (within a minute)';
+ if(r.email_note)return r.email_note;
+ return /^(tiktok|walmart|facebook|instagram)/.test(r.origin||'')?'Grok posts it at its next check':'Eggsy posts it at its next check'}
+const isStuck=r=>r.status!=='failed'&&Date.now()-new Date(r.queued_at)>STUCK_MS;
+function drawTabs(){const t=$('tabs');t.innerHTML='';
+ const n={waiting:rows.filter(r=>r.status!=='failed').length,stuck:rows.filter(isStuck).length,failed:rows.filter(r=>r.status==='failed').length};
+ [['waiting','Waiting to send'],['stuck','Waiting over 2 hours'],['failed','Failed (last 14 days)']].forEach(([k,l])=>{const b=el('button',tab===k?'on':'',l);b.type='button';b.append(el('small',null,String(n[k])));b.onclick=()=>{tab=k;draw()};t.append(b)})}
+function visible(){const q=$('q').value.trim().toLowerCase(),ch=$('ch').value;
+ return rows.filter(r=>(tab==='failed'?r.status==='failed':tab==='stuck'?isStuck(r):r.status!=='failed')&&(!ch||(ORIGINS[r.origin]||r.origin)===ch)&&
+  (!q||[r.conversations&&r.conversations.customer_name,r.conversations&&r.conversations.customer_handle,r.conversations&&r.conversations.order_number,r.shop,r.body,r.queued_by].join(' ').toLowerCase().includes(q)))}
+function draw(){drawTabs();const box=$('list');box.innerHTML='';const v=visible();
+ $('count').textContent=v.length+(v.length===1?' reply':' replies');
+ if(!v.length){const e=el('div','empty');e.append(el('b',null,tab==='failed'?'No failed replies':tab==='stuck'?'Nothing stuck':'Nothing waiting to send'),document.createTextNode(tab==='failed'?'Replies that could not be sent show here with the reason, until the ticket gets a new reply.':'Everything sent from Eggsy has gone out. See the Sent log for what went.'));box.append(e);return}
+ const tb=el('table');const th=el('thead');const hr=el('tr');
+ ['Sent from Eggsy (UK)','Channel','Customer','Reply','How it goes out','Status','',].forEach(h=>hr.append(el('th',null,h)));th.append(hr);tb.append(th);
+ const body=el('tbody');
+ v.forEach(r=>{const tr=el('tr');const c=r.conversations||{};
+  const w=ukWhen(r.queued_at);const c1=el('td','when');c1.dataset.k='Sent from Eggsy';c1.append(document.createTextNode(w.date+' '+w.time),el('small',null,ago(r.queued_at)));
+  c1.append(el('small',null,r.auto_sent||r.queued_by==='eggsy-auto'?'Sent automatically':'by '+(r.queued_by||'?')));
+  const c2=el('td');c2.dataset.k='Channel';c2.append(el('span','tag',ORIGINS[r.origin]||r.origin||'Unknown'));if(r.shop&&r.shop!==ORIGINS[r.origin])c2.append(el('div','none',r.shop));
+  const c3=el('td','cust');c3.dataset.k='Customer';c3.append(el('b',null,c.customer_name||c.customer_handle||'Unknown'));if(c.order_number)c3.append(el('span',null,'Order '+c.order_number));
+  const c4=el('td');c4.dataset.k='Reply';const b=el('div','body clip',r.body||'');c4.append(b);
+  if((r.body||'').length>160||(r.body||'').split('\n').length>3){const m=el('button','more','Show full reply');m.type='button';m.onclick=()=>{const open=b.classList.toggle('clip');m.textContent=open?'Show full reply':'Show less'};c4.append(m)}
+  const c5=el('td');c5.dataset.k='How it goes out';c5.append(el('div','none',route(r)));
+  const c6=el('td');c6.dataset.k='Status';c6.append(el('span','tag s-'+r.status,{queued:'Queued',sending:'Sending',failed:'Failed'}[r.status]||r.status));
+  if(isStuck(r))c6.append(el('span','tag s-stuck','Over 2 hours'));
+  if(r.send_error)c6.append(el('div','err',r.send_error));
+  const c7=el('td');c7.dataset.k='';
+  if(r.conversation_id){const a=el('a','btn ghost small','Open ticket →');a.href='/inbox/?c='+encodeURIComponent(r.conversation_id);c7.append(a)}
+  if(r.status==='queued'){const x=el('button','btn ghost small','Cancel');x.type='button';x.style.marginTop='6px';
+   x.onclick=async()=>{if(!confirm('Cancel this reply? It will not be sent. The ticket goes back to Inbox so you can edit and resend.'))return;x.disabled=true;
+    const {data,error}=await sb.from('reply_queue').update({status:'cancelled'}).eq('id',r.id).eq('status','queued').select('id');
+    if(error||!(data||[]).length){alert(error?error.message:'Too late: Eggsy has already started sending it.');x.disabled=false;return}load()};c7.append(el('div'),x)}
+  tr.append(c1,c2,c3,c4,c5,c6,c7);body.append(tr)});
+ tb.append(body);box.append(tb);
+}
+['q','ch'].forEach(id=>{$(id).addEventListener('input',draw);$(id).addEventListener('change',draw)});
+$('clear').onclick=()=>{['q','ch'].forEach(id=>$(id).value='');draw()};
+</script>
+</body>
+</html>
