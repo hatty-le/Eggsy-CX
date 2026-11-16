@@ -452,11 +452,11 @@ async function loadQueueSummary(){qmap={};
  const {data}=await sb.from('reply_queue').select('conversation_id,status').in('status',['queued','sending','failed']);
  (data||[]).forEach(r=>{const cur=qmap[r.conversation_id];if(!cur||r.status==='failed')qmap[r.conversation_id]=r.status});}
 // Filters: ?ch=<channel>&sub=<origin> (kept alongside ?c=<conversation>)
-function readFilterUrl(){const u=new URLSearchParams(location.search);const g=u.get('ch')||'email';grp=(g!=='all'&&GROUPS.some(x=>x[0]===g))?g:'email';
+function readFilterUrl(){const u=new URLSearchParams(location.search);const g=u.get('ch')||'email';grp=GROUPS.some(x=>x[0]===g)?g:'email';
  const s2=u.get('sub')||'';sub=(SUBS[grp]||[]).some(x=>x[0]===s2)?s2:'';const d=u.get('draft')||'';dft=['ready','gaps','none'].includes(d)?d:'';
  scope=u.get('scope')==='all'?'all':'needs';unreadOnly=u.get('unread')==='1'}
 function writeFilterUrl(){const u=new URLSearchParams(location.search);
- if(grp&&grp!=='all')u.set('ch',grp);else u.delete('ch');if(sub)u.set('sub',sub);else u.delete('sub');if(dft)u.set('draft',dft);else u.delete('draft');
+ if(grp)u.set('ch',grp);else u.delete('ch');if(sub)u.set('sub',sub);else u.delete('sub');if(dft)u.set('draft',dft);else u.delete('draft');
  if(scope==='all')u.set('scope','all');else u.delete('scope');if(unreadOnly)u.set('unread','1');else u.delete('unread');
  const qs=u.toString();history.replaceState(history.state,'',location.pathname+(qs?'?'+qs:''))}
 function setFilter(g,s2){grp=g;sub=s2||'';writeFilterUrl();drawChips();drawList()}
@@ -1484,6 +1484,7 @@ function drawChips(){setTitle();const side=$('chside');if(!side)return;side.inne
  function chButton(k,label){const g=GROUPS.find(x=>x[0]===k);const n=channelUnread(g[2]);const b=el('button','chbtn'+(grp===k?' on':''));b.type='button';b.setAttribute('aria-pressed',grp===k?'true':'false');
   b.append(el('span',null,label));if(n){const c=el('span','chcount',String(n));c.title=n+' unread';b.append(c)}
   b.onclick=()=>{filterOpen=false;setFilter(k,'')};return b}
+ side.append(chButton('all','All channels'));
  primary.forEach(p=>side.append(chButton(p[0],p[1])));
  const wrap=el('div','morewrap');const mb=el('button','chbtn moretoggle',moreOpen?'More channels ▾':'More channels ▸');mb.type='button';mb.setAttribute('aria-expanded',moreOpen?'true':'false');
  const box=el('div','morebox');box.hidden=!moreOpen;mb.onclick=()=>{moreOpen=!moreOpen;drawChips()};
@@ -1507,6 +1508,7 @@ function drawChips(){setTitle();const side=$('chside');if(!side)return;side.inne
  if(MODE==='inbox'&&grp==='email')intro.textContent='Like Gmail. The customer’s email is on the right, and your reply sits underneath.';
  else if(MODE==='inbox'&&grp==='tiktok')intro.textContent='Like TikTok Shop chat. UK, US and EU are the buttons above. The order we already have sits next to the chat.';
  else if(MODE==='inbox'&&grp==='amazon')intro.textContent='Like Buyer-Seller Messages, soonest reply deadline first. Amazon expects a reply within 24 hours.';
+ else if(MODE==='inbox'&&grp==='all')intro.textContent='Every channel together: email, web forms, TikTok, Amazon, Walmart and social. Newest customer message first.';
  else if(MODE==='inbox')intro.textContent='Conversations that need a reply. Newest customer message first.';
  else intro.textContent=MODES[MODE].intro}
 function drawDraftChips(){setTitle()}
@@ -1534,7 +1536,7 @@ function rowFor(c,box,otherBucket){const un=!otherBucket&&isUnread(c);const it=e
  const line=(previewMap[c.id]&&previewMap[c.id].preview)||'';
  const prev=el('div','preview',line||'');if(!line)prev.style.display='none';
  it.append(l1,prev);
- const marks=rowMarks(c);if(marks.length){const tags=el('div','tags');marks.forEach(f=>{const t=el('span','tag'+(f.hot?' flagtag':''),f.text);if(f.title)t.title=f.title;tags.append(t)});it.append(tags)}
+ const marks=rowMarks(c);if(marks.length||grp==='all'){const tags=el('div','tags');if(grp==='all'){const ct=chTag(c.origin);if(c.shop)ct.title=c.shop;tags.append(ct)}marks.forEach(f=>{const t=el('span','tag'+(f.hot?' flagtag':''),f.text);if(f.title)t.title=f.title;tags.append(t)});it.append(tags)}
  const bucketLab=otherBucket||(MODE==='inbox'&&scope==='all'&&bucketOf(c)!=='inbox'?bucketOf(c):'');
  if(bucketLab&&MODES[bucketLab])it.append(el('div','foot',MODES[bucketLab].title));
  box.append(it)}
