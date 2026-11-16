@@ -1490,7 +1490,7 @@ function drawChips(){setTitle();const side=$('chside');if(!side)return;side.inne
  const box=el('div','morebox');box.hidden=!moreOpen;mb.onclick=()=>{moreOpen=!moreOpen;drawChips()};
  more.forEach(p=>box.append(chButton(p[0],p[1])));wrap.append(mb,box);side.append(wrap);
  const scopebar=$('scopebar');scopebar.innerHTML='';scopebar.style.display=MODE==='inbox'?'':'none';
- if(MODE==='inbox'){[['needs','Needs reply'],['all','All']].forEach(([k,lab])=>{const b=el('button',scope===k?'on':'',lab);b.type='button';b.setAttribute('aria-pressed',scope===k?'true':'false');b.onclick=()=>{scope=k;writeFilterUrl();drawChips();drawList()};scopebar.append(b)})}
+ if(MODE==='inbox'){[['needs','Needs reply'],['all','Incl. waiting & resolved']].forEach(([k,lab])=>{const b=el('button',scope===k?'on':'',lab);b.type='button';b.title=k==='all'?'Also shows tickets waiting on the customer and resolved tickets, labelled Waiting or Resolved':'Only tickets that need a reply from us';b.setAttribute('aria-pressed',scope===k?'true':'false');b.onclick=()=>{scope=k;writeFilterUrl();drawChips();drawList()};scopebar.append(b)})}
  const shops=$('shopbar');shops.innerHTML='';
  if(grp==='tiktok'){const g=GROUPS.find(x=>x[0]==='tiktok');const tot=convs.filter(c=>inScope(c)&&g[2](c.origin)).length;
   const all=el('button','chip'+(!sub?' on':''),'All');all.type='button';all.append(el('small',null,tot));all.onclick=()=>setFilter('tiktok','');shops.append(all);
@@ -1538,7 +1538,7 @@ function rowFor(c,box,otherBucket){const un=!otherBucket&&isUnread(c);const it=e
  it.append(l1,prev);
  const marks=rowMarks(c);if(marks.length||grp==='all'){const tags=el('div','tags');if(grp==='all'){const ct=chTag(c.origin);if(c.shop)ct.title=c.shop;tags.append(ct)}marks.forEach(f=>{const t=el('span','tag'+(f.hot?' flagtag':''),f.text);if(f.title)t.title=f.title;tags.append(t)});it.append(tags)}
  const bucketLab=otherBucket||(MODE==='inbox'&&scope==='all'&&bucketOf(c)!=='inbox'?bucketOf(c):'');
- if(bucketLab&&MODES[bucketLab])it.append(el('div','foot',MODES[bucketLab].title));
+ if(bucketLab&&MODES[bucketLab]){const f=el('div','foot');f.append(el('span','tag st-'+(bucketLab==='resolved'?'resolved':'awaiting_customer'),(bucketLab==='resolved'?'✅ ':'⏳ ')+MODES[bucketLab].title));it.append(f);if(bucketLab==='resolved')it.style.opacity='.7'}
  box.append(it)}
 function showElsewhere(c){const box=document.getElementById('elsewhere');if(!box)return;box.innerHTML='';box.className='';const b=bucketOf(c);
  if(b===MODE)return;if(MODE==='inbox'&&scope==='all'&&(b==='inbox'||b==='waiting'||b==='resolved'))return;
