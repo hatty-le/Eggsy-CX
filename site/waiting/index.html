@@ -22,7 +22,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:14p
 input,select{font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#fff;width:100%}
 #auth input{margin:10px 0}
 .msg{font-size:14px;color:var(--muted);min-height:20px}
-#app{display:none;max-width:1280px;margin:0 auto;padding:0 24px 24px}
+#app{display:none;max-width:1480px;margin:0 auto;padding:0 16px 16px}
 .toolbar{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
 .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
 .chip{flex:none;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
@@ -149,6 +149,57 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
 }
 @media (max-width:900px){.layout{height:calc(100vh - 220px)}}
 @media (max-width:760px){.layout{height:auto}}
+.inboxapp{display:none;grid-template-columns:176px minmax(0,1fr);gap:14px;align-items:start}
+.inboxmain{min-width:0}
+.chside{position:sticky;top:8px;display:flex;flex-direction:column;gap:4px}
+.chside-h{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:4px 10px}
+.chbtn{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:transparent;border:0;border-radius:12px;padding:8px 10px;font:inherit;font-weight:650;font-size:14px;cursor:pointer;color:var(--ink)}
+.chbtn:hover{background:#fff}.chbtn.on{background:var(--yolk);font-weight:800}
+.chcount{margin-left:auto;min-width:20px;text-align:center;background:#1d1b26;color:#fff;border-radius:999px;font-size:11px;font-weight:800;padding:1px 6px}
+.chbtn.on .chcount{background:#1d1b26}
+.moretoggle{color:var(--muted);font-weight:650;font-size:13px}
+.morebox{display:flex;flex-direction:column;gap:2px;padding-left:8px}
+.workbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.workbar #q{flex:1;min-width:180px}
+.filterwrap{position:relative}
+.filtermenu{position:absolute;z-index:20;top:40px;left:0;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.08);padding:8px;min-width:220px;display:flex;flex-direction:column;gap:2px}
+.filtermenu[hidden]{display:none}
+.filtermenu .flab{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:8px 8px 2px}
+.fitem{text-align:left;background:#fff;border:0;border-radius:8px;padding:7px 8px;font:inherit;font-size:13.5px;cursor:pointer}
+.fitem:hover{background:#fffaf0}.fitem.on{background:#FFF3D1;font-weight:750}
+.item{padding:10px 12px}
+.item .preview{font-size:13.5px;color:#5c5868;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.item.unread .name,.item.unread .preview{font-weight:800;color:var(--ink)}
+.avatar{width:28px;height:28px;border-radius:50%;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:none}
+.topacts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.topacts .btn{padding:7px 12px}
+.notespanel{background:#FFF9EC;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:13.5px}
+.notespanel[hidden]{display:none}
+.notespanel .noteitem{padding:8px 0;border-top:1px solid var(--line);white-space:pre-wrap}
+.mailcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:10px 0}
+.mailcard.out{background:#FFF9EC}
+.mailcard .mh{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted);margin-bottom:8px}
+.mailcard .mh b{color:var(--ink);font-size:14px}
+.mailcard .mb{white-space:pre-wrap;font-size:15px;line-height:1.5;word-wrap:break-word}
+.orderstrip,.ordercard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px}
+.orderstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px 14px;margin:0 0 12px}
+.orderstrip span,.ordercard .ol{display:block;font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.orderstrip b,.ordercard .ov{font-size:14px;font-weight:700;word-break:break-word}
+.threadgrid{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:12px;align-items:start}
+.ordercard .ov{font-weight:650;line-height:1.35}
+.ordercard .actbtns{margin-top:10px}
+.tpls{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+.showen{font:inherit;font-size:12.5px;background:none;border:0;padding:0;color:#2a5bd7;cursor:pointer;text-decoration:underline;margin-top:6px}
+.entr{white-space:pre-wrap;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);color:#3a3746}
+.subjectline{margin:0 0 8px;font-size:22px;line-height:1.25}
+@media (max-width:900px){
+ .inboxapp{grid-template-columns:1fr}
+ .chside{position:static;flex-direction:row;overflow-x:auto;padding-bottom:6px}
+ .chside-h{display:none}
+ .morewrap,.morebox{display:contents}
+ .chbtn{width:auto;white-space:nowrap;background:#fff;border:1px solid var(--line)}
+ .threadgrid{grid-template-columns:1fr}
+}
 
 .actbox{margin:12px 0;border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff}
 .actbox h3{margin:0 0 8px;font-size:15px}
@@ -189,22 +240,31 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
  <p class="msg" id="amsg" role="status"></p>
 </section>
 
-<main id="app">
- <p class="pintro" id="pintro"></p>
- <div class="toolbar">
-  <div class="chips" id="chips" aria-label="Channel"></div>
-  <div class="chips sub" id="subchips" aria-label="Marketplace or shop"></div>
-  <div class="chips draft" id="draftchips" aria-label="Draft readiness"></div>
-  <div class="row2"><input id="q" type="search" placeholder="Search Inbox, Waiting and Resolved: name, email, order, or any words in the messages…"></div>
- </div>
- <div class="layout" id="layout">
-  <div class="card" id="list"></div>
-  <div class="card" id="thread"><div class="empty">Pick a conversation to see the full history.</div></div>
+<main id="app" class="inboxapp">
+ <aside class="chside" id="chside" aria-label="Channels"></aside>
+ <div class="inboxmain">
+  <p class="pintro" id="pintro"></p>
+  <div class="toolbar">
+   <div class="workbar">
+    <div class="seg" id="scopebar" role="group" aria-label="Which conversations"></div>
+    <div class="chips sub" id="shopbar" aria-label="Shop"></div>
+    <div class="filterwrap">
+     <button type="button" class="btn ghost" id="filterbtn">Filter</button>
+     <div class="filtermenu" id="filtermenu" hidden></div>
+    </div>
+    <input id="q" type="search" placeholder="Search name, email, order, or words in the messages…">
+   </div>
+  </div>
+  <div class="layout" id="layout">
+   <div class="card" id="list"></div>
+   <div class="card" id="thread"><div class="empty">Pick a conversation.</div></div>
+  </div>
  </div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/prefill.js"></script>
+<script src="/cx-display.js"></script>
 <script>
 const SUPABASE_URL='https://xodkbmtylftfmnxfnxxf.supabase.co';
 const SUPABASE_KEY='sb_publishable_gX9OKDCT6Opnt8OcsFRmiQ_xaM0O8ti'; // public publishable key: safe in the browser, data is protected by RLS
@@ -218,7 +278,7 @@ const SUBS={amazon:[['amazon_uk','UK',1],['amazon_us','US',1],['amazon_de','DE',
  meta:[['instagram','Instagram',1],['facebook','Facebook',1]]};
 const groupOf=o=>(GROUPS.find(g=>g[0]!=='all'&&g[2](o))||['other'])[0];
 const STATUS={open:'Open',awaiting_approval:'Awaiting approval',awaiting_customer:'Awaiting customer',resolved:'Resolved',ignored:'Junk'};
-let convs=[],grp='all',sub='',dft='',draftMap={},msgHits={},readMap={},unreadOnly=false,ME='',lastSync=null,sel=null,qmap={},langMap={},emailCh={},stMap={};
+let convs=[],grp='email',sub='',dft='',scope='needs',draftMap={},msgHits={},readMap={},unreadOnly=false,ME='',lastSync=null,sel=null,qmap={},langMap={},emailCh={},stMap={},previewMap={};
 // One page, three views: /inbox/ (needs a reply from us), /waiting/ (we replied, waiting on the customer), /resolved/.
 // The bucket comes from the cx_conversation_state view in Supabase, so the nav counts and the lists always agree.
 const MODES={inbox:{title:'Inbox',path:'/inbox/',intro:'Conversations that need a reply from us: the customer wrote last and it isn’t resolved. Newest first, like an email inbox.',empty:'Nothing needs a reply right now. 🎉',statuses:['open','awaiting_approval','awaiting_customer']},
@@ -304,7 +364,7 @@ function render(session){
  if(!email){$('auth').style.display='block';$('app').style.display='none';$('who').innerHTML='';EggsyNav.setUser(null);started=false;return}
  $('who').innerHTML='';
  if(!okEmail(email)){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;EggsyAuth.reject(sb,email,setMsg);return}
- $('auth').style.display='none';$('app').style.display='block';
+ $('auth').style.display='none';$('app').style.display='grid';
  ME=String(email).toLowerCase();EggsyNav.setUser(email,()=>sb.auth.signOut(),sb);
  const ret=EggsyNav.takeReturn();
  if(ret&&ret.startsWith('/sent/')){location.replace(ret);return}
@@ -318,7 +378,7 @@ async function load(){
  $('list').innerHTML='<div class="empty">Loading…</div>';
  const {data,error}=await sb.from('conversations').select('*').order('last_message_at',{ascending:false,nullsFirst:false}).limit(5000);
  if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load: '+error.message));return}
- convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates(),loadDrafts(),loadReads()]);lastSync=new Date().toISOString();drawChips();drawList();startLiveRefresh();
+ convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates(),loadDrafts(),loadReads(),loadPreviews()]);lastSync=new Date().toISOString();drawChips();drawList();startLiveRefresh();
  await openFromUrl();
 }
 // Deep link: /inbox/?c=<conversation_id>
@@ -348,7 +408,7 @@ function startLiveRefresh(){if(liveTimer)return;liveTimer=setInterval(liveRefres
 async function liveRefresh(){if(document.hidden)return;const since=lastSync;lastSync=new Date().toISOString();
  const {data}=await sb.from('conversations').select('*').gt('updated_at',since).limit(500);
  (data||[]).forEach(c=>{const i=convs.findIndex(x=>x.id===c.id);if(i>=0)convs[i]=c;else convs.push(c)});
- await Promise.all([loadStates(),loadDrafts(),loadQueueSummary()]);EggsyNav.refreshCounts&&EggsyNav.refreshCounts();drawChips();drawList()}
+ await Promise.all([loadStates(),loadDrafts(),loadQueueSummary(),loadPreviews()]);EggsyNav.refreshCounts&&EggsyNav.refreshCounts();drawChips();drawList()}
 async function loadEmailCh(){emailCh={};const {data}=await sb.from('email_send_channels').select('origin,enabled');(data||[]).forEach(r=>{if(r.enabled)emailCh[r.origin]=true})}
 async function loadLangs(){const m={};
  const {data}=await sb.from('messages').select('conversation_id,language').neq('language','en').not('language','is',null).limit(5000);
@@ -357,10 +417,12 @@ async function loadQueueSummary(){qmap={};
  const {data}=await sb.from('reply_queue').select('conversation_id,status').in('status',['queued','sending','failed']);
  (data||[]).forEach(r=>{const cur=qmap[r.conversation_id];if(!cur||r.status==='failed')qmap[r.conversation_id]=r.status});}
 // Filters: ?ch=<channel>&sub=<origin> (kept alongside ?c=<conversation>)
-function readFilterUrl(){const u=new URLSearchParams(location.search);const g=u.get('ch')||'all';grp=GROUPS.some(x=>x[0]===g)?g:'all';
- const s2=u.get('sub')||'';sub=(SUBS[grp]||[]).some(x=>x[0]===s2)?s2:'';const d=u.get('draft')||'';dft=['ready','gaps','none'].includes(d)?d:''}
+function readFilterUrl(){const u=new URLSearchParams(location.search);const g=u.get('ch')||'email';grp=(g!=='all'&&GROUPS.some(x=>x[0]===g))?g:'email';
+ const s2=u.get('sub')||'';sub=(SUBS[grp]||[]).some(x=>x[0]===s2)?s2:'';const d=u.get('draft')||'';dft=['ready','gaps','none'].includes(d)?d:'';
+ scope=u.get('scope')==='all'?'all':'needs';unreadOnly=u.get('unread')==='1'}
 function writeFilterUrl(){const u=new URLSearchParams(location.search);
  if(grp&&grp!=='all')u.set('ch',grp);else u.delete('ch');if(sub)u.set('sub',sub);else u.delete('sub');if(dft)u.set('draft',dft);else u.delete('draft');
+ if(scope==='all')u.set('scope','all');else u.delete('scope');if(unreadOnly)u.set('unread','1');else u.delete('unread');
  const qs=u.toString();history.replaceState(history.state,'',location.pathname+(qs?'?'+qs:''))}
 function setFilter(g,s2){grp=g;sub=s2||'';writeFilterUrl();drawChips();drawList()}
 function drawChips(){const box=$('chips');box.innerHTML='';
@@ -594,7 +656,7 @@ const lsGet=id=>{try{return JSON.parse(localStorage.getItem(LSK(id))||'{}')||{}}
 const lsSet=(id,v)=>{try{localStorage.setItem(LSK(id),JSON.stringify(v))}catch(e){}};
 const SIGNOFF='\n\nBest regards,\nThe Lucky Egg Team';
 function composer(c,sug){const w=el('div','composer');const ch=channel(c);
- w.append(el('h3',null,ch.label));
+ w.append(el('h3',null,'Reply'));
  const isEmail=EMAIL_ORIGINS.includes(c.origin);const to=isEmail?(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.customer_handle||'')?c.customer_handle:''):(c.customer_handle||c.customer_name||'');
  w.append(el('div','to',[ 'Shop: '+(c.shop||'–'), to?('To: '+to):'', c.order_number?('Order: '+c.order_number):'' ].filter(Boolean).join(' · ')+(ch.how?' · '+ch.how:'')));
  let blocked=false;
@@ -611,35 +673,50 @@ function composer(c,sug){const w=el('div','composer');const ch=channel(c);
   else if(st.text!=null){lbl.className='lbl edit';lbl.textContent='Your unsent reply (saved on this device)';lbl.style.display=''}
   else if(cur){lbl.className='lbl';lbl.textContent='Eggsy’s suggested reply, edit freely. Nothing is sent until you press Send.';lbl.style.display=''}
   else lbl.style.display='none'};
- const loadSug=()=>{ta.value=sug.body||'';cur=sug.id;const st=lsGet(c.id);delete st.text;st.draftId=sug.id;lsSet(c.id,st);newer.style.display='none';setLabel();drawTr();phCheck()};
+ const loadSug=()=>{ta.value=sug.body||'';cur=sug.id;if(sug.gaps)ta.dataset.gapbase=sug.body||'';else delete ta.dataset.gapbase;const st=lsGet(c.id);delete st.text;st.draftId=sug.id;lsSet(c.id,st);newer.style.display='none';setLabel();drawTr();phCheck()};
  const trBox=el('div');
  const drawTr=()=>{trBox.innerHTML='';if(!(cur&&sug&&sug.body_en))return;const d=el('details','tr');d.open=true;
-  d.open=trMode()==='en';d.append(el('summary',null,'English translation'+(sug.language?' (reply is in '+langName(sug.language)+')':'')+', for reference only, not sent'),el('div',null,sug.body_en));trBox.append(d)};
+  d.open=trMode()==='en';d.append(el('summary',null,'English, for you'+(sug.language?' (the reply is in '+langName(sug.language)+')':'')+'. This is not sent.'),el('div',null,sug.body_en));trBox.append(d)};
  const onTr=()=>{if(!w.isConnected){document.removeEventListener('eggsy-tr',onTr);return}drawTr()};document.addEventListener('eggsy-tr',onTr);
- if(st0.text!=null){ta.value=st0.text;cur=sug&&st0.draftId===sug.id?sug.id:null;
+ if(st0.text!=null){const saved=window.EggsyDisplay?EggsyDisplay.splitDraft(st0.text):{text:st0.text,gaps:false};ta.value=saved.text;if(saved.gaps)ta.dataset.gapbase=saved.text;cur=sug&&st0.draftId===sug.id?sug.id:null;
   if(sug&&st0.draftId!==sug.id){newer.append(document.createTextNode('Eggsy has a newer suggested reply.'));const lb=el('button','btn ghost','Replace my text with it');lb.type='button';lb.onclick=()=>{if(confirm('Replace what you have written with Eggsy’s newer suggestion?'))loadSug()};newer.append(lb);newer.style.display=''}}
- else if(sug){ta.value=sug.body||'';cur=sug.id}
+ else if(sug){ta.value=sug.body||'';cur=sug.id;if(sug.gaps)ta.dataset.gapbase=sug.body||''}
  else ta.value=SIGNOFF;
  ta.oninput=()=>{const st=lsGet(c.id);if(cur&&sug&&ta.value===sug.body){delete st.text}else if(!cur&&ta.value===SIGNOFF){delete st.text}else{st.text=ta.value;st.draftId=cur||st.draftId||null}lsSet(c.id,st);setLabel();phCheck()};
  const req=el('label','req');const reqc=el('input');reqc.type='checkbox';reqc.id='requires_action';req.title='Optional. It does not block Send. A reply that promises a replacement, refund or return adds a pending action to the ticket automatically.';req.append(reqc,document.createTextNode(' This reply promises a replacement, refund or return'));
- w.append(newer,lbl,ta,trBox,req);setLabel();drawTr();
+ const tplHost=el('div','tpls');
+ if(String(c.origin).startsWith('amazon')&&window.EggsyDisplay){
+  const lang=c._replyLang||EggsyDisplay.replyLang(c.origin,null,'');
+  const first=(c.customer_name||'').trim().split(/\s+/)[0]||'';
+  const name=/^[A-Za-zÀ-ÿ'’-]{2,24}$/.test(first)?first:'';
+  EggsyDisplay.amazonTemplates(lang,name,c.order_number||'').forEach(function(tp){
+   const b=el('button','chip',tp.label);b.type='button';
+   b.onclick=function(){delete ta.dataset.gapbase;cur=null;ta.value=tp.body;ta.dispatchEvent(new Event('input'));ta.focus()};
+   tplHost.append(b)});
+ }
+ w.append(tplHost,newer,lbl,ta,trBox,req);setLabel();drawTr();
  const bar=el('div','bar');const go=el('button','btn','Send');go.disabled=blocked;go.type='button';
- const clr=el('button','btn ghost',sug?'Discard draft':'Clear');clr.type='button';
- clr.onclick=()=>{if(ta.value.trim()&&ta.value!==SIGNOFF&&!confirm(cur?'Discard Eggsy’s suggested reply? You can write your own instead.':'Clear what you have written?'))return;
+ const clr=el('button','btn ghost','Discard');clr.type='button';
+ clr.onclick=()=>{if(ta.value.trim()&&ta.value!==SIGNOFF&&!confirm(cur?'Discard this reply? You can write your own instead.':'Clear what you have written?'))return;
   const st=lsGet(c.id);delete st.text;if(cur){st.dismissed=[...(st.dismissed||[]),cur].slice(-20)}st.draftId=null;lsSet(c.id,st);
-  cur=null;ta.value=SIGNOFF;clr.textContent='Clear';setLabel();drawTr();ta.focus();ta.setSelectionRange(0,0);phCheck()};
+  cur=null;delete ta.dataset.gapbase;ta.value=SIGNOFF;setLabel();drawTr();ta.focus();ta.setSelectionRange(0,0);phCheck()};
  const stm=el('span','msg');bar.append(go,clr,stm);w.append(bar);
  // Placeholder guard: never send while [ ... ] items remain (the database refuses them too).
  // A promised replacement, refund or return does not block Send.
- const PH_MSG='Fill in the [ ] items first';
- function phCheck(){const has=PH_RE.test(ta.value);go.disabled=blocked||has;go.title=has?PH_MSG:'';
-  if(has){stm.style.color='#b3261e';stm.textContent=PH_MSG+' ('+(ta.value.match(PH_RE_G)||[]).length+' left)'}else if(stm.textContent.indexOf(PH_MSG)===0){stm.textContent='';stm.style.color=''}
+ const PH_MSG='Notes in [brackets] stay in Eggsy notes. Take them out before sending.';
+ const GAP_MSG='This reply still has gaps. The notes are under Eggsy notes. Edit the reply before sending.';
+ function phCheck(){const has=PH_RE.test(ta.value);const gap=!!(ta.dataset.gapbase&&ta.value.trim()===ta.dataset.gapbase.trim());go.disabled=blocked||has||gap;go.title=has?PH_MSG:(gap?GAP_MSG:'');
+  if(has){stm.style.color='#b3261e';stm.textContent=PH_MSG+' ('+(ta.value.match(PH_RE_G)||[]).length+' left)'}
+  else if(gap){stm.style.color='#b3261e';stm.textContent=GAP_MSG}
+  else if(stm.textContent.indexOf(PH_MSG)===0||stm.textContent===GAP_MSG){stm.textContent='';stm.style.color=''}
   if(typeof syncReplacementButton==='function') syncReplacementButton();}
  reqc.onchange=phCheck;
  phCheck();
- go.onclick=async()=>{const body=ta.value.trim();
+ go.onclick=async()=>{const rawBody=ta.value.trim();
+  const cleaned=window.EggsyDisplay?EggsyDisplay.splitDraft(rawBody):{text:rawBody,notes:[]};
+  const body=(cleaned.text||'').trim();
   if(!body||body===SIGNOFF.trim()){stm.textContent='Write a reply first.';stm.style.color='#b3261e';return}
-  if(PH_RE.test(body)){phCheck();return}
+  if(cleaned.notes.length||PH_RE.test(body)){phCheck();stm.style.color='#b3261e';stm.textContent=PH_MSG;return}
   if(!confirm('Send this reply?\n\n'+ch.label+(to?' to '+to:'')+'\nShop: '+(c.shop||'–')+(ch.instant?'\n\nIt is sent exactly as written, straight away.'+(/^(amazon|tiktok|walmart)/.test(c.origin)?' Replies with links to our sites, review requests or marketing are held back for you to edit.':''):'\n\nEggsy posts it exactly as written at its next check (not instantly). You can cancel until then.')))return;
   go.disabled=true;stm.style.color='';stm.textContent='Sending to Eggsy…';
   const {error}=await sb.from('reply_queue').insert({conversation_id:c.id,body,requires_action:!!reqc.checked});
@@ -1309,6 +1386,218 @@ async function kbFor(c,t){const d=el('details','kbbox elog');d.append(el('summar
   data.forEach(a=>{const li=el('li');const l=el('a',null,a.title);l.href='/knowledge/?a='+a.id;l.target='_blank';li.append(l,el('small',null,' · '+a.category+(a.channel_specific?' · this channel':'')+(a.language!=='en'?' · '+a.language.toUpperCase():'')));ul.append(li)})}}
 async function refreshAfterQueue(id){await Promise.all([loadQueueSummary(),loadDrafts()]);await loadStates();EggsyNav.refreshCounts();drawChips();drawList();if(sel!==id)return;await openConv(id,false);
  const qb=[...document.querySelectorAll('#thread .bubble.q-queued,#thread .bubble.qqueued')].pop();if(qb)qb.scrollIntoView({block:'center'})}
+async function loadPreviews(){const {data,error}=await sb.from('cx_latest_inbound').select('conversation_id,preview,customer_at');
+ if(error){console.warn('preview',error.message);return}
+ previewMap={};(data||[]).forEach(r=>{previewMap[r.conversation_id]=r})}
+function customerAt(c){const p=previewMap[c.id];if(p&&p.customer_at)return p.customer_at;const x=stMap[c.id];return (x&&x.last_customer_at)||null}
+function inScope(c){if(MODE!=='inbox')return inMode(c);const b=bucketOf(c);if(scope==='all')return b==='inbox'||b==='waiting'||b==='resolved';return b==='inbox'}
+function messageWhen(m,origin){if(m.platform_sent_at)return m.platform_sent_at;if(m.body_raw&&window.EggsyDisplay){const t=EggsyDisplay.tiktokCustomerAt(m.body_raw,m.sent_at,origin);if(t)return t}return m.sent_at}
+let moreOpen=false,filterOpen=false;
+function channelUnread(fn){return convs.filter(c=>bucketOf(c)==='inbox'&&fn(c.origin)&&isUnread(c)).length}
+function drawChips(){setTitle();const side=$('chside');if(!side)return;side.innerHTML='';
+ side.append(el('div','chside-h','Channels'));
+ const primary=[['email','Email'],['tiktok','TikTok'],['amazon','Amazon']];
+ const more=[['forms','Web forms'],['walmart','Walmart'],['meta','Facebook & Instagram']];
+ if(more.some(x=>x[0]===grp))moreOpen=true;
+ function chButton(k,label){const g=GROUPS.find(x=>x[0]===k);const n=channelUnread(g[2]);const b=el('button','chbtn'+(grp===k?' on':''));b.type='button';b.setAttribute('aria-pressed',grp===k?'true':'false');
+  b.append(el('span',null,label));if(n){const c=el('span','chcount',String(n));c.title=n+' unread';b.append(c)}
+  b.onclick=()=>{filterOpen=false;setFilter(k,'')};return b}
+ primary.forEach(p=>side.append(chButton(p[0],p[1])));
+ const wrap=el('div','morewrap');const mb=el('button','chbtn moretoggle',moreOpen?'More channels ▾':'More channels ▸');mb.type='button';mb.setAttribute('aria-expanded',moreOpen?'true':'false');
+ const box=el('div','morebox');box.hidden=!moreOpen;mb.onclick=()=>{moreOpen=!moreOpen;drawChips()};
+ more.forEach(p=>box.append(chButton(p[0],p[1])));wrap.append(mb,box);side.append(wrap);
+ const scopebar=$('scopebar');scopebar.innerHTML='';scopebar.style.display=MODE==='inbox'?'':'none';
+ if(MODE==='inbox'){[['needs','Needs reply'],['all','All']].forEach(([k,lab])=>{const b=el('button',scope===k?'on':'',lab);b.type='button';b.setAttribute('aria-pressed',scope===k?'true':'false');b.onclick=()=>{scope=k;writeFilterUrl();drawChips();drawList()};scopebar.append(b)})}
+ const shops=$('shopbar');shops.innerHTML='';
+ if(grp==='tiktok'){const g=GROUPS.find(x=>x[0]==='tiktok');const tot=convs.filter(c=>inScope(c)&&g[2](c.origin)).length;
+  const all=el('button','chip'+(!sub?' on':''),'All');all.type='button';all.append(el('small',null,tot));all.onclick=()=>setFilter('tiktok','');shops.append(all);
+  SUBS.tiktok.forEach(([o,lab])=>{const n=convs.filter(c=>inScope(c)&&c.origin===o).length;const b=el('button','chip'+(sub===o?' on':''),lab);b.type='button';b.append(el('small',null,n));b.onclick=()=>setFilter('tiktok',o);shops.append(b)})}
+ const menu=$('filtermenu');menu.innerHTML='';menu.hidden=!filterOpen;
+ function addItem(label,on,fn){const b=el('button','fitem'+(on?' on':''),label);b.type='button';b.onclick=e=>{e.stopPropagation();fn()};menu.append(b)}
+ if(MODE==='inbox'){addItem(unreadOnly?'Unread only ✓':'Unread only',unreadOnly,()=>{unreadOnly=!unreadOnly;writeFilterUrl();drawChips();drawList()});
+  menu.append(el('div','flab','Draft'));
+  [['','Any'],['ready','Ready to send'],['gaps','Has gaps'],['none','No draft']].forEach(([k,lab])=>addItem(lab,dft===k,()=>{dft=k;writeFilterUrl();drawChips();drawList()}))}
+ if(SUBS[grp]&&grp!=='tiktok'){menu.append(el('div','flab',grp==='amazon'?'Marketplace':'Account'));
+  addItem('All',!sub,()=>setFilter(grp,''));
+  SUBS[grp].forEach(([o,lab,always])=>{const n=convs.filter(c=>inScope(c)&&c.origin===o).length;if(!n&&!always)return;addItem(lab+' ('+n+')',sub===o,()=>setFilter(grp,o))})}
+ const fb=$('filterbtn');const active=!!(unreadOnly||dft||(sub&&grp!=='tiktok'));fb.classList.toggle('on',active);fb.textContent=active?'Filter · on':'Filter';
+ const intro=$('pintro');
+ if(MODE==='inbox'&&grp==='email')intro.textContent='Like Gmail. The customer’s email is on the right, and your reply sits underneath.';
+ else if(MODE==='inbox'&&grp==='tiktok')intro.textContent='Like TikTok Shop chat. UK, US and EU are the buttons above. The order we already have sits next to the chat.';
+ else if(MODE==='inbox'&&grp==='amazon')intro.textContent='Like Buyer-Seller Messages, soonest reply deadline first. Amazon expects a reply within 24 hours.';
+ else if(MODE==='inbox')intro.textContent='Conversations that need a reply. Newest customer message first.';
+ else intro.textContent=MODES[MODE].intro}
+function drawDraftChips(){setTitle()}
+function elsewhere(){const q=$('q').value.trim().toLowerCase();if(!q)return [];return convs.filter(c=>!inScope(c)&&chMatch(c)&&qMatch(c,q)).sort((a,b)=>new Date(customerAt(b)||0)-new Date(customerAt(a)||0))}
+function visible(){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const q=$('q').value.trim().toLowerCase();
+ const v=convs.filter(c=>inScope(c)&&g[2](c.origin)&&(!sub||c.origin===sub)&&(MODE!=='inbox'||!dft||draftState(c)===dft)&&(!unreadOnly||isUnread(c))&&qMatch(c,q));
+ const stamp=c=>{const t=customerAt(c);return t?new Date(t).getTime():null};
+ if(grp==='amazon'&&MODE==='inbox'&&scope==='needs')v.sort((a,b)=>(stamp(a)??1e15)-(stamp(b)??1e15));
+ else v.sort((a,b)=>(stamp(b)??0)-(stamp(a)??0));
+ return v}
+function rowMarks(c){const marks=[];
+ if(c.flag)marks.push({text:'Needs attention',hot:true,title:c.flag});
+ if(qmap[c.id]==='failed')marks.push({text:'Reply failed',hot:true,title:'The last reply did not send'});
+ const at=customerAt(c);
+ if(String(c.origin).startsWith('amazon')&&bucketOf(c)==='inbox'&&window.EggsyDisplay){const left=EggsyDisplay.deadlineLeft(at,24,4);if(left)marks.push({text:left.text,hot:!!left.hot,title:'Amazon expects a reply within 24 hours of the customer’s message'})}
+ else if(c.origin==='walmart'&&window.EggsyDisplay){const left=EggsyDisplay.deadlineLeft(at,48,8);if(left&&left.hot)marks.push({text:left.text,hot:true,title:'Walmart expects a reply within 48 hours'})}
+ return marks}
+function avatarFor(name){const parts=String(name||'?').trim().split(/\s+/).filter(Boolean);const letters=((parts[0]||'?')[0]+(parts[1]?parts[1][0]:'')).toUpperCase();
+ const hue=[...String(name||'?')].reduce((n,ch)=>n+ch.charCodeAt(0),0)%360;const d=el('span','avatar',letters.slice(0,2));d.style.background='hsl('+hue+' 42% 38%)';d.setAttribute('aria-hidden','true');return d}
+function rowFor(c,box,otherBucket){const un=!otherBucket&&isUnread(c);const it=el('div','item'+(sel===c.id?' sel':'')+(un?' unread':''));it.tabIndex=0;it.onclick=()=>openConv(c.id,true);it.onkeydown=e=>{if(e.key==='Enter')openConv(c.id,true)};
+ const l1=el('div','line1');if(String(c.origin).startsWith('tiktok'))l1.append(avatarFor(c.customer_name||c.customer_handle||'?'));
+ const nm=el('span','name',c.customer_name||c.customer_handle||'Unknown');const when=el('span','when',fmt(customerAt(c)));when.title='Customer wrote '+fmt(customerAt(c))+' UK';
+ l1.append(nm,when);
+ const line=(previewMap[c.id]&&previewMap[c.id].preview)||'';
+ const prev=el('div','preview',line||'');if(!line)prev.style.display='none';
+ it.append(l1,prev);
+ const marks=rowMarks(c);if(marks.length){const tags=el('div','tags');marks.forEach(f=>{const t=el('span','tag'+(f.hot?' flagtag':''),f.text);if(f.title)t.title=f.title;tags.append(t)});it.append(tags)}
+ const bucketLab=otherBucket||(MODE==='inbox'&&scope==='all'&&bucketOf(c)!=='inbox'?bucketOf(c):'');
+ if(bucketLab&&MODES[bucketLab])it.append(el('div','foot',MODES[bucketLab].title));
+ box.append(it)}
+function showElsewhere(c){const box=document.getElementById('elsewhere');if(!box)return;box.innerHTML='';box.className='';const b=bucketOf(c);
+ if(b===MODE)return;if(MODE==='inbox'&&scope==='all'&&(b==='inbox'||b==='waiting'||b==='resolved'))return;
+ box.className='elsewhere';box.append(el('span',null,'This conversation is in '+MODES[b].title+'.'));const a=el('a',null,'Open it in '+MODES[b].title+' →');a.href=MODES[b].path+'?c='+c.id;box.append(a)}
+function threadKind(origin){if(origin==='email_hey'||origin==='shopify_form'||origin==='wix_mmc_form')return 'mail';if(String(origin).startsWith('amazon'))return 'seller';return 'bubble'}
+function addEnglish(host,m){if(!window.EggsyDisplay)return;const foreign=(m.body_en&&m.language&&m.language!=='en')||EggsyDisplay.looksNonEnglish(m.body,m.language);if(!foreign||m.direction!=='inbound')return;
+ const btn=el('button','showen','Show in English');btn.type='button';const hold=el('div','entr');hold.hidden=true;
+ btn.onclick=async()=>{if(!hold.hidden){hold.hidden=true;btn.textContent='Show in English';return}
+  let en=m.body_en;if(!en){btn.disabled=true;btn.textContent='Translating…';
+   try{const {data:{session}}=await sb.auth.getSession();if(!session)throw new Error('Not signed in');
+    const r=await fetch(SUPABASE_URL+'/functions/v1/translate-message',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token,apikey:SUPABASE_KEY},body:JSON.stringify({message_id:m.id})});
+    const j=await r.json();if(j&&j.body_en){en=j.body_en;m.body_en=en;if(j.language)m.language=j.language}else if(j&&j.language==='en'){btn.disabled=false;btn.textContent='Already English';return}else{btn.disabled=false;btn.textContent=j&&j.error==='not_configured'?'Translation isn’t set up yet':'Could not translate';return}}
+   catch(e){btn.disabled=false;btn.textContent='Could not translate';return}btn.disabled=false}
+  hold.hidden=false;hold.textContent=en;btn.textContent='Hide English'};
+ host.append(btn,hold)}
+function orderFacts(c,msgs){const raws=(msgs||[]).map(m=>m.body_raw||'').filter(Boolean);
+ if(String(c.origin).startsWith('tiktok')){const best={orderId:c.order_number||'',game:'',status:''};
+  raws.forEach(raw=>{const o=EggsyDisplay.tiktokOrder(raw);if(o.orderId)best.orderId=o.orderId;if(o.game)best.game=o.game;if(o.status)best.status=o.status});return {kind:'tiktok',fields:[['Order',best.orderId],['Game',best.game],['Status',best.status]]}}
+ if(String(c.origin).startsWith('amazon')){let best=EggsyDisplay.amazonOrder('',{orderNumber:c.order_number||'',marketplace:ORIGINS[c.origin]||c.shop||''});
+  raws.forEach(raw=>{const o=EggsyDisplay.amazonOrder(raw,{orderNumber:best.orderId,marketplace:best.marketplace});if(o.orderId)best.orderId=o.orderId;if(o.game)best.game=o.game;if(o.shipped)best.shipped=o.shipped;if(o.fulfilment)best.fulfilment=o.fulfilment});
+  return {kind:'amazon',fields:[['Order',best.orderId],['Marketplace',best.marketplace],['Game',best.game],['Shipped',best.shipped],['FBA or FBM',best.fulfilment]]}}
+ return null}
+async function closeTicket(c,how){const {error}=await sb.from('conversations').update({status:'resolved',status_changed_at:new Date().toISOString()}).eq('id',c.id);
+ if(error){alert('Could not update: '+error.message);return}
+ c.status='resolved';
+ if(how==='none')await logNote(c,'Marked no response needed. No reply was sent.','note:no-response:'+c.id);
+ await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();
+ if(!inScope(c)){sel=null;document.body.classList.remove('showthread');const t=$('thread');t.innerHTML='';t.append(el('div','empty',how==='none'?'Marked no response needed.':'Marked done.'));drawList()}
+ else openConv(c.id,false)}
+async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;drawChips();drawList();const c=convs.find(x=>x.id===id);const t=$('thread');t.innerHTML='';
+ document.body.classList.add('showthread');
+ if(!c){t.append(el('div','empty','That conversation could not be found.'));return}
+ if(push){const u=new URLSearchParams(location.search);u.set('c',id);history.pushState({c:id},'','?'+u.toString())}
+ const back=el('button','btn ghost back','← All conversations');back.onclick=()=>{if(history.state&&history.state.c)history.back();else{const u=new URLSearchParams(location.search);u.delete('c');history.pushState(null,'',location.pathname+(u.toString()?'?'+u:''));window.onpopstate()}};t.append(back);
+ const top=el('div','topacts');
+ if(bucketOf(c)==='inbox'){const ub=el('button','btn ghost','Mark unread');ub.type='button';ub.onclick=()=>{markRead(c.id,'1970-01-01T00:00:00Z');sel=null;document.body.classList.remove('showthread');$('thread').innerHTML='';$('thread').append(el('div','empty','Marked as unread.'));drawChips();drawList()};top.append(ub)}
+ const done=el('button','btn','Done');done.type='button';done.onclick=()=>closeTicket(c,'done');top.append(done);
+ if(String(c.origin).startsWith('amazon')){const nr=el('button','btn ghost','No response needed');nr.type='button';nr.onclick=()=>closeTicket(c,'none');top.append(nr)}
+ const notesBtn=el('button','btn ghost','Eggsy notes');notesBtn.type='button';top.append(notesBtn);
+ const junk=el('button','btn ghost',c.status==='ignored'?'Not junk':'Junk');junk.type='button';
+ junk.onclick=async()=>{junk.disabled=true;const to=c.status==='ignored'?'open':'ignored';
+  const {error}=await sb.from('conversations').update({status:to,status_changed_at:new Date().toISOString()}).eq('id',c.id);
+  if(error){alert('Could not update: '+error.message);junk.disabled=false;return}
+  c.status=to;await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();drawChips();drawList();openConv(c.id,false)};
+ top.append(junk);
+ const stSel=el('select');stSel.style.width='auto';stSel.style.maxWidth='180px';Object.entries(STATUS).forEach(([k,l])=>{const o=el('option',null,l);o.value=k;if(k===c.status)o.selected=true;stSel.append(o)});
+ stSel.onchange=async()=>{const {error}=await sb.from('conversations').update({status:stSel.value,status_changed_at:new Date().toISOString()}).eq('id',c.id);if(error){alert('Could not update: '+error.message);stSel.value=c.status}else{c.status=stSel.value;await refreshStates();showElsewhere(c)}};
+ top.append(stSel);t.append(top);
+ const notes=el('div','notespanel');notes.hidden=true;notes.id='notesbody';t.append(notes);
+ notesBtn.onclick=()=>{notes.hidden=!notes.hidden;notesBtn.textContent=notes.hidden?'Eggsy notes':'Hide Eggsy notes'};
+ const ew=el('div');ew.id='elsewhere';t.append(ew);showElsewhere(c);
+ if(c.flag){const fb=el('div','flagbar');fb.append(el('span',null,'⚠ '+c.flag));const cb=el('button','btn ghost','Clear flag');cb.type='button';
+  cb.onclick=async()=>{cb.disabled=true;const {error}=await sb.from('conversations').update({flag:null,flagged_at:null}).eq('id',c.id);if(error){alert('Could not clear: '+error.message);cb.disabled=false;return}c.flag=null;fb.remove();drawList()};fb.append(cb);t.append(fb)}
+ const style=threadKind(c.origin);
+ if(style==='mail')t.append(el('h2','subjectline',c.subject||'(no subject)'));
+ else t.append(el('h2','subjectline',c.customer_name||c.customer_handle||'Conversation'));
+ const grid=el('div',style==='bubble'&&String(c.origin).startsWith('tiktok')?'threadgrid':'');
+ const main=el('div','threadmain');const side=el('aside','ordercard');side.hidden=true;
+ const actHost=el('div');actHost.id='acthost';
+ if(String(c.origin).startsWith('tiktok')){grid.append(main,side);t.append(grid)}else t.append(main);
+ askMarty(c,main);
+ const orderHost=String(c.origin).startsWith('amazon')?el('div'):null;if(orderHost)main.append(orderHost);
+ const msgHost=el('div');msgHost.append(el('div','empty','Loading messages…'));main.append(msgHost);
+ const compHost=el('div');main.append(compHost);
+ if(!String(c.origin).startsWith('tiktok'))main.append(actHost);else side.append(actHost);
+ const linked=c.order_number?otherConvs(c).filter(x=>x.origin===c.origin&&(x.order_number||'').trim()===c.order_number.trim()):[];
+ const cols='id,conversation_id,direction,author,body,sent_at,language,body_en,external_id,body_raw,platform_sent_at';
+ let mr=await sb.from('messages').select(cols).in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true});
+ if(mr.error)mr=await sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en,external_id').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true});
+ const [qr,dr,ar]=await Promise.all([
+  sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address').eq('conversation_id',id).order('queued_at',{ascending:true}),
+  sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
+  sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false})]);
+ if(sel!==id)return;
+ actList=(ar&&!ar.error&&ar.data)||[];
+ actThreadMsgs=(mr&&!mr.error&&mr.data)||[];
+ actQueuedReplies=(qr&&!qr.error&&qr.data)||[];
+ const facts=window.EggsyDisplay?orderFacts(c,actThreadMsgs):null;
+ if(facts&&String(c.origin).startsWith('amazon')&&orderHost){const strip=el('div','orderstrip');facts.fields.forEach(([k,v])=>{const d=el('div');d.append(el('span',null,k),el('b',null,v||''));strip.append(d)});orderHost.append(strip)}
+ if(facts&&String(c.origin).startsWith('tiktok')){side.hidden=false;const head=el('div');facts.fields.forEach(([k,v])=>{const d=el('div');d.style.marginTop='8px';d.append(el('span','ol',k),el('div','ov',v||''));head.append(d)});
+  const quick=el('div','actbtns');
+  const rep=el('button','btn','Send replacement');rep.type='button';rep.onclick=()=>openReplacementModal(c,actHost);
+  const refb=el('button','btn ghost','Refund');refb.type='button';refb.onclick=()=>openRefundModal(c,actHost);
+  quick.append(rep,refb);side.insertBefore(head,actHost);side.insertBefore(quick,actHost)}
+ renderActPanel(actHost,c,actList);
+ callCx({action:'refresh_tracking',conversation_id:id}).then(async r=>{if(!r||!r.updated||sel!==id)return;const {data}=await sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false});actList=data||[];renderActPanel(actHost,c,actList)}).catch(()=>{});
+ msgHost.innerHTML='';if(mr.error){msgHost.append(el('div','empty','Could not load: '+mr.error.message));return}
+ const msgs=mr.data||[],qs=qr.error?[]:(qr.data||[]);const byMsg={};qs.forEach(q=>{if(q.message_id)byMsg[q.message_id]=q});
+ const items=msgs.map(m=>({t:m.sent_at,m}));
+ qs.forEach(q=>{if(!(q.message_id&&msgs.some(m=>m.id===q.message_id)))items.push({t:q.sent_at||q.queued_at,q})});
+ items.sort((a,b)=>new Date(a.t)-new Date(b.t));
+ const noteBits=[];
+ if(c.overview)noteBits.push(['Overview',c.overview]);
+ if(c.summary)noteBits.push(['Summary',c.summary]);
+ if(c.subject&&style!=='mail')noteBits.push(['Subject',c.subject]);
+ items.forEach(it=>{
+  if(it.q){msgHost.append(queueBubble(it.q,c));return}
+  const m=it.m;const k=kindOf(m);
+  if(k==='eggsy'||k==='sysnote'||k==='psum'||k==='draft'){noteBits.push([ (m.author||'Eggsy')+' · '+fmt(messageWhen(m,c.origin)), m.body||'' ]);return}
+  const when=fmt(messageWhen(m,c.origin));
+  if(style==='bubble'){const [who,role]=whoLine(m,k,c.origin);const b=el('div','bubble '+(k==='team'||k==='platform'?'outbound '+k:k==='internal'?'internal':k==='inbound'?'inbound':'outbound'));
+   const by=el('div','by');by.append(el('b',null,who),el('span','role',role),document.createTextNode(' · '+when));
+   if(m.conversation_id&&m.conversation_id!==id)by.append(el('span','ltag','Other thread'));
+   const txt=el('div');txt.textContent=cleanBody(m.body);b.append(by,txt);addEnglish(b,m);
+   const lq=byMsg[m.id];if(lq){if(lq.status==='failed')by.append(el('span','badge b-failed','Not delivered'));else by.append(el('span','badge b-sent',lq.send_route==='email'?'Sent by email ✓':'Sent from Eggsy CX'))}
+   if(lq)sentExtras(b,lq,c);if(m.direction==='inbound'&&/^gmail:/.test(m.external_id||''))showAttachments(b,m.external_id);
+   msgHost.append(b);return}
+  const card=el('div','mailcard'+(m.direction==='inbound'?'':' out'));
+  const mh=el('div','mh');const who=m.direction==='inbound'?(m.author||c.customer_name||'Customer'):(m.author||'Lucky Egg');
+  mh.append(el('b',null,who),el('span',null,when+' UK'));card.append(mh);
+  const mb=el('div','mb');mb.textContent=cleanBody(m.body)||'';card.append(mb);addEnglish(card,m);
+  const lq=byMsg[m.id];if(lq)sentExtras(card,lq,c);
+  if(m.direction==='inbound'&&/^gmail:/.test(m.external_id||''))showAttachments(card,m.external_id);
+  msgHost.append(card)});
+ if(!items.length)msgHost.append(el('div','empty','No messages stored.'));
+ let sug=dr&&!dr.error&&dr.data&&dr.data[0]||null;
+ if(!sug){const dm=msgs.filter(m=>m.direction==='draft').pop();if(dm)sug={id:'msg:'+dm.id,body:dm.body,body_en:dm.body_en,language:dm.language,drafted_at:dm.sent_at}}
+ if(sug){const lastOut=Math.max(0,...msgs.filter(m=>m.direction==='outbound').map(m=>+new Date(m.sent_at)),...qs.map(q=>+new Date(q.queued_at)));
+  if(+new Date(sug.drafted_at)<=lastOut)sug=null}
+ let draftNotes=[];
+ if(sug&&window.EggsyDisplay){const parts=EggsyDisplay.splitDraft(sug.body||'');draftNotes=parts.notes;const en=sug.body_en?EggsyDisplay.splitDraft(sug.body_en).text:sug.body_en;
+  sug=Object.assign({},sug,{body:parts.text,body_en:en,gaps:parts.gaps,language:sug.language})}
+ draftNotes.forEach(n=>noteBits.push(['Draft note',n]));
+ const latestIn=[...msgs].reverse().find(m=>m.direction==='inbound'&&m.body&&!/^\[Summary by Eggsy/.test(m.body));
+ c._replyLang=window.EggsyDisplay?EggsyDisplay.replyLang(c.origin,latestIn&&latestIn.language,latestIn&&latestIn.body):'en';
+ if(noteBits.length){noteBits.forEach(([h,body])=>{const d=el('div','noteitem');d.append(el('b',null,h),document.createTextNode('\n'+body));notes.append(d)})}
+ else notes.append(el('div','hint','No Eggsy notes on this conversation.'));
+ const kb=el('details','kbbox');kb.append(el('summary',null,'Knowledge for '+(ORIGINS[c.origin]||c.origin)));notes.append(kb);
+ kb.ontoggle=async()=>{if(!kb.open||kb.dataset.done)return;kb.dataset.done='1';const ul=el('ul');kb.append(ul);ul.append(el('li',null,'Loading…'));
+  const {data,error}=await sb.rpc('kb_for_origin',{p_origin:c.origin});ul.innerHTML='';
+  if(error){ul.append(el('li',null,'Could not load: '+error.message));return}
+  if(!data||!data.length){ul.append(el('li',null,'No published articles yet.'));return}
+  data.forEach(a=>{const li=el('li');const l=el('a',null,a.title);l.href='/knowledge/?a='+a.id;l.target='_blank';li.append(l);ul.append(li)})};
+ compHost.append(composer(c,sug));
+ const oc=otherConvs(c);
+ if(oc.length){const w=el('div','others');w.append(el('div','hist-h','Other conversations with this customer'));
+  oc.forEach(x=>{const a=el('a');a.href='?c='+x.id;a.onclick=e=>{e.preventDefault();openConv(x.id,true)};
+   a.append(el('span','when',fmt(customerAt(x))));a.append(document.createTextNode(x.customer_name||x.subject||x.overview||''));w.append(a)});main.append(w)}
+ t.scrollTop=0}
+async function refreshAfterQueue(id){await Promise.all([loadQueueSummary(),loadDrafts(),loadPreviews()]);await loadStates();EggsyNav.refreshCounts();drawChips();drawList();if(sel!==id)return;await openConv(id,false);
+ const qb=document.querySelector('#thread .bubble.qqueued,#thread .mailcard.out');if(qb)qb.scrollIntoView({block:'center'})}
+if(!window.__eggsyFilterBound){window.__eggsyFilterBound=true;document.addEventListener('click',e=>{const menu=$('filtermenu');if(!menu||menu.hidden)return;if(e.target.closest&&e.target.closest('.filterwrap'))return;filterOpen=false;menu.hidden=true});
+ const fb=document.getElementById('filterbtn');if(fb)fb.addEventListener('click',e=>{e.stopPropagation();filterOpen=!filterOpen;drawChips()})}
+
 window.onpopstate=()=>{readFilterUrl();drawChips();const id=new URLSearchParams(location.search).get('c');if(id&&convs.find(c=>c.id===id))openConv(id,false);else{sel=null;document.body.classList.remove('showthread');drawList()}};
 </script>
 </body>
