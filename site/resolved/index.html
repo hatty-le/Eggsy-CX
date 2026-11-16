@@ -67,6 +67,8 @@ input,select{font:inherit;border:1px solid var(--line);border-radius:12px;paddin
 .composer .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
 .composer .hint{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.4}
 .composer .warn{font-size:13px;background:#fff3d1;border-radius:10px;padding:8px 12px;margin-bottom:8px}
+.draftcontext{background:#eef4ff;border:1px solid #d5e2f7;border-radius:12px;padding:10px 12px;margin:0 0 10px;font-size:13.5px;line-height:1.45;white-space:pre-wrap}
+.draftcontext b{display:block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#1d3b6b;margin-bottom:4px}
 .qtag{background:#dcecff}.qtag.failed{background:#ffe1e1}
 .tag.flagtag{background:#ffe1e1;color:#8a1c14}
 .flagbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#ffe1e1;color:#8a1c14;border-radius:10px;padding:8px 12px;margin:8px 0;font-size:13.5px}
@@ -625,7 +627,7 @@ async function openConv(id,push){sel=id;markRead(id);drawChips();drawList();cons
  const [mr,qr,dr,ar]=await Promise.all([
   sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en,external_id').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true}),
   sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address').eq('conversation_id',id).order('queued_at',{ascending:true}),
-  sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
+  sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at,context').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
   sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false})]);
  if(sel!==id)return;
  actList=(ar&&!ar.error&&ar.data)||[];
@@ -755,6 +757,7 @@ function composer(c,sug){const w=el('div','composer');const ch=channel(c);
    b.onclick=function(){delete ta.dataset.gapbase;cur=null;ta.value=tp.body;ta.dispatchEvent(new Event('input'));ta.focus()};
    tplHost.append(b)});
  }
+ if(sug&&sug.context){const ctx=el('div','draftcontext');ctx.append(el('b',null,'Internal note'),document.createTextNode(sug.context));w.append(ctx)}
  w.append(tplHost,newer,lbl,ta,trBox,req);setLabel();drawTr();
  const bar=el('div','bar');const go=el('button','btn','Send');go.disabled=blocked;go.type='button';
  const clr=el('button','btn ghost','Discard');clr.type='button';
@@ -1008,10 +1011,27 @@ function renderActPanel(host,c,list){const sig=(list||[]).map(x=>x.id+':'+x.stat
   host.innerHTML='';
   const box=el('div','actbox');
   box.append(el('h3',null,'Actions'));
-  if(!(list||[]).length) box.append(el('div','hint','A reply that promises a replacement, refund or return adds a pending action here automatically when you send. You can also log one yourself, or log a free creator sample.'));
+  if(!(list||[]).length) box.append(el('div','hint','Follow-up tasks from a draft show here with the team who owns them. A reply that promises a replacement, refund or return adds a pending action here automatically when you send. You can also log one yourself, or log a free creator sample.'));
   (list||[]).forEach(a=>{
     const row=el('div','actrow');
     const d=a.details||{};
+    if(a.type==='follow_up'){
+      const teamLab=({marketing:'Marketing',warehouse:'Warehouse',product:'Product',cx:'CX',directors:'Directors',ops:'Ops',sales:'Sales',finance:'Finance'})[d.owner_team]||(d.owner_team||'CX');
+      const open=a.status==='pending'||a.status==='created';
+      row.append(el('div',null,(open?'To do':'Done')+' · '+teamLab));
+      if(d.description) row.append(el('div','hint',d.description));
+      const acts=el('div','actbtns');
+      if(open){const b=el('button','btn','Done');b.type='button';
+        b.onclick=async()=>{b.disabled=true;const who=(await sb.auth.getUser()).data.user;const details=Object.assign({},d,{done_by:who&&who.email});
+          const {error}=await sb.from('cx_actions').update({status:'done',completed_at:new Date().toISOString(),updated_at:new Date().toISOString(),details}).eq('id',a.id);
+          if(error){alert(error.message);b.disabled=false;return}
+          await logNote(c,'Follow-up done ('+teamLab+'): '+(d.description||'')+'.','note:follow-up-done:'+a.id);
+          await reloadActions(c,host)};
+        acts.append(b)}
+      if(acts.childNodes.length) row.append(acts);
+      box.append(row);
+      return;
+    }
     let line=actStatusLabel(a)+' · '+(a.type==='replacement'?'Replacement':a.type==='refund'?'Refund':a.type==='sample'?'Sample':'Return');
     if(a.type==='sample'){line=({pending:'To request',created:'Requested on monday',done:'Sent',cancelled:'Cancelled',failed:'Failed'}[a.status]||actStatusLabel(a))+' · Sample'+(d.recipient?' for '+d.recipient:'')+(d.games?' · '+d.games:'')}
     if(a.type==='replacement'&&isMcf(d)){
@@ -1673,7 +1693,7 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;dr
  if(mr.error)mr=await sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en,external_id').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true});
  const [qr,dr,ar]=await Promise.all([
   sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address').eq('conversation_id',id).order('queued_at',{ascending:true}),
-  sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
+  sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at,context').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
   sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false})]);
  if(sel!==id)return;
  actList=(ar&&!ar.error&&ar.data)||[];
