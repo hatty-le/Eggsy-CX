@@ -315,7 +315,13 @@ const inMode=c=>bucketOf(c)===MODE;
 const sinceOf=c=>{const x=stMap[c.id];return (x&&(x.needs_reply_since||x.last_customer_at))||c.last_message_at};
 (function(){const m=MODES[MODE];document.getElementById('ptitle').textContent=m.title;document.getElementById('atitle').textContent=m.title;document.getElementById('pintro').textContent=m.intro;
  })();
-async function loadStates(){const {data,error}=await sb.from('cx_conversation_state').select('conversation_id,bucket,last_customer_at,last_reply_at,needs_reply_since');
+// PostgREST returns at most its max-rows cap per request (1,000 unless raised). Page so every
+// conversation and its Inbox/Waiting/Resolved bucket is loaded; the channel badges count from this.
+async function fetchAll(build,cap){const page=1000,rows=[],stop=cap||20000;
+ for(let from=0;rows.length<stop;from+=page){const {data,error}=await build(from,from+page-1);
+  if(error)return {data:null,error};const batch=data||[];rows.push(...batch);if(batch.length<page)break}
+ return {data:rows,error:null}}
+async function loadStates(){const {data,error}=await fetchAll((from,to)=>sb.from('cx_conversation_state').select('conversation_id,bucket,last_customer_at,last_reply_at,needs_reply_since').order('conversation_id').range(from,to));
  if(error){console.warn('state',error.message);return}stMap={};(data||[]).forEach(r=>{stMap[r.conversation_id]=r})}
 
 // ---- Ask Marty: copies a ready Slack message for Marty, opens his DM, and logs an open "advice" follow-up.
@@ -431,7 +437,7 @@ function render(session){
 }
 async function load(){
  $('list').innerHTML='<div class="empty">Loading…</div>';
- const {data,error}=await sb.from('conversations').select('*').order('last_message_at',{ascending:false,nullsFirst:false}).limit(5000);
+ const {data,error}=await fetchAll((from,to)=>sb.from('conversations').select('*').order('last_message_at',{ascending:false,nullsFirst:false}).order('id').range(from,to),5000);
  if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load: '+error.message));readFilterUrl();await loadChannelAccess();drawLockStrip();drawLockBanner();return}
  convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates(),loadDrafts(),loadReads(),loadPreviews(),loadChannelAccess()]);lastSync=new Date().toISOString();drawChips();drawList();startLiveRefresh();
  await openFromUrl();
@@ -1527,15 +1533,15 @@ function paintLockBanner(host,rows,nameShops){host.innerHTML='';if(!rows.length)
 function drawLockBanner(){const host=$('lockbanner');if(!host)return;paintLockBanner(host,viewKeys().map(accessFor).filter(r=>r&&r.locked_out),grp==='tiktok'||grp==='meta')}
 function threadLockBanner(origin){const key=accessKeyForOrigin(origin);const row=key&&accessFor(key);if(!row||!row.locked_out)return null;
  const host=el('div','lockbanner');host.setAttribute('role','alert');paintLockBanner(host,[row],/^tiktok_/.test(key)||key==='facebook'||key==='instagram');return host}
-function channelUnread(fn){return convs.filter(c=>bucketOf(c)==='inbox'&&fn(c.origin)&&isUnread(c)).length}
+function channelNeedsReply(fn){return convs.filter(c=>bucketOf(c)==='inbox'&&fn(c.origin)).length}
 function drawChips(){setTitle();drawLockStrip();drawLockBanner();const side=$('chside');if(!side)return;side.innerHTML='';
  side.append(el('div','chside-h','Channels'));
  const primary=[['email','Email'],['tiktok','TikTok'],['amazon','Amazon']];
  const more=[['forms','Web forms'],['walmart','Walmart'],['meta','Facebook & Instagram']];
  if(more.some(x=>x[0]===grp))moreOpen=true;
- function chButton(k,label){const g=GROUPS.find(x=>x[0]===k);const n=channelUnread(g[2]);const locked=groupIsLocked(k);const b=el('button','chbtn'+(grp===k?' on':'')+(locked?' locked':''));b.type='button';b.setAttribute('aria-pressed',grp===k?'true':'false');
+ function chButton(k,label){const g=GROUPS.find(x=>x[0]===k);const n=channelNeedsReply(g[2]);const locked=groupIsLocked(k);const b=el('button','chbtn'+(grp===k?' on':'')+(locked?' locked':''));b.type='button';b.setAttribute('aria-pressed',grp===k?'true':'false');
   if(locked)b.append(emergMark(label+': Urgent: locked out'));
-  b.append(el('span',null,label));if(n){const c=el('span','chcount',String(n));c.title=n+' unread';b.append(c)}
+  b.append(el('span',null,label));if(n){const c=el('span','chcount',String(n));c.title=n+(n===1?' needs a reply':' need a reply');b.append(c)}
   b.onclick=()=>{filterOpen=false;setFilter(k,'')};return b}
  side.append(chButton('all','All channels'));
  primary.forEach(p=>side.append(chButton(p[0],p[1])));
