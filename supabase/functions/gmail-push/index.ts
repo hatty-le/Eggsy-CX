@@ -1363,7 +1363,7 @@ async function ingestMessage(sb: SupabaseClient, msg: GmailMessage, opts: Ingest
   }
   // Junk, corporate, colleague-forward and Marty-forward have already run (classify skips
   // the first two; maybeAutoForward does the forwards). Only then tag the ticket.
-  await tagMmc(sb, conv.id, forward?.action === "forward");
+  await tagMmc(sb, conv.id, forward?.action === "forwarded");
   return { action: "ingested", conversation_id: conv.id, reopened: reopen, forward };
 }
 
