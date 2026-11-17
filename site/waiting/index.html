@@ -212,6 +212,11 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
 .threadmain{min-width:0}.threadmain .composer textarea,#replybox{width:100%;box-sizing:border-box}
 .ordercard .ov{font-weight:650;line-height:1.35}
 .ordercard .actbtns{margin-top:10px}
+.ordblock{border-top:1px solid var(--line);margin-top:10px;padding-top:8px}
+.ordblock .ov{font-size:14px}
+.orditem{font-size:13.5px;line-height:1.35;margin-top:3px}
+.ordmeta{font-size:12.5px;color:var(--muted);line-height:1.4;margin-top:3px}
+.ordcard h3{margin:0 0 8px;font-size:15px}
 .tpls{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
 .showen{font:inherit;font-size:12.5px;background:none;border:0;padding:0;color:#2a5bd7;cursor:pointer;text-decoration:underline;margin-top:6px}
 .entr{white-space:pre-wrap;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);color:#3a3746}
@@ -1039,7 +1044,11 @@ function renderActPanel(host,c,list){const sig=(list||[]).map(x=>x.id+':'+x.stat
     }
     let line=actStatusLabel(a)+' · '+(a.type==='replacement'?'Replacement':a.type==='refund'?'Refund':a.type==='sample'?'Sample':'Return');
     if(a.type==='sample'){line=({pending:'To request',created:'Requested on monday',done:'Sent',cancelled:'Cancelled',failed:'Failed'}[a.status]||actStatusLabel(a))+' · Sample'+(d.recipient?' for '+d.recipient:'')+(d.games?' · '+d.games:'')}
-    if(a.type==='replacement'&&isMcf(d)){
+    if(a.type==='replacement'&&d.flag_reason){
+      const fl={never_arrived:'Never arrived',missing:'Missing',damaged:'Damaged',wrong_item:'Wrong item'};
+      line='Flagged replacement · '+(fl[d.flag_reason]||d.flag_reason);
+      if(d.original_order_id) line+=' · Order '+d.original_order_id;
+    }else if(a.type==='replacement'&&isMcf(d)){
       line=actStatusLabel(a)+' · Whole game · Amazon MCF · '+(d.marketplace||'');
       if(d.original_order_id) line+=' · Order ID '+d.original_order_id;
       if(d.mcf_order_id) line+=' · MCF '+d.mcf_order_id;
@@ -1694,6 +1703,89 @@ async function closeTicket(c,how){const {error}=await sb.from('conversations').u
  await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();
  if(!inScope(c)){sel=null;document.body.classList.remove('showthread');const t=$('thread');t.innerHTML='';t.append(el('div','empty',how==='none'?'Marked no response needed.':'Marked done.'));drawList()}
  else openConv(c.id,false)}
+async function loadLinkedOrders(id){
+ const {data,error}=await sb.from('cx_order_links').select('cx_orders(id,origin,shop,platform_order_id,status,ordered_at,is_sample,shipping_status,tracking_number,tracking_carrier,tracking_url,delivered_at,recipient_city,recipient_postcode,currency,cx_order_items(line_no,title,sku,qty,price,currency))').eq('conversation_id',id);
+ if(error){console.warn('orders',error.message);return {orders:[]}}
+ const orders=(data||[]).map(r=>r.cx_orders).filter(Boolean);
+ orders.forEach(o=>{o.cx_order_items=(o.cx_order_items||[]).slice().sort((a,b)=>(a.line_no||0)-(b.line_no||0))});
+ return {orders}}
+function paintOrderCard(host,c,orders,actHost){
+ host.classList.add('ordcard');
+ host.append(el('h3',null,orders.length>1?'Orders':'Order'));
+ if(!orders.length){
+  host.append(el('div','ordmeta','Order not pulled yet.'));
+  if(c.order_number) host.append(el('div','ordmeta','The ticket mentions order '+c.order_number+', without the items or tracking.'));
+ }
+ orders.forEach(o=>{
+  const block=el('div','ordblock');
+  block.append(el('div','ov',o.platform_order_id||''));
+  const bits=[];
+  if(o.status) bits.push(o.status);
+  if(o.is_sample) bits.push('Free sample');
+  if(o.ordered_at) bits.push('Ordered '+fmt(o.ordered_at));
+  if(o.delivered_at) bits.push('Delivered '+fmt(o.delivered_at));
+  if(bits.length) block.append(el('div','ordmeta',bits.join(' · ')));
+  (o.cx_order_items||[]).forEach(it=>{
+   const free=it.price!=null&&Number(it.price)===0;
+   const price=it.price==null?'':(free?' · free':' · '+fmtMoney(it.price,it.currency||o.currency));
+   block.append(el('div','orditem',(it.title||it.sku||'Item')+(it.sku&&it.title?' · '+it.sku:'')+' × '+(it.qty||1)+price));
+  });
+  if(!(o.cx_order_items||[]).length) block.append(el('div','ordmeta','No line items pulled.'));
+  if(o.shipping_status||o.tracking_number||o.tracking_carrier){
+   const line=el('div','ordmeta',[o.shipping_status,o.tracking_carrier,o.tracking_number].filter(Boolean).join(' · '));
+   if(o.tracking_url){const a=el('a',null,' Track');a.href=o.tracking_url;a.target='_blank';a.rel='noopener';line.append(a)}
+   block.append(line);
+  }
+  const place=[o.recipient_city,o.recipient_postcode].filter(Boolean).join(' · ');
+  if(place) block.append(el('div','ordmeta',place));
+  const flag=el('button','btn ghost','Flag replacement');flag.type='button';flag.style.marginTop='8px';
+  flag.onclick=()=>flagReplacement(c,o,actHost);
+  block.append(flag);
+  host.append(block);
+ });
+ const quick=el('div','actbtns');
+ const rep=el('button','btn','Send replacement');rep.type='button';rep.onclick=()=>openReplacementModal(c,actHost);
+ const refb=el('button','btn ghost','Refund');refb.type='button';refb.onclick=()=>openRefundModal(c,actHost);
+ quick.append(rep,refb);host.append(quick)}
+async function flagReplacement(c,order,host){
+ const labels={never_arrived:'Never arrived',missing:'Missing',damaged:'Damaged',wrong_item:'Wrong item'};
+ const m=actModal('Flag a replacement');
+ m.body.append(el('p','hint','Logs a pending replacement for whoever places the Amazon MCF order. Nothing is sent to the customer, and you can still reply.'));
+ m.body.append(el('div','ordmeta','Order '+(order.platform_order_id||'')+(order.shop?' · '+order.shop:'')));
+ const items=order.cx_order_items||[];const picks=[];
+ if(!items.length) m.body.append(el('p','hint','No line items were pulled. Flag the order and name the game in the note.'));
+ else items.forEach(it=>{
+  const lab=el('label','req');const box=el('input');box.type='checkbox';box.checked=items.length===1;
+  lab.append(box,document.createTextNode(' '+(it.title||it.sku||'Item')+' × '+(it.qty||1)+(it.sku?' · '+it.sku:'')));
+  m.body.append(lab);picks.push({box,it});
+ });
+ const reason=el('select');Object.entries(labels).forEach(([v,l])=>{const o=el('option',null,l);o.value=v;reason.append(o)});
+ const rw=el('div');rw.append(el('label',null,'Reason'),reason);m.body.append(rw);
+ const note=field('Note (optional)',{tag:'textarea',minHeight:'64px'});m.body.append(note.w);
+ const go=el('button','btn','Flag replacement');go.type='button';
+ go.onclick=async()=>{
+  const chosen=picks.filter(p=>p.box.checked).map(p=>p.it);
+  if(picks.length&&!chosen.length){m.setErr('Pick at least one item.',true);return}
+  const market=defaultMcfMarket(c);const meta=MCF_MARKET[market]||MCF_MARKET.UK;
+  const details={
+   kind:'game',fulfilment:'amazon_mcf',marketplace:market,marketplace_id:meta.marketplace_id,
+   original_order_id:order.platform_order_id,displayable_order_id:order.platform_order_id,
+   mcf_create_url:meta.create_url,shipping_speed:'Standard',plain_packaging:true,
+   items:chosen.map(it=>({title:it.title||'',seller_sku:it.sku||'',quantity:it.qty||1})),
+   reason:labels[reason.value]+(note.i.value.trim()?': '+note.i.value.trim():''),
+   flag_reason:reason.value,note:note.i.value.trim()||null,
+   source:'order_card',source_origin:c.origin,source_order:order.platform_order_id,
+   shop:order.shop||c.shop||null,is_sample:!!order.is_sample,cx_order_id:order.id,awaiting_details:false
+  };
+  go.disabled=true;
+  const email=(await sb.auth.getUser()).data.user.email;
+  const {data,error}=await sb.from('cx_actions').insert({conversation_id:c.id,type:'replacement',status:'pending',details,created_by:email}).select('id').single();
+  if(error){go.disabled=false;m.setErr(error.message,true);return}
+  const names=chosen.map(it=>(it.title||it.sku||'item')+' × '+(it.qty||1)).join(', ');
+  await logNote(c,'Replacement flagged ('+labels[reason.value]+') for order '+order.platform_order_id+(names?' · '+names:'')+'. Nothing sent.','note:flag:'+data.id);
+  closeActModal();await reloadActions(c,host)};
+ const cancel=el('button','btn ghost','Cancel');cancel.type='button';cancel.onclick=closeActModal;
+ m.bar.append(go,cancel)}
 async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;const picked=convs.find(x=>x.id===id);if(picked&&picked.is_mmc&&grp!=='mmc'){grp='mmc';sub='';writeFilterUrl()}drawChips();drawList();const c=convs.find(x=>x.id===id);const t=$('thread');t.innerHTML='';
  document.body.classList.add('showthread');
  if(!c){t.append(el('div','empty','That conversation could not be found.'));return}
@@ -1745,13 +1837,11 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
  actList=(ar&&!ar.error&&ar.data)||[];
  actThreadMsgs=(mr&&!mr.error&&mr.data)||[];
  actQueuedReplies=(qr&&!qr.error&&qr.data)||[];
- const facts=window.EggsyDisplay?orderFacts(c,actThreadMsgs):null;
- if(facts&&String(c.origin).startsWith('amazon')&&orderHost){const strip=el('div','orderstrip');facts.fields.forEach(([k,v])=>{const d=el('div');d.append(el('span',null,k),el('b',null,v||''));strip.append(d)});orderHost.append(strip)}
- if(facts&&String(c.origin).startsWith('tiktok')){side.hidden=false;grid.classList.add('threadgrid');const head=el('div');facts.fields.forEach(([k,v])=>{const d=el('div');d.style.marginTop='8px';d.append(el('span','ol',k),el('div','ov',v||''));head.append(d)});
-  const quick=el('div','actbtns');
-  const rep=el('button','btn','Send replacement');rep.type='button';rep.onclick=()=>openReplacementModal(c,actHost);
-  const refb=el('button','btn ghost','Refund');refb.type='button';refb.onclick=()=>openRefundModal(c,actHost);
-  quick.append(rep,refb);side.insertBefore(head,actHost);side.insertBefore(quick,actHost)}
+ const wantOrder=String(c.origin).startsWith('tiktok')||String(c.origin).startsWith('amazon');
+ let linkedOrders=[];
+ if(wantOrder){const got=await loadLinkedOrders(id);if(sel!==id)return;linkedOrders=got.orders||[]}
+ if(String(c.origin).startsWith('amazon')&&orderHost){const card=el('div','ordercard');paintOrderCard(card,c,linkedOrders,actHost);orderHost.append(card)}
+ if(String(c.origin).startsWith('tiktok')){side.hidden=false;grid.classList.add('threadgrid');const head=el('div');paintOrderCard(head,c,linkedOrders,actHost);side.insertBefore(head,actHost)}
  renderActPanel(actHost,c,actList);
  callCx({action:'refresh_tracking',conversation_id:id}).then(async r=>{if(!r||!r.updated||sel!==id)return;const {data}=await sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false});actList=data||[];renderActPanel(actHost,c,actList)}).catch(()=>{});
  msgHost.innerHTML='';if(mr.error){msgHost.append(el('div','empty','Could not load: '+mr.error.message));return}

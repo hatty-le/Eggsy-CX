@@ -71,6 +71,7 @@ details.add{margin:0 0 12px}details.add summary{cursor:pointer;font-weight:600;f
 </section>
 
 <main id="app">
+ <div id="repls"></div>
  <p class="intro">Jobs to do after replying to a customer. Follow-ups from a draft show the team who owns them. Game ideas and feedback go to Marty and Rob. Product faults go on the Customer Feedback Log, then tell Rob and Marty on Slack. <b>Copy Slack note</b> gives you a ready message to paste. Mark each one done when it's handled.</p>
  <details class="add card" style="padding:12px 16px"><summary>+ Add an action</summary>
   <form class="addf" id="addf">
@@ -124,8 +125,26 @@ function render(session){
  EggsyNav.setUser(email,()=>sb.auth.signOut(),sb);
  EggsyNav.takeReturn();
  $('auth').style.display='none';$('app').style.display='block';
- if(!started){started=true;load()}
+ if(!started){started=true;load();loadReplacements()}
 }
+const FLAG_REASON={never_arrived:'Never arrived',missing:'Missing',damaged:'Damaged',wrong_item:'Wrong item'};
+async function loadReplacements(){
+ const host=$('repls');if(!host)return;
+ const {data,error}=await sb.from('cx_actions').select('id,conversation_id,status,details,created_at,created_by,conversations(customer_name,customer_handle,origin,shop)').eq('type','replacement').eq('status','pending').order('created_at',{ascending:false}).limit(80);
+ host.innerHTML='';
+ const rows=(data||[]).filter(r=>r.details&&r.details.flag_reason);
+ if(error||!rows.length)return;
+ const box=el('div','card');box.style.padding='14px 16px';box.style.margin='0 0 14px';
+ box.append(el('b',null,'Replacements to place'));
+ box.append(el('div','intro','Flagged from a ticket. Place them as an Amazon MCF order using the original channel order number. Nothing has been sent.'));
+ rows.forEach(r=>{const d=r.details||{};const c=r.conversations||{};const row=el('div');row.style.padding='8px 0';row.style.borderTop='1px solid var(--line)';
+  const who=c.customer_name||c.customer_handle||'Customer';
+  const items=(d.items||[]).map(i=>(i.title||i.seller_sku||'item')+' × '+(i.quantity||1)).join(', ');
+  row.append(el('div',null,who+' · '+(c.shop||c.origin||'')+' · order '+(d.original_order_id||c.order_number||'–')));
+  row.append(el('div','det',(FLAG_REASON[d.flag_reason]||d.flag_reason)+(items?' · '+items:'')+(d.note?' · '+d.note:'')));
+  if(r.conversation_id){const a=el('a','btn ghost small','Open conversation →');a.href='/inbox/?c='+r.conversation_id;a.style.marginTop='6px';row.append(a)}
+  box.append(row)});
+ host.append(box)}
 async function load(){
  const [fu, acts]=await Promise.all([
   sb.from('cx_followups')
