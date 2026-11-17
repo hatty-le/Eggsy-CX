@@ -82,6 +82,64 @@ Never commit values. Never paste them into chat, Slack or email.
 
 `gmail-push` also hard-codes the Pub/Sub topic name it renews the Gmail watch on (`TOPIC_NAME`). That is configuration, not a password; change it in `supabase/functions/gmail-push/index.ts` if the topic changes.
 
+## Orders from Seller Center
+
+TikTok's Open API is not approved, so order details are not fetched from TikTok directly. Eggsy's browser read of the order panel beside a Seller Center chat (and Amazon order details, when those are read the same way) calls `public.cx_upsert_order`. The inbox then shows every linked order on the TikTok and Amazon ticket. If nothing is linked yet, the card says **Order not pulled yet**.
+
+Street addresses, phone numbers, emails and recipient names are not stored. Only city and postcode are kept, and only those are shown.
+
+### Tables
+
+- `public.cx_orders` — one row per marketplace order. Unique on `(origin, platform_order_id)`.
+- `public.cx_order_items` — line items for that order (product name, SKU, quantity, price). Replaced whenever the JSON includes an `items` array.
+- `public.cx_order_links` — which conversations show the order. One order can be linked to more than one ticket. The link is inserted and left in place on later calls.
+
+RLS is enabled and forced. `@luckyegg.co` staff can select. Writes go through the function, not a direct insert. The function allows staff JWTs and the database roles the importer already uses (`postgres`, `supabase_admin`, `service_role`).
+
+### Function
+
+```text
+public.cx_upsert_order(p_conversation_id uuid, p_order jsonb) returns uuid
+```
+
+Idempotent on `(origin, platform_order_id)`. A missing `origin` uses the conversation's origin. A later call keeps fields it does not send (null does not wipe a tracking number already stored). Sending `is_sample` always updates that flag. Sending `items` replaces the line items, including with an empty list.
+
+```sql
+select public.cx_upsert_order(
+  '171cf47e-b3f6-4b15-8356-832172dd9176',
+  $order${
+    "origin": "tiktok_uk",
+    "shop": "TikTok UK",
+    "platform_order_id": "576979674268277376",
+    "status": "Delivered",
+    "ordered_at": "2026-11-10T14:22:00Z",
+    "is_sample": true,
+    "shipping_status": "Delivered",
+    "tracking_number": "EV123456789GB",
+    "tracking_carrier": "Evri",
+    "tracking_url": null,
+    "delivered_at": "2026-11-14T09:05:00Z",
+    "recipient_city": "London",
+    "recipient_postcode": "E1 6AN",
+    "currency": "GBP",
+    "source": "tiktok_seller_center",
+    "items": [
+      {"title": "Snort Funny", "sku": "SNORT-UK", "qty": 1, "price": 0, "currency": "GBP"}
+    ]
+  }$order$::jsonb
+);
+```
+
+`order_id` is accepted as an alias of `platform_order_id`. Item `name` or `product` is accepted as `title`. Item `quantity` is accepted as `qty`. `carrier` is accepted as `tracking_carrier`. A nested `recipient` object may supply `city` and `postcode` (or `zip`); any street line in that object is ignored.
+
+`source` is a short label such as `tiktok_seller_center` or `amazon_seller_central`. It is not a secret.
+
+Calling it again with the same origin and order id updates the row and links the new conversation if this ticket was not linked yet.
+
+### Flag replacement
+
+On the order card, **Flag replacement** picks the line items and a reason (missing, damaged, wrong item, never arrived), plus an optional note. It inserts a **pending** `cx_actions` row (`type = replacement`) with `details.flag_reason`, `details.original_order_id`, `details.items`, `details.shop` and `details.fulfilment = amazon_mcf`. It does not send a reply and does not place an order. The row is listed under Actions as "Replacements to place", and on the ticket the existing MCF buttons stay available for whoever processes it.
+
 ## What not to commit
 
 See `.gitignore`. In particular: `.env*`, `secrets/`, `node_modules/`, `.vercel/`. Do not copy anything from a local `secrets/` directory into this repo.
