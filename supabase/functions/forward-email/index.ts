@@ -1,5 +1,8 @@
 // forward-email: lets signed-in Lucky Egg staff forward a customer email from hey@ to a colleague (e.g. sales).
-// POST { conversation_id, to: "claudia-bb", note? } -> { ok, gmail, forwarded_message }
+// POST { conversation_id, to: "claudia-bb" | "marty", note?, draft? } -> { ok, gmail, forwarded_message }
+// claudia-bb (sales): forwards the customer's email; her reply goes to the customer.
+// marty (advice): emails Marty the whole ticket from Eggsy (any channel) with our question and draft, plus the
+// original email attached when there is one; his reply goes to the teammate who asked.
 // Recipients are a fixed allow-list here, so this can never forward to an outside address.
 // The colleague's reply goes straight to the original sender (Reply-To). hey@ is not copied, so the forward never comes back in as a new ticket.
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -8,9 +11,13 @@ const URL_ = Deno.env.get("SUPABASE_URL")!;
 const SB = createClient(URL_, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 const G = "https://gmail.googleapis.com/gmail/v1/users/me/";
 const FROM = "hey@luckyegg.co";
-const RECIPIENTS: Record<string, { email: string; name: string }> = {
+const RECIPIENTS: Record<string, { email: string; name: string; advice?: boolean }> = {
   "claudia-bb": { email: "claudia.bb@luckyegg.co", name: "Claudia Bettson-Burdett" },
+  "marty": { email: "marty@luckyegg.co", name: "Marty Pardoe", advice: true },
 };
+const ORIGINS: Record<string, string> = { email_hey: "hey@ email", shopify_form: "Shopify form", wix_mmc_form: "MMC Wix form", tiktok_uk: "TikTok UK", tiktok_eu: "TikTok EU", tiktok_us: "TikTok US", walmart: "Walmart", facebook: "Facebook", instagram: "Instagram" };
+const chName = (o: string) => ORIGINS[o] || (o.startsWith("amazon_") ? "Amazon " + o.slice(7).toUpperCase() : o);
+const ukTime = (d: string) => new Date(d).toLocaleString("en-GB", { timeZone: "Europe/London", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
@@ -56,6 +63,47 @@ async function resolve(mid: string, row: any, email: string) {
   return it ? await gm("messages/" + it.id + "?format=full") : null;
 }
 
+const b64url = (s: string) => b64(enc.encode(s)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const lines76 = (u8: Uint8Array) => b64(u8).replace(/.{1,76}/g, "$&\r\n");
+// Advice: the whole ticket as Eggsy has it, so it works for TikTok, Amazon, Walmart and social too.
+async function adviceEmail(to: any, conv: any, orig: any, note: string, draft: string, by: string, originUrl: unknown) {
+  const { data: msgs } = await SB.from("messages").select("direction,author,sent_at,body,body_en,language").eq("conversation_id", conv.id).in("direction", ["inbound", "outbound"]).order("sent_at", { ascending: true }).limit(60);
+  const who = conv.customer_name || conv.customer_handle || "the customer";
+  const ticket = (String(originUrl || "").match(/^https:\/\/[a-z0-9.-]+$/i) ? originUrl : "https://eggsy-cx.vercel.app") + "/inbox/?c=" + conv.id;
+  const convo = (msgs || []).map((m: any) => {
+    const head = (m.direction === "inbound" ? who + " (customer)" : "Lucky Egg" + (m.author ? " (" + m.author + ")" : "")) + ", " + ukTime(m.sent_at) + ":";
+    const text = String(m.direction === "inbound" && m.body_en && m.language && m.language !== "en" ? m.body_en + "\n[translated to English]" : m.body || "").trim();
+    return head + "\n" + text;
+  }).join("\n\n");
+  const body = [
+    "Hi " + to.name.split(" ")[0] + ",", "",
+    "Could I get your advice on this customer ticket?", "",
+    "OUR QUESTION", note, "",
+    ...(draft ? ["OUR DRAFT REPLY SO FAR", draft, ""] : []),
+    "THE TICKET",
+    "Customer: " + who + (conv.customer_handle && conv.customer_handle !== who ? " (" + conv.customer_handle + ")" : ""),
+    "Channel: " + chName(conv.origin) + (conv.shop && conv.shop !== chName(conv.origin) ? " · " + conv.shop : ""),
+    ...(conv.order_number ? ["Order: " + conv.order_number] : []),
+    ...(conv.overview ? ["Summary: " + conv.overview] : []),
+    "Open in Eggsy: " + ticket, "",
+    "FULL CONVERSATION", convo || "(no messages stored)", "",
+    "Reply to this email and it goes to " + by + ". The customer does not see it.",
+    ...(orig ? ["The customer's original email is attached."] : []),
+  ].join("\r\n");
+  const boundary = "eggsy_adv_" + crypto.randomUUID().replace(/-/g, "");
+  const subj = "Advice needed: " + who + " (" + chName(conv.origin) + (conv.order_number ? ", order " + conv.order_number : "") + ")";
+  const parts = ["--" + boundary, "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64", "", lines76(enc.encode(body))];
+  if (orig) {
+    const raw = await gm("messages/" + orig.id + "?format=raw");
+    parts.push("--" + boundary, 'Content-Type: message/rfc822; name="customer-email.eml"', 'Content-Disposition: attachment; filename="customer-email.eml"', "Content-Transfer-Encoding: base64", "", lines76(fromB64Url(raw.raw)));
+  }
+  const replyTo = /@luckyegg\.co$/.test(by) ? by : "";
+  const mime = ["From: Lucky Egg <" + FROM + ">", "To: " + to.name + " <" + to.email + ">", ...(replyTo ? ["Reply-To: " + replyTo] : []),
+    "Subject: " + encWord(clean(subj)), "MIME-Version: 1.0", 'Content-Type: multipart/mixed; boundary="' + boundary + '"', "", ...parts, "--" + boundary + "--", ""].join("\r\n");
+  const sent = await gm("messages/send", { raw: b64url(mime) });
+  return { ok: true, gmail: sent.id, forwarded_message: orig?.id || null, to: to.email, reply_to: replyTo || null };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -72,14 +120,17 @@ Deno.serve(async (req) => {
   const cid = String(p.conversation_id || "");
   if (!/^[0-9a-f-]{36}$/i.test(cid)) return json({ error: "Bad conversation id" }, 400);
   const note = String(p.note || "").slice(0, 4000).trim();
+  const draft = String(p.draft || "").slice(0, 8000).trim();
+  if (to.advice && !note) return json({ error: "Write your question for " + to.name.split(" ")[0] + " first." }, 400);
 
-  const { data: conv } = await SB.from("conversations").select("id,customer_name,customer_handle,subject,order_number,overview").eq("id", cid).maybeSingle();
+  const { data: conv } = await SB.from("conversations").select("id,origin,shop,customer_name,customer_handle,subject,order_number,overview").eq("id", cid).maybeSingle();
   if (!conv) return json({ error: "Ticket not found" }, 404);
   const { data: rows } = await SB.from("messages").select("id,external_id,sent_at").eq("conversation_id", cid).eq("direction", "inbound").like("external_id", "gmail:%").order("sent_at", { ascending: false }).limit(3);
   const handle = String(conv.customer_handle || "").trim().toLowerCase();
   try {
     let orig: any = null;
-    for (const r of rows || []) { orig = await resolve(String(r.external_id).slice(6), r, handle); if (orig) break; }
+    try { for (const r of rows || []) { orig = await resolve(String(r.external_id).slice(6), r, handle); if (orig) break; } } catch (e) { if (!to.advice) throw e; orig = null; }
+    if (to.advice) return json(await adviceEmail(to, conv, orig, note, draft, by, p.origin_url));
     if (!orig) return json({ error: "no_email", message: "This ticket has no email in hey@ to forward." }, 404);
     const raw = await gm("messages/" + orig.id + "?format=raw");
     const origFrom = hdr(orig, "From"), subj = hdr(orig, "Subject") || conv.subject || "Customer message";

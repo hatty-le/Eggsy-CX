@@ -382,26 +382,27 @@ function askMarty(c,t){
  const draw=async()=>{host.innerHTML='';const open=await martyOpen(c.id);if(sel!==c.id)return;
   if(open){const box=el('div','marty-box');box.append(el('b',null,'💬 Waiting on Marty’s advice'),document.createTextNode(' since '+fmt(open.created_at)+' UK'));
    if(open.details)box.append(el('div','hint','Question: '+open.details));
-   box.append(el('div','hint','Eggsy won’t auto-send this ticket until you mark Marty’s advice as answered. Edit the draft with his advice, then send.'));
+   box.append(el('div','hint','Emailed to Marty. His reply comes to your inbox. Eggsy won’t auto-send this ticket until you mark his advice as answered. Edit the draft with his advice, then send.'));
    const bar=el('div');bar.style.marginTop='8px';
    const done=el('button','btn small','✓ Marty answered');done.type='button';
    done.onclick=async()=>{done.disabled=true;const {error}=await sb.from('cx_followups').update({status:'done',done_at:new Date().toISOString(),done_by:ME||null}).eq('id',open.id);
     if(error){alert('Could not update: '+error.message);done.disabled=false;return}await loadDrafts();drawChips();drawList();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();draw()};
-   const re=el('button','btn ghost small','Open Marty’s DM');re.type='button';re.onclick=()=>window.open(MARTY_DM,'_blank');
-   bar.append(done,re);box.append(bar);host.append(box);return}
-  const b=el('button','btn ghost small','💬 Ask Marty for advice');b.type='button';host.append(b);
+   bar.append(done);box.append(bar);host.append(box);return}
+  const b=el('button','btn ghost small','📧 Email to Marty for advice');b.type='button';host.append(b);
   b.onclick=()=>{b.remove();const box=el('div','marty-box');
-   box.append(el('b',null,'Ask Marty on Slack'),el('div','hint','Write your question. Eggsy copies a message with the customer’s latest message, your draft and a link to this ticket, then opens Marty’s DM so you can paste it (Cmd+V) and send.'));
+   box.append(el('b',null,'Email this ticket to Marty'),el('div','hint','Write your question. Eggsy emails Marty (marty@luckyegg.co) the whole conversation, your question and your draft reply, with the customer’s original email attached when there is one. When he replies, it comes to you, not the customer.'));
    const q=el('textarea');q.placeholder='e.g. Is it OK to send a free replacement mic when they bought it from a retailer?';box.append(q);
-   const bar=el('div');const go=el('button','btn small','Copy message and open Slack');go.type='button';const no=el('button','btn ghost small','Cancel');no.type='button';const m=el('span','hint');
-   no.onclick=()=>draw();let last='';martyLast(c).then(v=>last=v,()=>{});
+   const bar=el('div');const go=el('button','btn small','Email to Marty');go.type='button';const no=el('button','btn ghost small','Cancel');no.type='button';const m=el('span','hint');
+   no.onclick=()=>draw();
    go.onclick=async()=>{const question=q.value.trim();if(!question){m.textContent=' Write your question first.';q.focus();return}
-    go.disabled=true;const text=martyNote(c,question,last);
-    const cp=navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(text):Promise.reject();
-    window.open(MARTY_DM,'_blank');
-    cp.catch(()=>prompt('Copy this and paste it to Marty on Slack:',text));
+    go.disabled=true;m.textContent=' Sending to Marty…';
+    const ta=document.getElementById('replybox');const draft=ta&&ta.value.trim()&&ta.value.trim()!==SIGNOFF.trim()?ta.value.trim():'';
+    const {data:{session}}=await sb.auth.getSession();
+    let r={};try{const res=await fetch(SUPABASE_URL+'/functions/v1/forward-email',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session&&session.access_token),apikey:SUPABASE_KEY},body:JSON.stringify({conversation_id:c.id,to:'marty',note:question,draft,origin_url:location.origin})});r=await res.json().catch(()=>({}))}catch(e){r={error:'network'}}
+    if(!r.ok){go.disabled=false;m.textContent=' Could not email Marty: '+(r.error||'unknown error');return}
+    await logNote(c,'Emailed to Marty for advice by '+(ME||'a teammate')+': '+question,'note:ask-marty:'+Date.now());
     const {error}=await sb.from('cx_followups').insert({conversation_id:c.id,kind:'advice',title:'Waiting on advice from Marty',details:question,assignees:'Marty',created_by:ME||null});
-    if(error){go.disabled=false;m.textContent=' Copied, but could not log it on the ticket: '+error.message;return}
+    if(error){go.disabled=false;m.textContent=' Emailed Marty, but could not log it on the ticket: '+error.message;return}
     await loadDrafts();drawChips();drawList();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();draw()};
    bar.append(go,no,m);box.append(bar);host.append(box);q.focus()}};
  draw()}
