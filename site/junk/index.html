@@ -109,6 +109,7 @@ details.elog div{margin-top:6px}
 .advicecard .mh{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted);margin-bottom:6px}.advicecard .mh b{color:#4b2a8a;font-size:14px}.advicecard .mb{white-space:pre-wrap;line-height:1.5}.marty .btn{margin-right:6px}
 .marty-box{background:#F3F0FF;border:1px solid #d9d0ff;border-radius:10px;padding:10px 12px;margin-top:6px;font-size:14px}
 .marty-box textarea{width:100%;min-height:70px;margin:6px 0;font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px;box-sizing:border-box}
+.colsearch{width:100%;box-sizing:border-box;margin:8px 0 4px;font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px 10px}.colres{display:flex;flex-direction:column;gap:4px;margin-bottom:6px}.colhit{display:flex;justify-content:space-between;gap:10px;text-align:left;background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;cursor:pointer}.colhit:hover{background:#fffaf0}.colhit span{color:var(--muted);font-size:12.5px}.colchosen{display:flex;align-items:center;gap:6px;margin:8px 0 4px;flex-wrap:wrap}.colbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px}
 .marty-box .hint{font-size:12.5px;color:var(--muted);line-height:1.4}
 .item.unread .name{font-weight:800}.item.unread .name::before{content:'';display:inline-block;width:9px;height:9px;border-radius:50%;background:#2f6fde;margin-right:7px;vertical-align:1px}
 .item.unread{border-left:3px solid #2f6fde}
@@ -340,7 +341,7 @@ async function loadStates(){const {data,error}=await fetchAll((from,to)=>sb.from
 // ---- Ask Marty: copies a ready Slack message for Marty, opens his DM, and logs an open "advice" follow-up.
 // While it is open the ticket shows "waiting on Marty" in Gaps and Eggsy never auto-sends it.
 const MARTY_DM='https://slack.com/app_redirect?channel=U0584KALCEM';
-async function martyOpen(cid){const {data}=await sb.from('cx_followups').select('id,created_at,details').eq('conversation_id',cid).eq('kind','advice').eq('status','open').order('created_at',{ascending:false}).limit(1);return (data||[])[0]||null}
+async function martyOpen(cid){const {data}=await sb.from('cx_followups').select('id,created_at,details,assignees').eq('conversation_id',cid).eq('kind','advice').eq('status','open').order('created_at',{ascending:false}).limit(1);return (data||[])[0]||null}
 async function martyLast(c){const {data:ms}=await sb.from('messages').select('body,body_en').eq('conversation_id',c.id).eq('direction','inbound').order('sent_at',{ascending:false}).limit(1);
  return (ms&&ms[0])?(ms[0].body_en||ms[0].body||'').trim():''}
 // Built synchronously inside the click so Safari allows the clipboard write and the new tab.
@@ -356,63 +357,60 @@ function martyNote(c,question,last){
  L.push('','Ticket: '+location.origin+'/inbox/?c='+c.id);
  return L.join('\n')}
 
-// ---- Forward to Claudia BB (sales): forwards the customer's email from hey@ to claudia.bb@luckyegg.co
-// (her reply goes straight to the sender), logs a note and resolves the ticket. Tickets with no email
-// (TikTok, Facebook...) fall back to copying a Slack message and opening her DM.
-const SALES_DM='https://slack.com/app_redirect?channel=U0938NCK00G';
-function forwardSales(c,t){
- const host=el('div','marty');t.append(host);
- const b=el('button','btn ghost small','📨 Forward to Claudia BB (sales)');b.type='button';host.append(b);
- b.onclick=()=>{b.remove();const box=el('div','marty-box');
-  box.append(el('b',null,'Forward to Claudia BB (sales)'),el('div','hint','For wholesale, retail, stockist and other sales enquiries. Eggsy forwards the original email from hey@ to Claudia, and her reply goes straight to the sender. The ticket is then marked Resolved here. If they write back to hey@ it reopens.'));
-  const q=el('textarea');q.placeholder='Optional note for Claudia, e.g. “Retailer in Ireland asking about trade prices”';box.append(q);
-  const bar=el('div');const go=el('button','btn small','Forward to Claudia');go.type='button';const no=el('button','btn ghost small','Cancel');no.type='button';const m=el('span','hint');
-  no.onclick=()=>{host.innerHTML='';host.append(b)};
-  const finish=async(how)=>{await logNote(c,'Forwarded to Claudia BB (sales) '+how+' by '+(ME||'a teammate')+(q.value.trim()?': '+q.value.trim():'.'),'note:fwd-sales:'+Date.now());
-   await sb.from('conversations').update({status:'resolved',status_changed_at:new Date().toISOString(),summary:'Forwarded to Claudia BB (sales)'}).eq('id',c.id);
-   c.status='resolved';await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();
-   box.innerHTML='';box.append(el('b',null,'✓ Forwarded to Claudia BB '+how+'. Ticket marked Resolved.'))};
-  go.onclick=async()=>{go.disabled=true;m.textContent=' Forwarding…';
-   const {data:{session}}=await sb.auth.getSession();
-   let r={};try{const res=await fetch(SUPABASE_URL+'/functions/v1/forward-email',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session&&session.access_token),apikey:SUPABASE_KEY},body:JSON.stringify({conversation_id:c.id,to:'claudia-bb',note:q.value.trim(),origin_url:location.origin})});r=await res.json().catch(()=>({}))}catch(e){r={error:'network'}}
-   if(r.ok){await finish('by email');return}
-   if(r.error==='no_email'){
-    // No email to forward: offer Slack instead (must be a click, so the browser allows the clipboard and new tab).
-    go.disabled=false;go.textContent='Copy message and open Claudia’s Slack';m.textContent=' This ticket has no email in hey@, so send it to her on Slack instead.';
-    go.onclick=async()=>{const last=await martyLast(c).catch(()=>'');
-     const L=['Hi Claudia, a sales enquiry came in through '+(ORIGINS[c.origin]||c.origin)+':','','*From:* '+(c.customer_name||c.customer_handle||'Unknown')+(c.order_number?' (order '+c.order_number+')':'')];
-     if(q.value.trim())L.push('*Note:* '+q.value.trim());if(c.overview)L.push('*Summary:* '+c.overview);if(last)L.push('','> '+last.slice(0,900).replace(/\n+/g,'\n> '));L.push('','Ticket: '+location.origin+'/inbox/?c='+c.id);
-     const text=L.join('\n');const cp=navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(text):Promise.reject();window.open(SALES_DM,'_blank');cp.catch(()=>prompt('Copy this and paste it to Claudia on Slack:',text));
-     await finish('on Slack')};return}
-   go.disabled=false;m.textContent=' Could not forward: '+(r.message||r.error||'unknown error')};
-  bar.append(go,no,m);box.append(bar);host.append(box);q.focus()}}
 function askMarty(c,t){
+ // Shows the "waiting on advice" box while a colleague's advice is outstanding. Asking is done from the Forward panel.
  const host=el('div','marty');t.append(host);
- const draw=async()=>{host.innerHTML='';const open=await martyOpen(c.id);if(sel!==c.id)return;
-  if(open){const box=el('div','marty-box');box.append(el('b',null,'💬 Waiting on Marty’s advice'),document.createTextNode(' since '+fmt(open.created_at)+' UK'));
-   if(open.details)box.append(el('div','hint','Question: '+open.details));
-   box.append(el('div','hint','Emailed to Marty from hey@. When he replies, his advice appears in the conversation and Eggsy redrafts the reply using it (held for you to check). If he answers another way, edit the draft yourself and mark it answered.'));
-   const bar=el('div');bar.style.marginTop='8px';
-   const done=el('button','btn small','✓ Marty answered');done.type='button';
-   done.onclick=async()=>{done.disabled=true;const {error}=await sb.from('cx_followups').update({status:'done',done_at:new Date().toISOString(),done_by:ME||null}).eq('id',open.id);
-    if(error){alert('Could not update: '+error.message);done.disabled=false;return}await loadDrafts();drawChips();drawList();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();draw()};
-   bar.append(done);box.append(bar);host.append(box);return}
-  const b=el('button','btn ghost small','📧 Email to Marty for advice');b.type='button';host.append(b);
-  b.onclick=()=>{b.remove();const box=el('div','marty-box');
-   box.append(el('b',null,'Email this ticket to Marty'),el('div','hint','Write your question. Eggsy emails Marty (marty@luckyegg.co) the whole conversation, your question and your draft reply, with the customer’s original email attached when there is one. When he replies, his advice is added to this conversation and Eggsy redrafts the reply with it.'));
-   const q=el('textarea');q.placeholder='e.g. Is it OK to send a free replacement mic when they bought it from a retailer?';box.append(q);
-   const bar=el('div');const go=el('button','btn small','Email to Marty');go.type='button';const no=el('button','btn ghost small','Cancel');no.type='button';const m=el('span','hint');
-   no.onclick=()=>draw();
-   go.onclick=async()=>{const question=q.value.trim();if(!question){m.textContent=' Write your question first.';q.focus();return}
-    go.disabled=true;m.textContent=' Sending to Marty…';
-    const ta=document.getElementById('replybox');const draft=ta&&ta.value.trim()&&ta.value.trim()!==SIGNOFF.trim()?ta.value.trim():'';
-    const {data:{session}}=await sb.auth.getSession();
-    let r={};try{const res=await fetch(SUPABASE_URL+'/functions/v1/forward-email',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session&&session.access_token),apikey:SUPABASE_KEY},body:JSON.stringify({conversation_id:c.id,to:'marty',note:question,draft,origin_url:location.origin})});r=await res.json().catch(()=>({}))}catch(e){r={error:'network'}}
-    if(!r.ok){go.disabled=false;m.textContent=' Could not email Marty: '+(r.error||'unknown error');return}
-    // The server adds "(Sent to Marty for advice)" to the thread and the follow-up that holds the ticket.
-    await loadDrafts();drawChips();drawList();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();draw()};
-   bar.append(go,no,m);box.append(bar);host.append(box);q.focus()}};
- draw()}
+ const draw=async()=>{host.innerHTML='';const open=await martyOpen(c.id);if(sel!==c.id||!open)return;
+  const who=String(open.assignees||'Marty').split(' <')[0].split(',')[0].trim()||'a colleague';
+  const box=el('div','marty-box');box.append(el('b',null,'💬 Waiting on '+who+'’s advice'),document.createTextNode(' since '+fmt(open.created_at)+' UK'));
+  if(open.details)box.append(el('div','hint','Question: '+open.details));
+  box.append(el('div','hint','Emailed from hey@. When '+who+' replies, the advice appears in the conversation and Eggsy redrafts the reply using it (held for you to check). If they answer another way, edit the draft yourself and mark it answered.'));
+  const bar=el('div');bar.style.marginTop='8px';
+  const done=el('button','btn small','✓ '+who+' answered');done.type='button';
+  done.onclick=async()=>{done.disabled=true;const {error}=await sb.from('cx_followups').update({status:'done',done_at:new Date().toISOString(),done_by:ME||null}).eq('id',open.id);
+   if(error){alert('Could not update: '+error.message);done.disabled=false;return}await loadDrafts();drawChips();drawList();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();draw()};
+  bar.append(done);box.append(bar);host.append(box)};
+ draw();t._adviceRedraw=draw}
+// ---- Forward: pick any colleague by name, then either hand the ticket over or ask for advice.
+let colleaguesCache=null;
+async function loadColleagues(){if(colleaguesCache)return colleaguesCache;const {data}=await sb.from('cx_colleagues').select('email,display_name,first_name,last_name,aliases').eq('active',true).order('display_name');
+ colleaguesCache=(data||[]).filter(x=>/@luckyegg\.co$/i.test(x.email||''));return colleaguesCache}
+const colName=x=>{const n=x.display_name||[x.first_name,x.last_name].filter(Boolean).join(' ')||x.email;return n.charAt(0).toUpperCase()+n.slice(1)};
+function forwardPanel(c,t,adviceHost){
+ const host=el('div','marty');t.append(host);
+ const isMail=threadKind(c.origin)==='mail';
+ const start=()=>{host.innerHTML='';const b=el('button','btn ghost small','📨 Forward');b.type='button';b.title='Send this ticket to a colleague';b.onclick=open;host.append(b)};
+ const open=async()=>{host.innerHTML='';const box=el('div','marty-box');host.append(box);
+  box.append(el('b',null,'Forward to a colleague'));
+  const q=el('input');q.type='search';q.placeholder='Type a name, e.g. Ben';q.className='colsearch';box.append(q);
+  const res=el('div','colres');box.append(res);
+  const chosen=el('div','colchosen');chosen.hidden=true;box.append(chosen);
+  const note=el('textarea');note.placeholder='Message or question for them (required when asking for advice)';box.append(note);
+  const bar=el('div','colbar');const hand=el('button','btn small','Forward for them to handle');hand.type='button';
+  const adv=el('button','btn ghost small','Ask for advice');adv.type='button';const no=el('button','btn ghost small','Cancel');no.type='button';const m=el('span','hint');
+  bar.append(hand,adv,no,m);box.append(bar);
+  box.append(el('div','hint',(isMail?'Forward for them to handle: Eggsy emails them the customer’s original email from hey@. When they reply it goes straight to the customer, and this ticket is marked Resolved. ':'Forward for them to handle only works for email tickets; use Ask for advice for this one. ')+'Ask for advice: Eggsy emails them the whole conversation, your question and your draft. Their reply comes back into this ticket and Eggsy redrafts with it.'));
+  if(!isMail){hand.disabled=true}
+  let pick=null;const all=await loadColleagues();
+  const draw=()=>{res.innerHTML='';if(pick)return;const v=q.value.trim().toLowerCase();if(!v){return}
+   const hits=all.filter(x=>[x.display_name,x.first_name,x.last_name,x.email,...(x.aliases||[])].join(' ').toLowerCase().split(/[\s@.]+/).some(w=>w.startsWith(v))||colName(x).toLowerCase().includes(v)).slice(0,8);
+   if(!hits.length){res.append(el('div','hint','No colleague called “'+q.value.trim()+'”.'));return}
+   hits.forEach(x=>{const r=el('button','colhit');r.type='button';r.append(el('b',null,colName(x)),el('span',null,x.email));r.onclick=()=>{pick=x;q.hidden=true;res.innerHTML='';chosen.hidden=false;chosen.innerHTML='';
+     chosen.append(el('span',null,'To: '),el('b',null,colName(x)),el('span','hint',' '+x.email));const xb=el('button','btn ghost small','Change');xb.type='button';xb.onclick=()=>{pick=null;chosen.hidden=true;q.hidden=false;q.focus();draw()};chosen.append(xb);note.focus()};res.append(r)})};
+  q.oninput=draw;q.focus();no.onclick=start;
+  const send=async(mode)=>{if(!pick){m.textContent=' Pick a colleague first.';q.focus();return}
+   const text=note.value.trim();if(mode==='advice'&&!text){m.textContent=' Write your question first.';note.focus();return}
+   if(mode==='handle'&&!confirm('Forward this ticket to '+colName(pick)+' to handle?\n\nTheir reply goes straight to the customer, and the ticket is marked Resolved in Eggsy.'))return;
+   hand.disabled=adv.disabled=true;m.textContent=' Sending…';
+   const ta=document.getElementById('replybox');const draft=ta&&ta.value.trim()&&ta.value.trim()!==SIGNOFF.trim()?ta.value.trim():'';
+   const {data:{session}}=await sb.auth.getSession();
+   let r={};try{const rs=await fetch(SUPABASE_URL+'/functions/v1/forward-email',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session&&session.access_token),apikey:SUPABASE_KEY},body:JSON.stringify({conversation_id:c.id,to_email:pick.email,mode,note:text,draft:mode==='advice'?draft:'',origin_url:location.origin})});r=await rs.json().catch(()=>({}))}catch(e){r={error:'network'}}
+   if(!r.ok){hand.disabled=!isMail;adv.disabled=false;m.textContent=' Could not send: '+(r.message||r.error||'unknown error');return}
+   box.innerHTML='';box.append(el('b',null,mode==='advice'?'✓ Asked '+colName(pick)+' for advice. Their reply will appear in this conversation.':'✓ Forwarded to '+colName(pick)+' to handle. Ticket marked Resolved.'));
+   await loadDrafts();await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();if(sel===c.id)openConv(c.id,false)};
+  hand.onclick=()=>send('handle');adv.onclick=()=>send('advice')};
+ start()}
+
 async function refreshStates(){await loadStates();drawChips();drawList();EggsyNav.refreshCounts()}
 // Translation: ISO codes on messages.language; body_en holds the English translation.
 const LANGS={en:'English',de:'German',nl:'Dutch',it:'Italian',sv:'Swedish',es:'Spanish',fr:'French',pt:'Portuguese',da:'Danish',pl:'Polish',no:'Norwegian',fi:'Finnish'};
@@ -542,7 +540,7 @@ function rowFor(c,box,otherBucket){{const un=!otherBucket&&isUnread(c);const it=
   const tags=el('div','tags');if(otherBucket)tags.append(el('span','tag bucket b-'+otherBucket,MODES[otherBucket].title));const ct=chTag(c.origin);if(c.shop)ct.title=c.shop;tags.append(ct);
   if(c.topic)tags.append(el('span','tag topic',c.topic));
   if(MODE==='inbox'&&!otherBucket){const ds=draftState(c);if(ds==='ready'){const t=el('span','tag dready','✅ Ready');t.title='Draft ready to check and send';tags.append(t)}
-   else if(ds==='gaps'){const d=draftMap[c.id],bits=[];if(d.att)bits.push('photo missing');if(d.partial)bits.push('full chat not in Eggsy');if(d.acts.includes('marty'))bits.push('waiting on Marty');const pa=d.acts.filter(a=>a!=='marty');if(pa.length)bits.push(pa.join(' + ')+' pending');if(d.notes)bits.push(d.notes+(d.notes===1?' note':' notes'));
+   else if(ds==='gaps'){const d=draftMap[c.id],bits=[];if(d.att)bits.push('photo missing');if(d.partial)bits.push('full chat not in Eggsy');if(d.acts.includes('marty'))bits.push('waiting on advice');const pa=d.acts.filter(a=>a!=='marty');if(pa.length)bits.push(pa.join(' + ')+' pending');if(d.notes)bits.push(d.notes+(d.notes===1?' note':' notes'));
     const t=el('span','tag dgaps','⚠️ '+bits.join(', '));t.title=(d.att?'The customer sent a photo or file that is no longer in hey@, so it can’t be shown here. Check eDesk or ask them to resend. ':'')+(d.partial?'Part of this chat is only an Eggsy summary (the platform can’t be read directly), so check the full chat on the platform before sending. ':'')+(d.acts.includes('marty')?'Sent to Marty for advice: Eggsy won’t auto-send it until someone marks Marty’s advice as answered. ':'')+(pa.length?'The draft promises a '+pa.join(' and ')+': a pending action will be added to the ticket automatically when you send. ':'')+(d.notes?'The draft has [ ] notes to fill in first.':'');tags.append(t)}}
   if(langMap[c.id])[...langMap[c.id]].forEach(l=>{const lt=el('span','tag lang',l.toUpperCase());lt.title=langName(l)+' conversation, English translation available';tags.append(lt)});
   const ov=el('div','ov',c.overview||'No summary yet');if(!c.overview)ov.style.color='var(--muted)';
@@ -623,7 +621,7 @@ async function openConv(id,push){sel=id;markRead(id);drawChips();drawList();cons
    const {error}=await sb.from('conversations').update({status:to,status_changed_at:new Date().toISOString()}).eq('id',c.id);
    if(error){alert('Could not update: '+error.message);jb.disabled=false;return}
    c.status=to;await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();drawChips();drawList();openConv(c.id,false)};t.append(jb)}
- askMarty(c,t);forwardSales(c,t);
+ askMarty(c,t);forwardPanel(c,t);
  const ew=el('div');ew.id='elsewhere';t.append(ew);showElsewhere(c);
  kbFor(c,t);
  if(c.summary||c.subject){const d=el('details','elog');d.append(el('summary',null,'Eggsy’s notes'));if(c.subject)d.append(el('div',null,'Subject: '+c.subject));if(c.summary)d.append(el('div',null,c.summary));t.append(d)}
@@ -1820,7 +1818,7 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
  const main=el('div','threadmain');const side=el('aside','ordercard');side.hidden=true;
  const actHost=el('div');actHost.id='acthost';
  if(String(c.origin).startsWith('tiktok')){grid.append(main,side);t.append(grid)}else t.append(main);
- askMarty(c,main);forwardSales(c,main);
+ askMarty(c,main);forwardPanel(c,main);
  const orderHost=String(c.origin).startsWith('amazon')?el('div'):null;if(orderHost)main.append(orderHost);
  const msgHost=el('div');msgHost.append(el('div','empty','Loading messages…'));main.append(msgHost);
  const compHost=el('div');main.append(compHost);
@@ -1856,8 +1854,8 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
  items.forEach(it=>{
   if(it.q){msgHost.append(queueBubble(it.q,c));return}
   const m=it.m;const k=kindOf(m);
-  if(m.direction==='note'&&/^\((Sent to Marty for advice|Marty's advice)/.test(m.body||'')){const sentQ=/^\(Sent to Marty/.test(m.body);const card=el('div','advicecard'+(sentQ?'':' reply'));
-   const mh=el('div','mh');mh.append(el('b',null,sentQ?'💬 Sent to Marty for advice':'💡 Marty’s advice'),el('span',null,fmt(m.sent_at)+' UK'));
+  if(m.direction==='note'&&/^\((Sent to [^)]* for advice|[^)]*'s advice|Forwarded to [^)]*)/.test(m.body||'')){const sentQ=/^\((Sent to|Forwarded to)/.test(m.body);const card=el('div','advicecard'+(sentQ?'':' reply'));
+   const mh=el('div','mh');const lab=((m.body||'').match(/^\(([^)]*)\)/)||['',''])[1].replace(/ by [^ ]+@[^ )]+/,'');mh.append(el('b',null,/'s advice$/.test(lab)?'💡 '+lab.replace(/'s advice$/,'’s advice'):(/^Forwarded/.test(lab)?'📨 ':'💬 ')+lab),el('span',null,fmt(m.sent_at)+' UK'));
    card.append(mh,el('div','mb',(m.body||'').replace(/^\([^)]*\)\s*/,'')));msgHost.append(card);return}
   if(k==='eggsy'||k==='sysnote'||k==='psum'||k==='draft'){noteBits.push([ (m.author||'Eggsy')+' · '+fmt(messageWhen(m,c.origin)), m.body||'' ]);return}
   const when=fmt(messageWhen(m,c.origin));

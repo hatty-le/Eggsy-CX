@@ -1,19 +1,21 @@
-// forward-email: lets signed-in Lucky Egg staff forward a customer email from hey@ to a colleague (e.g. sales).
-// POST { conversation_id, to: "claudia-bb" | "marty", note?, draft? } -> { ok, gmail, forwarded_message }
-// claudia-bb (sales): forwards the customer's email; her reply goes to the customer.
-// marty (advice): emails Marty the whole ticket from Eggsy (any channel) with our question and draft, plus the
-// original email attached when there is one; his reply comes back to hey@ and is filed on the ticket.
-// Recipients are a fixed allow-list here, so this can never forward to an outside address.
-// The colleague's reply goes straight to the original sender (Reply-To). hey@ is not copied, so the forward never comes back in as a new ticket.
+// forward-email: lets signed-in Lucky Egg staff forward a ticket to any active colleague in cx_colleagues.
+// POST { conversation_id, to_email, mode: "handle" | "advice", note?, draft? }
+// handle: forwards the customer's original email; the colleague's reply goes straight to the customer
+//         (Reply-To), the ticket gets a "(Forwarded to X ...)" note and is marked Resolved. Email tickets only.
+// advice: emails the colleague the whole ticket from Eggsy (any channel) with our question and draft, plus the
+//         original email attached when there is one; their reply comes back to hey@ and the
+//         cx_marty_advice_reply trigger files it on the ticket as "(X's advice)".
+// Recipients must be active @luckyegg.co colleagues, so this can never forward to an outside address.
+// Legacy: to: "claudia-bb" (handle) and to: "marty" (advice) still work.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const URL_ = Deno.env.get("SUPABASE_URL")!;
 const SB = createClient(URL_, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 const G = "https://gmail.googleapis.com/gmail/v1/users/me/";
 const FROM = "hey@luckyegg.co";
-const RECIPIENTS: Record<string, { email: string; name: string; advice?: boolean }> = {
-  "claudia-bb": { email: "claudia.bb@luckyegg.co", name: "Claudia Bettson-Burdett" },
-  "marty": { email: "marty@luckyegg.co", name: "Marty Pardoe", advice: true },
+const LEGACY: Record<string, { email: string; mode: string }> = {
+  "claudia-bb": { email: "claudia.bb@luckyegg.co", mode: "handle" },
+  "marty": { email: "marty@luckyegg.co", mode: "advice" },
 };
 const ORIGINS: Record<string, string> = { email_hey: "hey@ email", shopify_form: "Shopify form", wix_mmc_form: "MMC Wix form", tiktok_uk: "TikTok UK", tiktok_eu: "TikTok EU", tiktok_us: "TikTok US", walmart: "Walmart", facebook: "Facebook", instagram: "Instagram" };
 const chName = (o: string) => ORIGINS[o] || (o.startsWith("amazon_") ? "Amazon " + o.slice(7).toUpperCase() : o);
@@ -103,11 +105,12 @@ async function adviceEmail(to: any, conv: any, orig: any, note: string, draft: s
     "Subject: " + encWord(clean(subj)), "MIME-Version: 1.0", 'Content-Type: multipart/mixed; boundary="' + boundary + '"', "", ...parts, "--" + boundary + "--", ""].join("\r\n");
   const sent = await gm("messages/send", { raw: b64url(mime) });
   // The marker carries the sent email's own Gmail id, so the hey@ sync skips it as a duplicate.
-  await SB.from("messages").insert({ conversation_id: conv.id, direction: "note", author: "Sent to Marty for advice",
-    body: "(Sent to Marty for advice by " + by + ") " + note, sent_at: new Date().toISOString(),
+  const first = to.name.split(" ")[0];
+  await SB.from("messages").insert({ conversation_id: conv.id, direction: "note", author: "Sent to " + first + " for advice",
+    body: "(Sent to " + first + " for advice by " + by + ") " + note, sent_at: new Date().toISOString(),
     external_id: "gmail:" + sent.id, external_thread_id: sent.threadId });
-  await SB.from("cx_followups").insert({ conversation_id: conv.id, kind: "advice", title: "Waiting on advice from Marty",
-    details: note, assignees: "Marty", created_by: by, gmail_thread_id: sent.threadId });
+  await SB.from("cx_followups").insert({ conversation_id: conv.id, kind: "advice", title: "Waiting on advice from " + first,
+    details: note, assignees: first + " <" + to.email + ">", created_by: by, gmail_thread_id: sent.threadId });
   return { ok: true, gmail: sent.id, thread: sent.threadId, forwarded_message: orig?.id || null, to: to.email };
 }
 
@@ -122,8 +125,14 @@ Deno.serve(async (req) => {
   const by = String(u?.user?.email || "a teammate").toLowerCase();
 
   let p: any = {}; try { p = await req.json(); } catch { /* */ }
-  const to = RECIPIENTS[String(p.to || "")];
-  if (!to) return json({ error: "Unknown recipient" }, 400);
+  const legacy = LEGACY[String(p.to || "")];
+  const toEmail = String(p.to_email || legacy?.email || "").trim().toLowerCase();
+  const mode = String(p.mode || legacy?.mode || "handle") === "advice" ? "advice" : "handle";
+  if (!/^[^@\s]+@luckyegg\.co$/.test(toEmail)) return json({ error: "Pick a Lucky Egg colleague" }, 400);
+  const { data: col } = await SB.from("cx_colleagues").select("email,display_name,first_name,last_name,active").eq("email", toEmail).eq("active", true).maybeSingle();
+  if (!col) return json({ error: "That colleague is not in the list" }, 400);
+  const nm = String(col.display_name || [col.first_name, col.last_name].filter(Boolean).join(" ") || toEmail);
+  const to = { email: toEmail, name: nm.charAt(0).toUpperCase() + nm.slice(1), advice: mode === "advice" };
   const cid = String(p.conversation_id || "");
   if (!/^[0-9a-f-]{36}$/i.test(cid)) return json({ error: "Bad conversation id" }, 400);
   const note = String(p.note || "").slice(0, 4000).trim();
@@ -138,13 +147,13 @@ Deno.serve(async (req) => {
     let orig: any = null;
     try { for (const r of rows || []) { orig = await resolve(String(r.external_id).slice(6), r, handle); if (orig) break; } } catch (e) { if (!to.advice) throw e; orig = null; }
     if (to.advice) return json(await adviceEmail(to, conv, orig, note, draft, by, p.origin_url));
-    if (!orig) return json({ error: "no_email", message: "This ticket has no email in hey@ to forward." }, 404);
+    if (!orig) return json({ error: "no_email", message: "This ticket has no email in hey@ to forward. Use Ask for advice instead." }, 404);
     const raw = await gm("messages/" + orig.id + "?format=raw");
     const origFrom = hdr(orig, "From"), subj = hdr(orig, "Subject") || conv.subject || "Customer message";
     const ticket = (String(p.origin_url || "").match(/^https:\/\/[a-z0-9.-]+$/i) ? p.origin_url : "https://eggsy-cx.vercel.app") + "/inbox/?c=" + cid;
     const intro = [
       "Hi " + to.name.split(" ")[0] + ",", "",
-      note || "This came into hey@ and looks like one for sales. Could you pick it up?", "",
+      note || "This came into hey@ and looks like one for you. Could you pick it up?", "",
       "Reply to this email and it goes straight to " + (clean(origFrom) || "the sender") + ". Eggsy has marked the ticket as forwarded to you.",
       "Forwarded from Eggsy CX by " + by + ". Ticket: " + ticket, "",
       "---------- Forwarded message ---------",
@@ -164,7 +173,12 @@ Deno.serve(async (req) => {
       "--" + boundary + "--", "",
     ].join("\r\n");
     const sent = await gm("messages/send", { raw: b64(enc.encode(mime)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") });
-    return json({ ok: true, gmail: sent.id, forwarded_message: orig.id, to: to.email });
+    const first = to.name.split(" ")[0];
+    await SB.from("messages").insert({ conversation_id: cid, direction: "note", author: "Forwarded to " + first,
+      body: "(Forwarded to " + to.name + " by " + by + " to handle)" + (note ? " " + note : ""), sent_at: new Date().toISOString(),
+      external_id: "gmail:" + sent.id, external_thread_id: sent.threadId });
+    await SB.from("conversations").update({ status: "resolved", status_changed_at: new Date().toISOString(), summary: "Forwarded to " + to.name, updated_at: new Date().toISOString() }).eq("id", cid);
+    return json({ ok: true, gmail: sent.id, forwarded_message: orig.id, to: to.email, mode });
   } catch (e) {
     console.error("forward-email: " + String((e as Error).message).slice(0, 160));
     return json({ error: "Could not forward from hey@" }, 502);
