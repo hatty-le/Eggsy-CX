@@ -104,7 +104,9 @@ details.elog div{margin-top:6px}
 .snip{font-size:12.5px;color:#5a4a12;background:#fff7dd;border-radius:8px;padding:4px 8px;margin-top:4px}
 .tag.bucket{background:#1d1b26;color:#fff}.tag.b-resolved{background:#dff5e3;color:#1d5c2b}.tag.b-waiting{background:#e6f0ff;color:#1f3d7a}.tag.b-inbox{background:#FFE8A6;color:#5a4300}
 .junkbtn{margin:0 0 10px}
-.marty{margin:0 0 10px}.marty .btn{margin-right:6px}
+.marty{margin:0 0 10px}
+.advicecard{background:#F3F0FF;border:1px dashed #b9a8f5;border-radius:14px;padding:12px 16px;margin:10px 0;font-size:14px}.advicecard.reply{border-style:solid;background:#EFE9FF}
+.advicecard .mh{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted);margin-bottom:6px}.advicecard .mh b{color:#4b2a8a;font-size:14px}.advicecard .mb{white-space:pre-wrap;line-height:1.5}.marty .btn{margin-right:6px}
 .marty-box{background:#F3F0FF;border:1px solid #d9d0ff;border-radius:10px;padding:10px 12px;margin-top:6px;font-size:14px}
 .marty-box textarea{width:100%;min-height:70px;margin:6px 0;font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px;box-sizing:border-box}
 .marty-box .hint{font-size:12.5px;color:var(--muted);line-height:1.4}
@@ -389,7 +391,7 @@ function askMarty(c,t){
  const draw=async()=>{host.innerHTML='';const open=await martyOpen(c.id);if(sel!==c.id)return;
   if(open){const box=el('div','marty-box');box.append(el('b',null,'💬 Waiting on Marty’s advice'),document.createTextNode(' since '+fmt(open.created_at)+' UK'));
    if(open.details)box.append(el('div','hint','Question: '+open.details));
-   box.append(el('div','hint','Emailed to Marty. His reply comes to your inbox. Eggsy won’t auto-send this ticket until you mark his advice as answered. Edit the draft with his advice, then send.'));
+   box.append(el('div','hint','Emailed to Marty from hey@. When he replies, his advice appears in the conversation and Eggsy redrafts the reply using it (held for you to check). If he answers another way, edit the draft yourself and mark it answered.'));
    const bar=el('div');bar.style.marginTop='8px';
    const done=el('button','btn small','✓ Marty answered');done.type='button';
    done.onclick=async()=>{done.disabled=true;const {error}=await sb.from('cx_followups').update({status:'done',done_at:new Date().toISOString(),done_by:ME||null}).eq('id',open.id);
@@ -397,7 +399,7 @@ function askMarty(c,t){
    bar.append(done);box.append(bar);host.append(box);return}
   const b=el('button','btn ghost small','📧 Email to Marty for advice');b.type='button';host.append(b);
   b.onclick=()=>{b.remove();const box=el('div','marty-box');
-   box.append(el('b',null,'Email this ticket to Marty'),el('div','hint','Write your question. Eggsy emails Marty (marty@luckyegg.co) the whole conversation, your question and your draft reply, with the customer’s original email attached when there is one. When he replies, it comes to you, not the customer.'));
+   box.append(el('b',null,'Email this ticket to Marty'),el('div','hint','Write your question. Eggsy emails Marty (marty@luckyegg.co) the whole conversation, your question and your draft reply, with the customer’s original email attached when there is one. When he replies, his advice is added to this conversation and Eggsy redrafts the reply with it.'));
    const q=el('textarea');q.placeholder='e.g. Is it OK to send a free replacement mic when they bought it from a retailer?';box.append(q);
    const bar=el('div');const go=el('button','btn small','Email to Marty');go.type='button';const no=el('button','btn ghost small','Cancel');no.type='button';const m=el('span','hint');
    no.onclick=()=>draw();
@@ -407,9 +409,7 @@ function askMarty(c,t){
     const {data:{session}}=await sb.auth.getSession();
     let r={};try{const res=await fetch(SUPABASE_URL+'/functions/v1/forward-email',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(session&&session.access_token),apikey:SUPABASE_KEY},body:JSON.stringify({conversation_id:c.id,to:'marty',note:question,draft,origin_url:location.origin})});r=await res.json().catch(()=>({}))}catch(e){r={error:'network'}}
     if(!r.ok){go.disabled=false;m.textContent=' Could not email Marty: '+(r.error||'unknown error');return}
-    await logNote(c,'Emailed to Marty for advice by '+(ME||'a teammate')+': '+question,'note:ask-marty:'+Date.now());
-    const {error}=await sb.from('cx_followups').insert({conversation_id:c.id,kind:'advice',title:'Waiting on advice from Marty',details:question,assignees:'Marty',created_by:ME||null});
-    if(error){go.disabled=false;m.textContent=' Emailed Marty, but could not log it on the ticket: '+error.message;return}
+    // The server adds "(Sent to Marty for advice)" to the thread and the follow-up that holds the ticket.
     await loadDrafts();drawChips();drawList();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();draw()};
    bar.append(go,no,m);box.append(bar);host.append(box);q.focus()}};
  draw()}
@@ -1856,6 +1856,9 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
  items.forEach(it=>{
   if(it.q){msgHost.append(queueBubble(it.q,c));return}
   const m=it.m;const k=kindOf(m);
+  if(m.direction==='note'&&/^\((Sent to Marty for advice|Marty's advice)/.test(m.body||'')){const sentQ=/^\(Sent to Marty/.test(m.body);const card=el('div','advicecard'+(sentQ?'':' reply'));
+   const mh=el('div','mh');mh.append(el('b',null,sentQ?'💬 Sent to Marty for advice':'💡 Marty’s advice'),el('span',null,fmt(m.sent_at)+' UK'));
+   card.append(mh,el('div','mb',(m.body||'').replace(/^\([^)]*\)\s*/,'')));msgHost.append(card);return}
   if(k==='eggsy'||k==='sysnote'||k==='psum'||k==='draft'){noteBits.push([ (m.author||'Eggsy')+' · '+fmt(messageWhen(m,c.origin)), m.body||'' ]);return}
   const when=fmt(messageWhen(m,c.origin));
   if(style==='bubble'){const [who,role]=whoLine(m,k,c.origin);const b=el('div','bubble '+(k==='team'||k==='platform'?'outbound '+k:k==='internal'?'internal':k==='inbound'?'inbound':'outbound'));

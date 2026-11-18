@@ -2,7 +2,7 @@
 // POST { conversation_id, to: "claudia-bb" | "marty", note?, draft? } -> { ok, gmail, forwarded_message }
 // claudia-bb (sales): forwards the customer's email; her reply goes to the customer.
 // marty (advice): emails Marty the whole ticket from Eggsy (any channel) with our question and draft, plus the
-// original email attached when there is one; his reply goes to the teammate who asked.
+// original email attached when there is one; his reply comes back to hey@ and is filed on the ticket.
 // Recipients are a fixed allow-list here, so this can never forward to an outside address.
 // The colleague's reply goes straight to the original sender (Reply-To). hey@ is not copied, so the forward never comes back in as a new ticket.
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -87,7 +87,7 @@ async function adviceEmail(to: any, conv: any, orig: any, note: string, draft: s
     ...(conv.overview ? ["Summary: " + conv.overview] : []),
     "Open in Eggsy: " + ticket, "",
     "FULL CONVERSATION", convo || "(no messages stored)", "",
-    "Reply to this email and it goes to " + by + ". The customer does not see it.",
+    "Just reply to this email. Your reply goes into the ticket in Eggsy (asked by " + by + "), not to the customer.",
     ...(orig ? ["The customer's original email is attached."] : []),
   ].join("\r\n");
   const boundary = "eggsy_adv_" + crypto.randomUUID().replace(/-/g, "");
@@ -97,11 +97,18 @@ async function adviceEmail(to: any, conv: any, orig: any, note: string, draft: s
     const raw = await gm("messages/" + orig.id + "?format=raw");
     parts.push("--" + boundary, 'Content-Type: message/rfc822; name="customer-email.eml"', 'Content-Disposition: attachment; filename="customer-email.eml"', "Content-Transfer-Encoding: base64", "", lines76(fromB64Url(raw.raw)));
   }
-  const replyTo = /@luckyegg\.co$/.test(by) ? by : "";
-  const mime = ["From: Lucky Egg <" + FROM + ">", "To: " + to.name + " <" + to.email + ">", ...(replyTo ? ["Reply-To: " + replyTo] : []),
+  // No Reply-To: Marty's reply comes back to hey@ on this thread, and the cx_marty_advice_reply trigger
+  // files it on the ticket as "(Marty's advice)".
+  const mime = ["From: Lucky Egg <" + FROM + ">", "To: " + to.name + " <" + to.email + ">",
     "Subject: " + encWord(clean(subj)), "MIME-Version: 1.0", 'Content-Type: multipart/mixed; boundary="' + boundary + '"', "", ...parts, "--" + boundary + "--", ""].join("\r\n");
   const sent = await gm("messages/send", { raw: b64url(mime) });
-  return { ok: true, gmail: sent.id, forwarded_message: orig?.id || null, to: to.email, reply_to: replyTo || null };
+  // The marker carries the sent email's own Gmail id, so the hey@ sync skips it as a duplicate.
+  await SB.from("messages").insert({ conversation_id: conv.id, direction: "note", author: "Sent to Marty for advice",
+    body: "(Sent to Marty for advice by " + by + ") " + note, sent_at: new Date().toISOString(),
+    external_id: "gmail:" + sent.id, external_thread_id: sent.threadId });
+  await SB.from("cx_followups").insert({ conversation_id: conv.id, kind: "advice", title: "Waiting on advice from Marty",
+    details: note, assignees: "Marty", created_by: by, gmail_thread_id: sent.threadId });
+  return { ok: true, gmail: sent.id, thread: sent.threadId, forwarded_message: orig?.id || null, to: to.email };
 }
 
 Deno.serve(async (req) => {
