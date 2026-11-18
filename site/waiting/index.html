@@ -133,8 +133,10 @@ details.elog div{margin-top:6px}
 .seg button{font:inherit;font-size:13px;border:0;background:transparent;border-radius:999px;padding:5px 12px;cursor:pointer;color:var(--ink)}
 .seg button.on{background:#FFE8A6;font-weight:700}
 .bubble .ltag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.05em;border-radius:6px;padding:1px 5px;margin-left:6px;background:#e6f0ff;color:#1f3d7a;vertical-align:1px}
-.bubble .trnote{font-size:11.5px;color:var(--muted);margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.bubble .flip{font:inherit;font-size:11.5px;background:none;border:0;padding:0;color:#2a5bd7;text-decoration:underline;cursor:pointer}
+.trnote{font-size:12px;color:#1f3d7a;margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.trnote .flip{font:inherit;font-size:12px;background:none;border:0;padding:0;color:#2a5bd7;text-decoration:underline;cursor:pointer}
+.enbox{white-space:pre-wrap;margin-top:8px;padding:10px 12px;background:#f4f7ff;border-radius:10px;font-size:13.5px;line-height:1.45}
+.enbox .enlab{font-size:12px;font-weight:650;color:#1f3d7a;margin-bottom:4px}
 details.psumfold{border:1px dashed #d9cfb4;background:#faf8f2;border-radius:12px;padding:6px 12px;font-size:13px;margin:6px 0;max-width:80%}
 details.psumfold summary{cursor:pointer;color:var(--muted);font-weight:600}
 details.psumfold div{white-space:pre-wrap;margin-top:6px}
@@ -414,7 +416,7 @@ function askMarty(c,t){
    bar.append(go,no,m);box.append(bar);host.append(box);q.focus()}};
  draw()}
 async function refreshStates(){await loadStates();drawChips();drawList();EggsyNav.refreshCounts()}
-// Translation: ISO codes on messages.language; body_en holds the English translation.
+// Translation: ISO codes on messages.language; body_en holds the cached English. Foreign messages show that English, with the original one click away.
 const LANGS={en:'English',de:'German',nl:'Dutch',it:'Italian',sv:'Swedish',es:'Spanish',fr:'French',pt:'Portuguese',da:'Danish',pl:'Polish',no:'Norwegian',fi:'Finnish'};
 const LNAME={german:'de',dutch:'nl',italian:'it',swedish:'sv',spanish:'es',french:'fr',english:'en'};
 const isoOf=l=>{if(!l)return null;const x=String(l).trim().toLowerCase();return LNAME[x]||x.slice(0,2)};
@@ -536,6 +538,7 @@ function drawList(){const box=$('list');box.innerHTML='';const v=visible();const
  v.forEach(c=>rowFor(c,box));
  if(q)['inbox','waiting','resolved','junk'].filter(b=>b!==MODE).forEach(b=>{const list=other.filter(c=>bucketOf(c)===b);if(!list.length)return;
   box.append(el('div','srch-h',list.length+' in '+MODES[b].title));list.forEach(c=>rowFor(c,box,b))});
+ warmForeignPreviews();
 }
 function rowFor(c,box,otherBucket){{const un=!otherBucket&&isUnread(c);const it=el('div','item'+(sel===c.id?' sel':'')+(un?' unread':''));it.tabIndex=0;it.onclick=()=>openConv(c.id,true);it.onkeydown=e=>{if(e.key==='Enter')openConv(c.id,true)};
   const l1=el('div','line1');l1.append(el('span','name',c.customer_name||c.customer_handle||'Unknown'),MODE==='inbox'?(()=>{const w=el('span','when',fmt(sinceOf(c)));w.title='Waiting for a reply since '+fmt(sinceOf(c))+' UK';return w})():el('span','when',fmt(c.last_message_at)));
@@ -636,7 +639,10 @@ async function openConv(id,push){sel=id;markRead(id);drawChips();drawList();cons
  const box=el('div');box.append(el('div','empty','Loading messages…'));t.append(box);
  const [mr,qr,dr,ar]=await Promise.all([
   sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en,external_id').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true}),
-  sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address').eq('conversation_id',id).order('queued_at',{ascending:true}),
+  (async()=>{const full='id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address,language,body_en';
+   const base='id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address';
+   let qr=await sb.from('reply_queue').select(full).eq('conversation_id',id).order('queued_at',{ascending:true});
+   if(qr.error)qr=await sb.from('reply_queue').select(base).eq('conversation_id',id).order('queued_at',{ascending:true});return qr})(),
   sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at,context').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
   sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false})]);
  if(sel!==id)return;
@@ -700,7 +706,9 @@ const PH_RE=/\[[^\]]*\]/,PH_RE_G=/\[[^\]]*\]/g;
 const QLABEL={queued:'Queued',sending:'Sending…',sent:'Sent',failed:'Failed',cancelled:'Cancelled'};
 function queueBubble(q,c){const b=el('div','bubble outbound team q'+q.status);
  const by=el('div','by');by.append(el('b',null,'You'+(q.queued_by?' ('+q.queued_by+')':'')),el('span','role','Eggsy CX reply'),document.createTextNode(' · queued '+fmt(q.queued_at)+(q.sent_at?' · sent '+fmt(q.sent_at):'')));
- by.append(el('span','badge b-'+q.status,QLABEL[q.status]||q.status));b.append(by,document.createTextNode(q.body||''));
+ by.append(el('span','badge b-'+q.status,QLABEL[q.status]||q.status));
+ const qtxt=el('div');qtxt.textContent=q.body||'';b.append(by,qtxt);
+ addEnglish(b,qtxt,{id:q.message_id||null,queue_id:q.message_id?null:q.id,body:q.body,body_en:q.body_en,language:q.language,direction:'outbound'});
  if(q.status==='failed'&&q.send_error)b.append(el('div','err',/^Not (sent|delivered):/.test(q.send_error)?q.send_error:'Eggsy could not post this: '+q.send_error));
  if(q.status==='queued'&&q.email_note)b.append(el('div','qnote',q.email_note));
  const acts=el('div','acts');
@@ -748,8 +756,29 @@ function composer(c,sug){const w=el('div','composer');const ch=channel(c);
   else lbl.style.display='none'};
  const loadSug=()=>{ta.value=sug.body||'';cur=sug.id;if(sug.gaps)ta.dataset.gapbase=sug.body||'';else delete ta.dataset.gapbase;const st=lsGet(c.id);delete st.text;st.draftId=sug.id;lsSet(c.id,st);newer.style.display='none';setLabel();drawTr();phCheck()};
  const trBox=el('div');
- const drawTr=()=>{trBox.innerHTML='';if(!(cur&&sug&&sug.body_en))return;const d=el('details','tr');d.open=true;
-  d.open=trMode()==='en';d.append(el('summary',null,'English, for you'+(sug.language?' (the reply is in '+langName(sug.language)+')':'')+'. This is not sent.'),el('div',null,sug.body_en));trBox.append(d)};
+ const paintEnglish=(label,text)=>{trBox.innerHTML='';const box=el('div','enbox');box.append(el('div','enlab',label));if(text)box.append(el('div',null,text));trBox.append(box)};
+ const drawTr=()=>{trBox.innerHTML='';
+  const text=ta.value||'';
+  const replyLang=c._replyLang||(sug&&sug.language)||'';
+  const first=(c.customer_name||'').trim().split(/\s+/)[0]||'';
+  const safeName=/^[A-Za-zÀ-ÿ'’-]{2,24}$/.test(first)?first:'';
+  const local=window.EggsyDisplay&&String(c.origin||'').startsWith('amazon')?EggsyDisplay.englishForTemplate(replyLang,safeName,c.order_number||'',text):'';
+  if(local){paintEnglish('English, for you. The reply stays in '+langName(replyLang)+'. This is not sent.',local);return}
+  if(!(cur&&sug))return;
+  const view=window.EggsyDisplay?EggsyDisplay.englishView(sug):{mode:'english'};
+  if(view.mode==='english')return;
+  const edited=text.trim()!==String(sug.body||'').trim();
+  const label='English, for you'+(sug.language?' (the reply stays in '+langName(sug.language)+')':'')+(edited?' — Eggsy’s suggestion, before your edits':'')+'. This is not sent.';
+  if(sug.body_en){paintEnglish(label,sug.body_en);return}
+  if(edited)return;
+  paintEnglish('Translating…','');
+  const id=String(sug.id||'');
+  const payload=id.indexOf('msg:')===0?{message_id:id.slice(4)}:(/^[0-9a-f-]{36}$/i.test(id)?{draft_id:id}:null);
+  if(!payload||!(payload.message_id||payload.draft_id)){trBox.innerHTML='';return}
+  translateRecord(payload).then(j=>{if(!trBox.isConnected)return;
+   if(j&&j.body_en){sug.body_en=j.body_en;if(j.language)sug.language=j.language;drawTr()}
+   else if(j&&j.language==='en'){sug.language='en';trBox.innerHTML=''}
+   else paintEnglish(j&&j.error==='not_configured'?'Translation isn’t set up yet':'Could not translate this draft','')}).catch(()=>{if(trBox.isConnected)paintEnglish('Could not translate this draft','')})};
  const onTr=()=>{if(!w.isConnected){document.removeEventListener('eggsy-tr',onTr);return}drawTr()};document.addEventListener('eggsy-tr',onTr);
  if(st0.text!=null){const saved=window.EggsyDisplay?EggsyDisplay.splitDraft(st0.text):{text:st0.text,gaps:false};ta.value=saved.text;if(saved.gaps)ta.dataset.gapbase=saved.text;cur=sug&&st0.draftId===sug.id?sug.id:null;
   if(sug&&st0.draftId!==sug.id){newer.append(document.createTextNode('Eggsy has a newer suggested reply.'));const lb=el('button','btn ghost','Replace my text with it');lb.type='button';lb.onclick=()=>{if(confirm('Replace what you have written with Eggsy’s newer suggestion?'))loadSug()};newer.append(lb);newer.style.display=''}}
@@ -1528,8 +1557,9 @@ async function kbFor(c,t){const d=el('details','kbbox elog');d.append(el('summar
   data.forEach(a=>{const li=el('li');const l=el('a',null,a.title);l.href='/knowledge/?a='+a.id;l.target='_blank';li.append(l,el('small',null,' · '+a.category+(a.channel_specific?' · this channel':'')+(a.language!=='en'?' · '+a.language.toUpperCase():'')));ul.append(li)})}}
 async function refreshAfterQueue(id){await Promise.all([loadQueueSummary(),loadDrafts()]);await loadStates();EggsyNav.refreshCounts();drawChips();drawList();if(sel!==id)return;await openConv(id,false);
  const qb=[...document.querySelectorAll('#thread .bubble.q-queued,#thread .bubble.qqueued')].pop();if(qb)qb.scrollIntoView({block:'center'})}
-async function loadPreviews(){const {data,error}=await sb.from('cx_latest_inbound').select('conversation_id,preview,customer_at,buyer_name');
- if(error){console.warn('preview',error.message);return}
+async function loadPreviews(){let res=await sb.from('cx_latest_inbound').select('conversation_id,preview,customer_at,buyer_name,message_id,language,preview_is_en');
+ if(res.error)res=await sb.from('cx_latest_inbound').select('conversation_id,preview,customer_at,buyer_name');
+ const {data,error}=res;if(error){console.warn('preview',error.message);return}
  previewMap={};(data||[]).forEach(r=>{previewMap[r.conversation_id]=r})}
 function customerAt(c){const p=previewMap[c.id];if(p&&p.customer_at)return p.customer_at;const x=stMap[c.id];return (x&&x.last_customer_at)||null}
 function inScope(c){if(MODE!=='inbox')return inMode(c);const b=bucketOf(c);if(scope==='all')return b==='inbox'||b==='waiting'||b==='resolved';return b==='inbox'}
@@ -1624,7 +1654,7 @@ function rowMarks(c){const marks=[];
  return marks}
 function avatarFor(name){const parts=String(name||'?').trim().split(/\s+/).filter(Boolean);const letters=((parts[0]||'?')[0]+(parts[1]?parts[1][0]:'')).toUpperCase();
  const hue=[...String(name||'?')].reduce((n,ch)=>n+ch.charCodeAt(0),0)%360;const d=el('span','avatar',letters.slice(0,2));d.style.background='hsl('+hue+' 42% 38%)';d.setAttribute('aria-hidden','true');return d}
-function rowFor(c,box,otherBucket){const un=!otherBucket&&isUnread(c);const it=el('div','item'+(sel===c.id?' sel':'')+(un?' unread':''));it.tabIndex=0;it.onclick=()=>openConv(c.id,true);it.onkeydown=e=>{if(e.key==='Enter')openConv(c.id,true)};
+function rowFor(c,box,otherBucket){const un=!otherBucket&&isUnread(c);const it=el('div','item'+(sel===c.id?' sel':'')+(un?' unread':''));it.dataset.cid=c.id;it.tabIndex=0;it.onclick=()=>openConv(c.id,true);it.onkeydown=e=>{if(e.key==='Enter')openConv(c.id,true)};
  const shown=((previewMap[c.id]&&previewMap[c.id].buyer_name)||c.customer_name||c.customer_handle||'Unknown');
  const l1=el('div','line1');if(String(c.origin).startsWith('tiktok'))l1.append(avatarFor(shown));
  const nm=el('span','name',shown);const when=el('span','when',fmt(customerAt(c)));when.title='Customer wrote '+fmt(customerAt(c))+' UK';
@@ -1640,16 +1670,36 @@ function showElsewhere(c){const box=document.getElementById('elsewhere');if(!box
  if(b===MODE)return;if(MODE==='inbox'&&scope==='all'&&(b==='inbox'||b==='waiting'||b==='resolved'))return;
  box.className='elsewhere';box.append(el('span',null,'This conversation is in '+MODES[b].title+'.'));const a=el('a',null,'Open it in '+MODES[b].title+' →');a.href=MODES[b].path+'?c='+c.id;box.append(a)}
 function threadKind(origin){if(origin==='email_hey'||origin==='shopify_form'||origin==='wix_mmc_form')return 'mail';if(String(origin).startsWith('amazon'))return 'seller';return 'bubble'}
-function addEnglish(host,m){if(!window.EggsyDisplay)return;const foreign=(m.body_en&&m.language&&m.language!=='en')||EggsyDisplay.looksNonEnglish(m.body,m.language);if(!foreign||m.direction!=='inbound')return;
- const btn=el('button','showen','Show in English');btn.type='button';const hold=el('div','entr');hold.hidden=true;
- btn.onclick=async()=>{if(!hold.hidden){hold.hidden=true;btn.textContent='Show in English';return}
-  let en=m.body_en;if(!en){btn.disabled=true;btn.textContent='Translating…';
-   try{const {data:{session}}=await sb.auth.getSession();if(!session)throw new Error('Not signed in');
-    const r=await fetch(SUPABASE_URL+'/functions/v1/translate-message',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token,apikey:SUPABASE_KEY},body:JSON.stringify({message_id:m.id})});
-    const j=await r.json();if(j&&j.body_en){en=j.body_en;m.body_en=en;if(j.language)m.language=j.language}else if(j&&j.language==='en'){btn.disabled=false;btn.textContent='Already English';return}else{btn.disabled=false;btn.textContent=j&&j.error==='not_configured'?'Translation isn’t set up yet':'Could not translate';return}}
-   catch(e){btn.disabled=false;btn.textContent='Could not translate';return}btn.disabled=false}
-  hold.hidden=false;hold.textContent=en;btn.textContent='Hide English'};
- host.append(btn,hold)}
+const trWait=[];let trBusy=0;
+function pumpTranslations(){while(trBusy<3&&trWait.length){const job=trWait.shift();trBusy++;Promise.resolve().then(job.fn).then(job.ok,job.bad).finally(()=>{trBusy--;pumpTranslations()})}}
+function enqueueTranslation(fn){return new Promise((ok,bad)=>{trWait.push({fn,ok,bad});pumpTranslations()})}
+async function translateRecord(payload){const {data:{session}}=await sb.auth.getSession();if(!session)throw new Error('Not signed in');
+ const r=await fetch(SUPABASE_URL+'/functions/v1/translate-message',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token,apikey:SUPABASE_KEY},body:JSON.stringify(payload)});
+ return r.json()}
+function warmForeignPreviews(){if(!window.EggsyDisplay)return;let left=30;visible().forEach(c=>{if(left<=0)return;const p=previewMap[c.id];
+ if(!p||!p.message_id||p.preview_is_en||p._warming)return;if(!EggsyDisplay.looksNonEnglish(p.preview,p.language))return;left--;p._warming=true;
+ enqueueTranslation(()=>translateRecord({message_id:p.message_id})).then(j=>{
+  if(j&&j.body_en){p.preview=EggsyDisplay.previewFirstLine(j.body_en)||String(j.body_en).replace(/\s+/g,' ').slice(0,160);p.preview_is_en=true;if(j.language)p.language=j.language;
+   document.querySelectorAll('[data-cid="'+p.conversation_id+'"] .preview').forEach(node=>{node.textContent=p.preview;node.style.display=''})}
+  else if(j&&j.language==='en'){p.preview_is_en=true;p.language='en'}
+  else p._warming=false}).catch(()=>{p._warming=false})})}
+// Foreign customer messages, team replies, drafts and queued replies show English first. The original stays one click away.
+// translate-message writes body_en on the row, so the next open does not call the model again. What is sent is unchanged.
+function addEnglish(host,textEl,m){if(!window.EggsyDisplay||!textEl||!m)return;const view=EggsyDisplay.englishView(m);if(view.mode==='english')return;
+ const original=textEl.textContent;const note=el('div','trnote');const lab=el('span');const fl=el('button','flip');fl.type='button';note.append(lab,fl);host.append(note);
+ let showing='en';
+ const paint=()=>{const name=langName(m.language);
+  if(showing==='en'&&m.body_en){textEl.textContent=cleanBody(m.body_en);lab.textContent='Translated from '+(name||'another language');fl.hidden=false;fl.textContent='Show original'}
+  else if(showing==='orig'){textEl.textContent=original;lab.textContent='Original'+(name?' ('+name+')':'');fl.hidden=false;fl.textContent='Show English'}
+  else{textEl.textContent=original;lab.textContent='Translating…';fl.hidden=true}};
+ fl.onclick=()=>{showing=showing==='en'?'orig':'en';paint()};paint();
+ if(view.mode==='translated')return;
+ const payload=m.id?{message_id:m.id}:(m.queue_id?{queue_id:m.queue_id}:null);
+ if(!payload){lab.textContent='Original';fl.hidden=true;return}
+ enqueueTranslation(()=>translateRecord(payload)).then(j=>{if(!host.isConnected)return;
+  if(j&&j.body_en){m.body_en=j.body_en;if(j.language)m.language=j.language;paint()}
+  else if(j&&j.language==='en'){note.remove();textEl.textContent=original}
+  else{lab.textContent=j&&j.error==='not_configured'?'Translation isn’t set up yet':'Could not translate';fl.hidden=true}}).catch(()=>{if(host.isConnected){lab.textContent='Could not translate';fl.hidden=true}})}
 function orderFacts(c,msgs){const raws=(msgs||[]).map(m=>m.body_raw||'').filter(Boolean);
  if(String(c.origin).startsWith('tiktok')){const best={orderId:c.order_number||'',game:'',status:''};
   raws.forEach(raw=>{const o=EggsyDisplay.tiktokOrder(raw);if(o.orderId)best.orderId=o.orderId;if(o.game)best.game=o.game;if(o.status)best.status=o.status});return {kind:'tiktok',fields:[['Order',best.orderId],['Game',best.game],['Status',best.status]]}}
@@ -1830,7 +1880,10 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
  let mr=await sb.from('messages').select(cols).in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true});
  if(mr.error)mr=await sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en,external_id').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true});
  const [qr,dr,ar]=await Promise.all([
-  sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address').eq('conversation_id',id).order('queued_at',{ascending:true}),
+  (async()=>{const full='id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address,language,body_en';
+   const base='id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address';
+   let qr=await sb.from('reply_queue').select(full).eq('conversation_id',id).order('queued_at',{ascending:true});
+   if(qr.error)qr=await sb.from('reply_queue').select(base).eq('conversation_id',id).order('queued_at',{ascending:true});return qr})(),
   sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at,context').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
   sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false})]);
  if(sel!==id)return;
@@ -1864,14 +1917,14 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
   if(style==='bubble'){const [who,role]=whoLine(m,k,c.origin);const b=el('div','bubble '+(k==='team'||k==='platform'?'outbound '+k:k==='internal'?'internal':k==='inbound'?'inbound':'outbound'));
    const by=el('div','by');by.append(el('b',null,who),el('span','role',role),document.createTextNode(' · '+when));
    if(m.conversation_id&&m.conversation_id!==id)by.append(el('span','ltag','Other thread'));
-   const txt=el('div');txt.textContent=cleanBody(m.body);b.append(by,txt);addEnglish(b,m);
+   const txt=el('div');txt.textContent=cleanBody(m.body);b.append(by,txt);addEnglish(b,txt,m);
    const lq=byMsg[m.id];if(lq){if(lq.status==='failed')by.append(el('span','badge b-failed','Not delivered'));else by.append(el('span','badge b-sent',lq.send_route==='email'?'Sent by email ✓':'Sent from Eggsy CX'))}
    if(lq)sentExtras(b,lq,c);if(m.direction==='inbound'&&/^gmail:/.test(m.external_id||''))showAttachments(b,m.external_id);
    msgHost.append(b);return}
   const card=el('div','mailcard'+(m.direction==='inbound'?'':' out'));
   const mh=el('div','mh');const who=m.direction==='inbound'?(m.author||c.customer_name||'Customer'):(m.author||'Lucky Egg');
   mh.append(el('b',null,who),el('span',null,when+' UK'));card.append(mh);
-  const mb=el('div','mb');mb.textContent=cleanBody(m.body)||'';card.append(mb);addEnglish(card,m);
+  const mb=el('div','mb');mb.textContent=cleanBody(m.body)||'';card.append(mb);addEnglish(card,mb,m);
   const lq=byMsg[m.id];if(lq)sentExtras(card,lq,c);
   if(m.direction==='inbound'&&/^gmail:/.test(m.external_id||''))showAttachments(card,m.external_id);
   msgHost.append(card)});

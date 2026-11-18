@@ -262,16 +262,56 @@
     return byOrigin[origin] || 'en';
   }
 
+  // How a stored message, draft or queued reply should be shown.
+  // mode 'english': leave the text as it is.
+  // mode 'translated': body_en is already cached.
+  // mode 'needs': foreign, and body_en still has to be fetched and stored.
+  function englishView(record) {
+    record = record || {};
+    var dir = String(record.direction || '');
+    if (dir === 'note') return {mode: 'english'};
+    var lang = String(record.language || '').toLowerCase().slice(0, 2);
+    var en = String(record.body_en || '').trim();
+    if (lang === 'en') return {mode: 'english'};
+    if (en && (lang || looksNonEnglish(record.body, ''))) return {mode: 'translated', language: lang, english: en};
+    if (looksNonEnglish(record.body, record.language) || (lang && lang !== 'en')) return {mode: 'needs', language: lang};
+    return {mode: 'english'};
+  }
+
+  // First line, matching cx_latest_inbound. Empty for Eggsy summary stubs.
+  function previewFirstLine(body) {
+    var t = String(body || '').replace(/\r/g, '').trim();
+    if (!t || /^\[Summary by Eggsy/.test(t)) return '';
+    return (t.split('\n')[0] || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  }
+
+  // English twin of a canned Amazon reply, when the text is still that template.
+  function englishForTemplate(lang, name, order, body) {
+    var L = String(lang || '').toLowerCase().slice(0, 2);
+    if (!L || L === 'en' || !SIGNOFF[L]) return '';
+    var foreign = amazonTemplates(L, name, order);
+    var english = amazonTemplates('en', name, order);
+    var target = tidy(body);
+    if (!target) return '';
+    for (var i = 0; i < foreign.length; i++) {
+      if (tidy(foreign[i].body) === target) return english[i].body;
+    }
+    return '';
+  }
+
   root.EggsyDisplay = {
     splitDraft: splitDraft,
     tiktokCustomerAt: tiktokCustomerAt,
     previewLine: previewLine,
+    previewFirstLine: previewFirstLine,
     tiktokOrder: tiktokOrder,
     amazonOrder: amazonOrder,
     looksNonEnglish: looksNonEnglish,
     deadlineLeft: deadlineLeft,
     amazonTemplates: amazonTemplates,
-    replyLang: replyLang
+    replyLang: replyLang,
+    englishView: englishView,
+    englishForTemplate: englishForTemplate
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 if (typeof module !== 'undefined' && module.exports) module.exports = globalThis.EggsyDisplay;
