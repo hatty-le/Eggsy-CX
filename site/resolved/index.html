@@ -563,7 +563,18 @@ $('q').oninput=()=>{drawList();clearTimeout(qTimer);const q=$('q').value.trim();
 // ---- Conversation view: full history, other conversations, composer with Eggsy's suggested reply ----
 const TEAM=['Mich Mahinay','Marty Pardoe','Luke Shelley','Hatty Innes'];
 // Walmart wraps agent cases in standard seller instructions; hide them so only the case text shows.
-function cleanBody(b){return String(b||'').replace(/\n?\s*1\. Always reply within 48 hours[\s\S]*?Hide Walmart Customer Care Instructions\s*/i,'').trim()}
+function cleanBody(b){return tidyBody(b).text}
+// Show only the actual message: drop quoted earlier emails, review-request boilerplate and blank-line padding.
+// The full stored text is still available behind "Show full email".
+function tidyBody(b){const raw=String(b||'');let t=raw.replace(/\r\n/g,'\n').replace(/\n?\s*1\. Always reply within 48 hours[\s\S]*?Hide Walmart Customer Care Instructions\s*/i,'');
+ const rv=t.match(/^\s*We'd love your thoughts on your recent order\s*#?(\d+)/i);
+ if(rv){const prod=(t.match(/enjoying your (.+?) from Lucky Egg/i)||[])[1];return {text:'Automatic review request (Judge.me) for order #'+rv[1]+(prod?': '+prod.trim():''),trimmed:true}}
+ const cuts=[/\n[ \t>]*On [^\n]{3,250}(\n[^\n]{0,120})?\bwrote:[\s\S]*$/,/\n[ \t]*-{2,}\s*Original Message\s*-{2,}[\s\S]*$/i,/\n[ \t]*From:[^\n]+\n[ \t]*(Sent|Date):[^\n]+\n[\s\S]*$/i,/\n[ \t]*-{5,} ?Forwarded message[\s\S]*$/i,/\n[ \t]*Sent from my (iPhone|iPad|Android|Samsung|Galaxy)[\s\S]*$/i];
+ let cut=false;for(const re of cuts){const n=t.replace(re,'');if(n!==t&&n.trim()){t=n;cut=true}}
+ t=t.split('\n').map(l=>l.replace(/[ \t ﻿]+$/,'').replace(/^[ \t ﻿]+(?=\S)/,'')).join('\n').replace(/\n{3,}/g,'\n\n').trim();
+ return {text:t,trimmed:cut||t.length<raw.trim().length-40}}
+function fullToggle(host,m){const tb=tidyBody(m.body);if(!tb.trimmed)return;const a=el('button','showen','Show full email');a.type='button';let open=false;
+ a.onclick=()=>{open=!open;const tgt=host.querySelector('.mb')||host.querySelector('[data-body]');if(tgt)tgt.textContent=open?String(m.body||'').replace(/\n{3,}/g,'\n\n'):tb.text;a.textContent=open?'Show less':'Show full email'};host.append(a)}
 // Photos and files a customer attached to an email in hey@ (fetched live from Gmail by the gmail-attachment function).
 async function attCall(payload){const {data:{session}}=await sb.auth.getSession();if(!session)throw new Error('Not signed in');
  const r=await fetch(SUPABASE_URL+'/functions/v1/gmail-attachment',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token,apikey:SUPABASE_KEY},body:JSON.stringify(payload)});
@@ -1862,14 +1873,14 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
   if(style==='bubble'){const [who,role]=whoLine(m,k,c.origin);const b=el('div','bubble '+(k==='team'||k==='platform'?'outbound '+k:k==='internal'?'internal':k==='inbound'?'inbound':'outbound'));
    const by=el('div','by');by.append(el('b',null,who),el('span','role',role),document.createTextNode(' · '+when));
    if(m.conversation_id&&m.conversation_id!==id)by.append(el('span','ltag','Other thread'));
-   const txt=el('div');txt.textContent=cleanBody(m.body);b.append(by,txt);addEnglish(b,m);
+   const txt=el('div');txt.dataset.body='1';txt.textContent=cleanBody(m.body);b.append(by,txt);fullToggle(b,m);addEnglish(b,m);
    const lq=byMsg[m.id];if(lq){if(lq.status==='failed')by.append(el('span','badge b-failed','Not delivered'));else by.append(el('span','badge b-sent',lq.send_route==='email'?'Sent by email ✓':'Sent from Eggsy CX'))}
    if(lq)sentExtras(b,lq,c);if(m.direction==='inbound'&&/^gmail:/.test(m.external_id||''))showAttachments(b,m.external_id);
    msgHost.append(b);return}
   const card=el('div','mailcard'+(m.direction==='inbound'?'':' out'));
   const mh=el('div','mh');const who=m.direction==='inbound'?(m.author||c.customer_name||'Customer'):(m.author||'Lucky Egg');
   mh.append(el('b',null,who),el('span',null,when+' UK'));card.append(mh);
-  const mb=el('div','mb');mb.textContent=cleanBody(m.body)||'';card.append(mb);addEnglish(card,m);
+  const mb=el('div','mb');mb.textContent=cleanBody(m.body)||'';card.append(mb);fullToggle(card,m);addEnglish(card,m);
   const lq=byMsg[m.id];if(lq)sentExtras(card,lq,c);
   if(m.direction==='inbound'&&/^gmail:/.test(m.external_id||''))showAttachments(card,m.external_id);
   msgHost.append(card)});
