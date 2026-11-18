@@ -198,6 +198,10 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
 .topacts .btn{padding:7px 12px}
 .topacts .mkt{display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center}
 .topacts .btn.sentmkt:disabled{background:#146c2e;color:#fff;opacity:1;cursor:default}
+.mergebox{background:#fffaf0;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px}
+.mergebox input,.mergebox select{width:100%;margin:6px 0;font:inherit}
+.mergebox .hit{display:block;width:100%;text-align:left;margin:4px 0}
+.tag.ch-src{background:#e7f0ff;color:#1d3f86}
 .notespanel{background:#FFF9EC;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:13.5px}
 .notespanel[hidden]{display:none}
 .notespanel .noteitem{padding:8px 0;border-top:1px solid var(--line);white-space:pre-wrap}
@@ -325,7 +329,7 @@ const MODES={inbox:{title:'Inbox',path:'/inbox/',intro:'Conversations that need 
  junk:{title:'Junk',path:'/junk/',intro:'Spam, sales pitches, phishing and platform notifications: anything that isn’t a customer needing help. Eggsy never drafts or sends replies here. Use “Not junk” to move a ticket back to the Inbox.',empty:'No junk. 🎉',statuses:['ignored']}};
 const MODE=/^\/waiting\//.test(location.pathname)?'waiting':/^\/resolved\//.test(location.pathname)?'resolved':/^\/junk\//.test(location.pathname)?'junk':'inbox';
 const bucketOf=c=>{const x=stMap[c.id];if(x)return x.bucket;return c.status==='ignored'?'junk':c.status==='resolved'?'resolved':c.status==='awaiting_customer'?'waiting':'inbox'};
-const inMode=c=>bucketOf(c)===MODE;
+const inMode=c=>!c.merged_into&&bucketOf(c)===MODE;
 const sinceOf=c=>{const x=stMap[c.id];return (x&&(x.needs_reply_since||x.last_customer_at))||c.last_message_at};
 (function(){const m=MODES[MODE];document.getElementById('ptitle').textContent=m.title;document.getElementById('atitle').textContent=m.title;document.getElementById('pintro').textContent=m.intro;
  })();
@@ -447,7 +451,7 @@ function render(session){
 }
 async function load(){
  $('list').innerHTML='<div class="empty">Loading…</div>';
- const {data,error}=await fetchAll((from,to)=>sb.from('conversations').select('*').order('last_message_at',{ascending:false,nullsFirst:false}).order('id').range(from,to),5000);
+ const {data,error}=await fetchAll((from,to)=>sb.from('conversations').select('*').is('merged_into',null).order('last_message_at',{ascending:false,nullsFirst:false}).order('id').range(from,to),5000);
  if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load: '+error.message));readFilterUrl();await loadChannelAccess();drawLockStrip();drawLockBanner();return}
  convs=data||[];readFilterUrl();await Promise.all([loadQueueSummary(),loadLangs(),loadEmailCh(),loadStates(),loadDrafts(),loadReads(),loadPreviews(),loadChannelAccess(),loadMarketingTo()]);lastSync=new Date().toISOString();drawChips();drawList();startLiveRefresh();
  await openFromUrl();
@@ -455,7 +459,7 @@ async function load(){
 // Deep link: /inbox/?c=<conversation_id>
 async function openFromUrl(){const id=new URLSearchParams(location.search).get('c');if(!id)return;
  if(!/^[0-9a-f-]{36}$/i.test(id)){$('thread').innerHTML='';$('thread').append(el('div','empty','That conversation link is not valid.'));return}
- if(!convs.find(c=>c.id===id)){const {data}=await sb.from('conversations').select('*').eq('id',id).maybeSingle();if(data){convs.push(data);drawList()}}
+ if(!convs.find(c=>c.id===id)){const {data}=await sb.from('conversations').select('*').eq('id',id).maybeSingle();if(data&&data.merged_into){const u=new URLSearchParams(location.search);u.set('c',data.merged_into);location.replace(location.pathname+'?'+u.toString());return}if(data){convs.push(data);drawList()}}
  if(convs.find(c=>c.id===id))openConv(id,false);
  else{$('thread').innerHTML='';$('thread').append(el('div','empty','That conversation could not be found. It may have been deleted.'));document.body.classList.add('showthread')}}
 // Eggsy's current draft per conversation (cx_draft_readiness): "gaps" when it still has [ ] notes, a photo
@@ -478,7 +482,7 @@ let liveTimer=null;
 function startLiveRefresh(){if(liveTimer)return;liveTimer=setInterval(liveRefresh,60000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)liveRefresh()})}
 async function liveRefresh(){if(document.hidden)return;const since=lastSync;lastSync=new Date().toISOString();
  const {data}=await sb.from('conversations').select('*').gt('updated_at',since).limit(500);
- (data||[]).forEach(c=>{const i=convs.findIndex(x=>x.id===c.id);if(i>=0)convs[i]=c;else convs.push(c)});
+ (data||[]).forEach(c=>{const i=convs.findIndex(x=>x.id===c.id);if(c.merged_into){if(i>=0)convs.splice(i,1);if(sel===c.id)openConv(c.merged_into,true);return}if(i>=0)convs[i]=c;else convs.push(c)});
  await Promise.all([loadStates(),loadDrafts(),loadQueueSummary(),loadPreviews(),loadChannelAccess()]);EggsyNav.refreshCounts&&EggsyNav.refreshCounts();drawChips();drawList()}
 async function loadEmailCh(){emailCh={};const {data}=await sb.from('email_send_channels').select('origin,enabled');(data||[]).forEach(r=>{if(r.enabled)emailCh[r.origin]=true})}
 async function loadLangs(){const m={};
@@ -720,7 +724,7 @@ function queueBubble(q,c){const b=el('div','bubble outbound team q'+q.status);
  if(q.status==='failed'||q.status==='cancelled'){const r=el('button','btn ghost','Edit and send again');r.onclick=()=>{const ta=document.getElementById('replybox');if(ta){ta.value=q.body;ta.dispatchEvent(new Event('input'));ta.focus();ta.scrollIntoView({block:'center'})}};acts.append(r)}
  if(acts.childNodes.length)b.append(acts);return b}
 const EMAIL_ORIGINS=['email_hey','shopify_form','wix_mmc_form'];
-function channel(c){const o=c.origin,mk=(ORIGINS[o]||o).replace('Amazon ','');
+function channel(c,origin){const o=origin||c.origin,mk=(ORIGINS[o]||o).replace('Amazon ','');
  if(emailCh[o]&&o.startsWith('amazon'))return {label:'Reply via Amazon '+mk,instant:true,how:'Sent straight away by email from hey@luckyegg.co to the buyer’s Amazon message thread (it shows in Seller Central). If hey@ has no Amazon email for this order, Eggsy posts it in Seller Central at its next check instead.'};
  if(emailCh[o])return {label:'Reply by email from hey@luckyegg.co',instant:true,how:'Sent straight away by email from hey@luckyegg.co.'};
  if(o==='email_hey'||o==='shopify_form')return {label:'Reply by email from hey@luckyegg.co',how:'Sent from hey@luckyegg.co on the existing Gmail thread.'};
@@ -737,14 +741,38 @@ const LSK=id=>'eggsy-composer:'+id;
 const lsGet=id=>{try{return JSON.parse(localStorage.getItem(LSK(id))||'{}')||{}}catch(e){return {}}};
 const lsSet=(id,v)=>{try{localStorage.setItem(LSK(id),JSON.stringify(v))}catch(e){}};
 const SIGNOFF='\n\nBest regards,\nThe Lucky Egg Team';
-function composer(c,sug){const w=el('div','composer');const ch=channel(c);
+function channelMark(m,c){const o=m.origin;if(!o)return null;const merged=(c.merged_from&&c.merged_from.length)||o!==c.origin;if(!merged)return null;const t=el('span','tag ch-src',ORIGINS[o]||o);t.title='This message came in on '+(ORIGINS[o]||o);return t}
+function mergeControls(c,host,btn){const n=(c.merged_from&&c.merged_from.length)||0;
+ if(n){const bar=el('div','mergebox');bar.append(el('b',null,'Merged from '+n+' ticket'+(n===1?'':'s')+'. '));
+  const show=el('button','btn ghost','Show');show.type='button';bar.append(show);host.append(bar);
+  show.onclick=async()=>{show.disabled=true;const {data,error}=await sb.from('conversations').select('id,origin,customer_name,subject,merged_at,status').eq('merged_into',c.id).order('merged_at',{ascending:false});
+   show.remove();if(error){bar.append(document.createTextNode(error.message));return}
+   (data||[]).forEach(row=>{const line=el('div');line.append(document.createTextNode((ORIGINS[row.origin]||row.origin)+' · '+(row.customer_name||row.subject||'ticket')+' · '+fmt(row.merged_at)));
+    const undo=el('button','btn ghost','Unmerge');undo.type='button';undo.onclick=async()=>{if(!confirm('Split this ticket back out? Messages that arrived after the merge stay on this ticket.'))return;undo.disabled=true;
+     const {error:uerr}=await sb.rpc('cx_unmerge_conversation',{p_merged:row.id});if(uerr){alert(uerr.message);undo.disabled=false;return}location.reload()};
+    line.append(undo);bar.append(line)})}}
+ btn.onclick=()=>{host.innerHTML='';const box=el('div','mergebox');box.append(el('b',null,'Merge another ticket into this one'));
+  const q=el('input');q.placeholder='Search by name, email, order or subject';box.append(q);const list=el('div');box.append(list);host.append(box);
+  const draw=()=>{list.innerHTML='';const needle=q.value.trim().toLowerCase();
+   const hits=convs.filter(x=>x.id!==c.id&&!x.merged_into&&(!needle||[x.customer_name,x.customer_handle,x.order_number,x.subject,x.overview,ORIGINS[x.origin]].join(' ').toLowerCase().includes(needle))).slice(0,8);
+   if(!hits.length){list.append(el('div','hint','No matching ticket.'));return}
+   hits.forEach(x=>{const b=el('button','btn ghost hit',(ORIGINS[x.origin]||x.origin)+' · '+(x.customer_name||x.customer_handle||'Unknown')+(x.order_number?' · #'+x.order_number:'')+' · '+(x.subject||x.overview||''));b.type='button';
+    b.onclick=async()=>{if(!confirm('Merge this '+((ORIGINS[x.origin]||x.origin))+' ticket into the one you have open? The messages, drafts and orders move here. The other ticket stays in the database and leaves the inbox.'))return;b.disabled=true;
+     const {error}=await sb.rpc('cx_merge_conversations',{p_keep:c.id,p_merge:x.id});if(error){alert(error.message);b.disabled=false;return}location.reload()};
+    list.append(b)})};
+  q.oninput=draw;draw()}}
+function replyOrigins(c,msgs){const origins=[];(msgs||[]).forEach(m=>{if(m.direction!=='inbound')return;if(/^\[Summary by Eggsy/.test(m.body||''))return;const o=m.origin||c.origin;if(o&&origins.indexOf(o)<0)origins.push(o)});if(c.origin&&origins.indexOf(c.origin)<0)origins.unshift(c.origin);const latest=[...(msgs||[])].reverse().find(m=>m.direction==='inbound'&&m.body&&!/^\[Summary by Eggsy/.test(m.body));return {origins,def:(latest&&(latest.origin||c.origin))||c.origin}}
+function composer(c,sug,msgs){const w=el('div','composer');const routes=replyOrigins(c,msgs);let replyOrigin=routes.def;const chOf=()=>channel(c,replyOrigin);let ch=chOf();
  w.append(el('h3',null,'Reply'));
- const isEmail=EMAIL_ORIGINS.includes(c.origin);const to=isEmail?(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.customer_handle||'')?c.customer_handle:''):(c.customer_handle||c.customer_name||'');
- w.append(el('div','to',[ 'Shop: '+(c.shop||'–'), to?('To: '+to):'', c.order_number?('Order: '+c.order_number):'' ].filter(Boolean).join(' · ')+(ch.how?' · '+ch.how:'')));
+ const isEmailNow=()=>EMAIL_ORIGINS.includes(replyOrigin);const toOf=()=>{const isEmail=isEmailNow();return isEmail?(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.customer_handle||'')?c.customer_handle:''):(c.customer_handle||c.customer_name||'')};
+ let to=toOf();
+ const routeLine=el('div','to','');const drawRoute=()=>{ch=chOf();to=toOf();routeLine.textContent=[ 'Shop: '+(c.shop||'–'), to?('To: '+to):'', c.order_number?('Order: '+c.order_number):'' ].filter(Boolean).join(' · ')+(ch.how?' · '+ch.how:'')};
+ drawRoute();w.append(routeLine);
+ if(routes.origins.length>1){const pick=el('select');routes.origins.forEach(o=>{const opt=el('option',null,ORIGINS[o]||o);opt.value=o;if(o===replyOrigin)opt.selected=true;pick.append(opt)});pick.onchange=()=>{replyOrigin=pick.value;drawRoute();phCheck()};w.append(el('div','lbl','Reply on'),pick)}
  let blocked=false;
- if(isEmail&&!to){blocked=true;w.append(el('div','warn','There is no customer email address on this conversation, so a reply can’t be sent from here.'))}
- if(c.origin.startsWith('amazon')&&!c.order_number&&!(c.external_id||'').startsWith('amazon:'))w.append(el('div','warn','No Amazon order id is stored, so Eggsy may not be able to find this buyer thread.'));
- if(c.origin==='instagram'||c.origin==='facebook')w.append(el('div','warn','Eggsy finds this chat in Meta Business Suite by the customer’s name, so check the name above is right.'));
+ if(isEmailNow()&&!to){blocked=true;w.append(el('div','warn','There is no customer email address on this conversation, so a reply can’t be sent from here.'))}
+ if(String(replyOrigin).startsWith('amazon')&&!c.order_number&&!(c.external_id||'').startsWith('amazon:'))w.append(el('div','warn','No Amazon order id is stored, so Eggsy may not be able to find this buyer thread.'));
+ if(replyOrigin==='instagram'||replyOrigin==='facebook')w.append(el('div','warn','Eggsy finds this chat in Meta Business Suite by the customer’s name, so check the name above is right.'));
  const st0=lsGet(c.id);const dismissed=st0.dismissed||[];
  if(sug&&dismissed.includes(sug.id))sug=null;
  const lbl=el('div','lbl');const newer=el('div','newer');newer.style.display='none';
@@ -800,9 +828,9 @@ function composer(c,sug){const w=el('div','composer');const ch=channel(c);
   const body=(cleaned.text||'').trim();
   if(!body||body===SIGNOFF.trim()){stm.textContent='Write a reply first.';stm.style.color='#b3261e';return}
   if(cleaned.notes.length||PH_RE.test(body)){phCheck();stm.style.color='#b3261e';stm.textContent=PH_MSG;return}
-  if(!confirm('Send this reply?\n\n'+ch.label+(to?' to '+to:'')+'\nShop: '+(c.shop||'–')+(ch.instant?'\n\nIt is sent exactly as written, straight away.'+(/^(amazon|tiktok|walmart)/.test(c.origin)?' Replies with links to our sites, review requests or marketing are held back for you to edit.':''):'\n\nEggsy posts it exactly as written at its next check (not instantly). You can cancel until then.')))return;
+  if(!confirm('Send this reply?\n\n'+ch.label+(to?' to '+to:'')+'\nShop: '+(c.shop||'–')+(ch.instant?'\n\nIt is sent exactly as written, straight away.'+(/^(amazon|tiktok|walmart)/.test(replyOrigin)?' Replies with links to our sites, review requests or marketing are held back for you to edit.':''):'\n\nEggsy posts it exactly as written at its next check (not instantly). You can cancel until then.')))return;
   go.disabled=true;stm.style.color='';stm.textContent='Sending to Eggsy…';
-  const {error}=await sb.from('reply_queue').insert({conversation_id:c.id,body,requires_action:!!reqc.checked});
+  const {error}=await sb.from('reply_queue').insert({conversation_id:c.id,body,requires_action:!!reqc.checked,send_origin:replyOrigin});
   if(error){go.disabled=false;stm.style.color='#b3261e';stm.textContent='Could not send: '+(/Fill in the \[ \]/.test(error.message)?PH_MSG:/promises a /.test(error.message)?error.message:error.message);phCheck();return}
   const st=lsGet(c.id);delete st.text;if(cur)st.dismissed=[...(st.dismissed||[]),cur].slice(-20);st.draftId=null;lsSet(c.id,st);
   ta.value='';await refreshAfterQueue(c.id);if(ch.instant)watchSend(c.id)};
@@ -1587,7 +1615,7 @@ function paintLockBanner(host,rows,nameShops){host.innerHTML='';if(!rows.length)
 function drawLockBanner(){const host=$('lockbanner');if(!host)return;paintLockBanner(host,viewKeys().map(accessFor).filter(r=>r&&r.locked_out),grp==='tiktok'||grp==='meta')}
 function threadLockBanner(origin){const key=accessKeyForOrigin(origin);const row=key&&accessFor(key);if(!row||!row.locked_out)return null;
  const host=el('div','lockbanner');host.setAttribute('role','alert');paintLockBanner(host,[row],/^tiktok_/.test(key)||key==='facebook'||key==='instagram');return host}
-function channelNeedsReply(k){const g=GROUPS.find(x=>x[0]===k)||GROUPS[0];return convs.filter(c=>bucketOf(c)==='inbox'&&(k==='mmc'?!!c.is_mmc:!c.is_mmc&&g[2](c.origin))).length}
+function channelNeedsReply(k){const g=GROUPS.find(x=>x[0]===k)||GROUPS[0];return convs.filter(c=>!c.merged_into&&bucketOf(c)==='inbox'&&(k==='mmc'?!!c.is_mmc:!c.is_mmc&&g[2](c.origin))).length}
 function drawChips(){setTitle();drawLockStrip();drawLockBanner();const side=$('chside');if(!side)return;side.innerHTML='';
  side.append(el('div','chside-h','Channels'));
  const primary=[['email','Email'],['tiktok','TikTok'],['amazon','Amazon'],['mmc','MMC']];
@@ -1824,9 +1852,11 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
   if(error){alert('Could not update: '+error.message);junk.disabled=false;return}
   c.status=to;await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();drawChips();drawList();openConv(c.id,false)};
  top.append(junk);
+ const mergeBtn=el('button','btn ghost','Merge with…');mergeBtn.type='button';top.append(mergeBtn);
  const stSel=el('select');stSel.style.width='auto';stSel.style.maxWidth='180px';Object.entries(STATUS).forEach(([k,l])=>{const o=el('option',null,l);o.value=k;if(k===c.status)o.selected=true;stSel.append(o)});
  stSel.onchange=async()=>{const {error}=await sb.from('conversations').update({status:stSel.value,status_changed_at:new Date().toISOString()}).eq('id',c.id);if(error){alert('Could not update: '+error.message);stSel.value=c.status}else{c.status=stSel.value;await refreshStates();showElsewhere(c)}};
  top.append(stSel);t.append(top);
+ const mergeHost=el('div');t.append(mergeHost);mergeControls(c,mergeHost,mergeBtn);
  const notes=el('div','notespanel');notes.hidden=true;notes.id='notesbody';t.append(notes);
  notesBtn.onclick=()=>{notes.hidden=!notes.hidden;notesBtn.textContent=notes.hidden?'Eggsy notes':'Hide Eggsy notes'};
  const ew=el('div');ew.id='elsewhere';t.append(ew);showElsewhere(c);
@@ -1846,9 +1876,9 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
  const compHost=el('div');main.append(compHost);
  if(!String(c.origin).startsWith('tiktok'))main.append(actHost);else side.append(actHost);
  const linked=c.order_number?otherConvs(c).filter(x=>x.origin===c.origin&&(x.order_number||'').trim()===c.order_number.trim()):[];
- const cols='id,conversation_id,direction,author,body,sent_at,language,body_en,external_id,body_raw,platform_sent_at';
+ const cols='id,conversation_id,direction,author,body,sent_at,language,body_en,external_id,body_raw,platform_sent_at,origin,shop';
  let mr=await sb.from('messages').select(cols).in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true});
- if(mr.error)mr=await sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en,external_id').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true});
+ if(mr.error)mr=await sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en,external_id,origin').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true});
  const [qr,dr,ar]=await Promise.all([
   sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address').eq('conversation_id',id).order('queued_at',{ascending:true}),
   sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at,context').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
@@ -1884,13 +1914,14 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
   if(style==='bubble'){const [who,role]=whoLine(m,k,c.origin);const b=el('div','bubble '+(k==='team'||k==='platform'?'outbound '+k:k==='internal'?'internal':k==='inbound'?'inbound':'outbound'));
    const by=el('div','by');by.append(el('b',null,who),el('span','role',role),document.createTextNode(' · '+when));
    if(m.conversation_id&&m.conversation_id!==id)by.append(el('span','ltag','Other thread'));
+   const src=channelMark(m,c);if(src)by.append(src);
    const txt=el('div');txt.dataset.body='1';txt.textContent=cleanBody(m.body);b.append(by,txt);fullToggle(b,m);addEnglish(b,m);
    const lq=byMsg[m.id];if(lq){if(lq.status==='failed')by.append(el('span','badge b-failed','Not delivered'));else by.append(el('span','badge b-sent',lq.send_route==='email'?'Sent by email ✓':'Sent from Eggsy CX'))}
    if(lq)sentExtras(b,lq,c);if(m.direction==='inbound'&&/^gmail:/.test(m.external_id||''))showAttachments(b,m.external_id);
    msgHost.append(b);return}
   const card=el('div','mailcard'+(m.direction==='inbound'?'':' out'));
   const mh=el('div','mh');const who=m.direction==='inbound'?(m.author||c.customer_name||'Customer'):(m.author||'Lucky Egg');
-  mh.append(el('b',null,who),el('span',null,when+' UK'));card.append(mh);
+  mh.append(el('b',null,who),el('span',null,when+' UK'));const src=channelMark(m,c);if(src)mh.append(src);card.append(mh);
   const mb=el('div','mb');mb.textContent=cleanBody(m.body)||'';card.append(mb);fullToggle(card,m);addEnglish(card,m);
   const lq=byMsg[m.id];if(lq)sentExtras(card,lq,c);
   if(m.direction==='inbound'&&/^gmail:/.test(m.external_id||''))showAttachments(card,m.external_id);
@@ -1905,7 +1936,7 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
   sug=Object.assign({},sug,{body:parts.text,body_en:en,gaps:parts.gaps,language:sug.language})}
  draftNotes.forEach(n=>noteBits.push(['Draft note',n]));
  const latestIn=[...msgs].reverse().find(m=>m.direction==='inbound'&&m.body&&!/^\[Summary by Eggsy/.test(m.body));
- c._replyLang=window.EggsyDisplay?EggsyDisplay.replyLang(c.origin,latestIn&&latestIn.language,latestIn&&latestIn.body):'en';
+ c._replyLang=window.EggsyDisplay?EggsyDisplay.replyLang((latestIn&&latestIn.origin)||c.origin,latestIn&&latestIn.language,latestIn&&latestIn.body):'en';
  if(noteBits.length){noteBits.forEach(([h,body])=>{const d=el('div','noteitem');d.append(el('b',null,h),document.createTextNode('\n'+body));notes.append(d)})}
  else notes.append(el('div','hint','No Eggsy notes on this conversation.'));
  const kb=el('details','kbbox');kb.append(el('summary',null,'Knowledge for '+(ORIGINS[c.origin]||c.origin)));notes.append(kb);
@@ -1914,7 +1945,7 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
   if(error){ul.append(el('li',null,'Could not load: '+error.message));return}
   if(!data||!data.length){ul.append(el('li',null,'No published articles yet.'));return}
   data.forEach(a=>{const li=el('li');const l=el('a',null,a.title);l.href='/knowledge/?a='+a.id;l.target='_blank';li.append(l);ul.append(li)})};
- compHost.append(composer(c,sug));
+ compHost.append(composer(c,sug,msgs));
  const oc=otherConvs(c);
  if(oc.length){const w=el('div','others');w.append(el('div','hist-h','Other conversations with this customer'));
   oc.forEach(x=>{const a=el('a');a.href='?c='+x.id;a.onclick=e=>{e.preventDefault();openConv(x.id,true)};

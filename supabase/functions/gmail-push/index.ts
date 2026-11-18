@@ -1001,6 +1001,50 @@ async function findExistingMessage(sb: SupabaseClient, messageId: string) {
   return data;
 }
 
+async function findCustomerTicket(
+  sb: SupabaseClient,
+  origin: string,
+  shop: string,
+  handle: string | null,
+  orderNumber: string | null,
+  name: string | null,
+) {
+  const { data, error } = await sb.rpc("cx_find_customer_ticket", {
+    p_origin: origin,
+    p_shop: shop,
+    p_customer_handle: handle,
+    p_order_number: orderNumber,
+    p_customer_name: name,
+  });
+  if (error) {
+    console.error("cx_find_customer_ticket failed", error.message);
+    return null;
+  }
+  if (!data) return null;
+  const { data: row } = await sb
+    .from("conversations")
+    .select("id, status, customer_handle, order_number, subject, last_message_at")
+    .eq("id", data)
+    .maybeSingle();
+  return row;
+}
+
+async function adoptMergedTicket(sb: SupabaseClient, conv: ConversationRow | null) {
+  if (!conv?.id) return conv;
+  const { data } = await sb
+    .from("conversations")
+    .select("id, merged_into, status, customer_handle, order_number, subject, last_message_at")
+    .eq("id", conv.id)
+    .maybeSingle();
+  if (!data?.merged_into) return conv;
+  const { data: root } = await sb
+    .from("conversations")
+    .select("id, status, customer_handle, order_number, subject, last_message_at")
+    .eq("id", data.merged_into)
+    .maybeSingle();
+  return root || conv;
+}
+
 async function findConversation(
   sb: SupabaseClient,
   origin: string,
@@ -1285,6 +1329,16 @@ async function ingestMessage(sb: SupabaseClient, msg: GmailMessage, opts: Ingest
 
   const orderNumber = extractOrderNumber(subject, storedBody);
   let conv = await findConversation(sb, classified.origin, msg.threadId, orderNumber);
+  if (!conv) {
+    conv = await findCustomerTicket(
+      sb,
+      classified.origin,
+      classified.shop,
+      customerHandle,
+      orderNumber,
+      customerName || customerHandle,
+    );
+  }
 
   const now = new Date().toISOString();
 
@@ -1312,6 +1366,7 @@ async function ingestMessage(sb: SupabaseClient, msg: GmailMessage, opts: Ingest
       conv = data!;
     }
   }
+  conv = (await adoptMergedTicket(sb, conv)) || conv;
 
   const { error: msgErr } = await sb.from("messages").insert({
     conversation_id: conv.id,
@@ -1321,6 +1376,8 @@ async function ingestMessage(sb: SupabaseClient, msg: GmailMessage, opts: Ingest
     sent_at: sentAt,
     external_id: `${GMAIL_PREFIX}${msg.id}`,
     external_thread_id: msg.threadId,
+    origin: classified.origin,
+    shop: classified.shop,
   });
   if (msgErr) {
     if (String(msgErr.message || "").toLowerCase().includes("duplicate")) {
