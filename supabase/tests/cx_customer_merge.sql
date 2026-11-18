@@ -171,5 +171,31 @@ begin
    where keep_id in (select id from public.conversations where external_id like 'test-merge:%')
       or merged_id in (select id from public.conversations where external_id like 'test-merge:%');
   delete from public.conversations where external_id like 'test-merge:%';
+
+  if public.cx_email_is_customer('buyer@scs3.tiktok.com') then
+    raise exception 'a TikTok scs relay address must not be a customer email';
+  end if;
+  if public.cx_tiktok_subject_handle('A new message from TikTok Shop customer statuschaser') is distinct from 'statuschaser' then
+    raise exception 'subject handle';
+  end if;
+  insert into public.conversations (origin, shop, customer_name, customer_handle, status, external_id)
+  values ('tiktok_uk', 'TikTok UK', 'statuschaser-test', '@statuschaser-test', 'awaiting_customer', 'test-merge:tt-chat')
+  returning id into keep;
+  insert into public.conversations (origin, shop, customer_name, customer_handle, subject, status, external_id)
+  values ('tiktok_uk', 'TikTok UK', 'TikTok Shop Seller Assistant', 'abc@scs3.tiktok.com', 'A new message from TikTok Shop customer statuschaser-test', 'open', 'test-merge:tt-mail')
+  returning id into other;
+  if (select merged_into from public.conversations where id = other) is distinct from keep then
+    raise exception 'Seller Assistant mail should join the buyer TikTok chat';
+  end if;
+  insert into public.reply_queue (conversation_id, body) values (other, 'test-merge queued reply');
+  perform public.cx_unmerge_conversation(other);
+  perform set_config('eggsy.skip_reply_queue', 'on', true);
+  perform public.cx_merge_conversations(keep, other);
+  if (select conversation_id from public.reply_queue where body = 'test-merge queued reply') is distinct from other then
+    raise exception 'a queued reply must stay on its original ticket';
+  end if;
+  delete from public.reply_queue where body = 'test-merge queued reply';
+  delete from public.cx_conversation_merges where merged_id = other or keep_id = keep;
+  delete from public.conversations where external_id like 'test-merge:tt-%';
 end
 $test$;

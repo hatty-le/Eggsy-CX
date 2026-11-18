@@ -49,10 +49,7 @@ as $$
       and domain !~ '(^|\.)(shopify|shopifyemail|facebookmail|facebook|wix|netlify|klaviyo|walmart)\.com$'
       and domain not in ('google.com', 'fb.com', 'meta.com', 'tiktok.com', 'crm.wix.com', 'email.shopify.com')
       and domain !~ '(^|\.)google\.com$'
-      and (
-        domain !~ '(^|\.)tiktok\.com$'
-        or (domain ~ '^scs[0-9]*\.tiktok\.com$' and length(local) >= 20)
-      )
+      and domain !~ '(^|\.)tiktok\.com$'
       and not (
         domain ~ '(^|\.)amazon\.[a-z.]+$'
         and addr !~ '^[a-z0-9]+\+[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}@marketplace\.amazon\.[a-z.]+$'
@@ -876,10 +873,12 @@ begin
          conversation_id = p_keep
    where conversation_id = p_merge;
 
-  update public.reply_queue
-     set source_conversation_id = coalesce(source_conversation_id, conversation_id),
-         conversation_id = p_keep
-   where conversation_id = p_merge;
+  if coalesce(current_setting('eggsy.skip_reply_queue', true), '') is distinct from 'on' then
+    update public.reply_queue
+       set source_conversation_id = coalesce(source_conversation_id, conversation_id),
+           conversation_id = p_keep
+     where conversation_id = p_merge;
+  end if;
 
   update public.cx_actions
      set source_conversation_id = coalesce(source_conversation_id, conversation_id),
