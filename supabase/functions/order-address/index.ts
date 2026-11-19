@@ -41,7 +41,8 @@ const US_STATES = /\b(A[LKZR]|C[AOT]|D[EC]|FL|GA|HI|I[ADLN]|K[SY]|LA|M[ADEINOST]
 // Take the block under "Shipping address" and turn it into fields.
 function parseAddress(text: string) {
   // Quoted replies prefix lines with ">"; HTML emails leave blank lines between table cells.
-  const t = text.replace(/\r/g, "").replace(/^[ \t]*(?:>[ \t]?)+/gm, "").replace(/[ \t\u00a0\u200b]+/g, " ").replace(/\n[ \t]+/g, "\n").replace(/\n{2,}/g, "\n");
+  // Gmail inserts a "<https://www.google.com/maps/search/...>" line after each address line.
+  const t = text.replace(/\r/g, "").replace(/<https?:\/\/[^>\s]*>/gi, "").replace(/^[ \t>]*(?:https?:\/\/\S+)[ \t]*$/gim, "").replace(/^[ \t]*(?:>[ \t]?)+/gm, "").replace(/[ \t\u00a0\u200b]+/g, " ").replace(/\n[ \t]+/g, "\n").replace(/\n{2,}/g, "\n");
   const m = t.match(/Shipping address\s*:?\s*\n([\s\S]{5,600}?)(?:\n\s*(?:Billing address|Shipping method|Shipping|Customer|Payment|Delivery method|Order summary|View order|Contact|Subtotal|Questions|If you have)\b|$)/i);
   if (!m) return null;
   const lines = m[1].split("\n").map((l) => l.trim()).filter((l) => l && !/^shipping address/i.test(l));

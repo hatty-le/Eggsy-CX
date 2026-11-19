@@ -933,7 +933,16 @@ function defaultMcfMarket(c, countryCode){
   return MCF_MARKET[m]?m:'UK';
 }
 function needsProvince(cc){return ['US','CA','AU'].indexOf(String(cc||'').toUpperCase())>=0}
-const AUTO_RANK={'from the ticket':1,'from conversation':2,'from an earlier action':3,'from Shopify order':4};
+const AUTO_RANK={'from the ticket':1,'from conversation':2,'from an earlier action':3,'from Shopify order':4,'from order email':4};
+function emailPrefillOk(a){
+  if(!a||!String(a.city||'').trim()||!String(a.zip||'').trim()) return false;
+  return !/https?:\/\//i.test([a.firstName,a.lastName,a.address1,a.address2,a.city,a.province,a.provinceCode,a.zip,a.country,a.countryCodeV2,a.phone].join('\n'));
+}
+function lookedAddressSource(looked){
+  const a=looked&&looked.order&&looked.order.shippingAddress;
+  if(!a||(looked.fromEmail&&!emailPrefillOk(a))) return '';
+  return looked.fromEmail?'from order email':'from Shopify order';
+}
 function setAuto(input, value, source){
   if(value==null||String(value)==='') return false;
   if(input.dataset.user==='1') return false;
@@ -1330,12 +1339,13 @@ async function openMcfModal(c, host, existing){
   m.body.append(link);
   m.setErr('Loading the original order, if we can find it…');
   const looked=await lookupForAddress(c);
-  if(!(prev.address&&prev.address.address1)&&looked.order&&looked.order.shippingAddress){
+  const src=lookedAddressSource(looked);
+  if(!(prev.address&&prev.address.address1)&&src){
     const a=looked.order.shippingAddress;
     const shop={firstName:a.firstName||'',lastName:a.lastName||'',address1:a.address1||'',address2:a.address2||'',city:a.city||'',province:a.province||a.provinceCode||'',zip:a.zip||'',countryCode:a.countryCodeV2||a.country||'',phone:a.phone||''};
-    Object.keys(shop).forEach(k=>{if(shop[k]) setAuto(af[k], shop[k], 'from Shopify order')});
-    if(!marketSel.dataset.user&&!marketSel.dataset.touched) setAuto(marketSel, defaultMcfMarket(c, af.countryCode.value), 'from Shopify order');
-    m.setErr('Address filled from Shopify '+looked.order.name+'. The Order ID stays the original channel number ('+(orderId.i.value||c.order_number||'none on the ticket')+'). Check it before you copy the fields.');
+    Object.keys(shop).forEach(k=>{if(shop[k]) setAuto(af[k], shop[k], src)});
+    if(!marketSel.dataset.user&&!marketSel.dataset.touched) setAuto(marketSel, defaultMcfMarket(c, af.countryCode.value), src);
+    m.setErr('Address filled from '+(looked.fromEmail?'the order email':('Shopify '+looked.order.name))+'. The Order ID stays the original channel number ('+(orderId.i.value||c.order_number||'none on the ticket')+'). Check it before you copy the fields.');
     refreshCopy();
   }else if(looked.error==='not_configured'){
     m.setErr('Shopify is not connected, so the address could not be looked up. Fill it in from the ticket. No Amazon order will be placed from this screen.');
@@ -1408,10 +1418,11 @@ async function openPartReplacementModal(c, host, existing){
   const rec=field('Or record an order already created in Shopify',{placeholder:'#11312'});m.body.append(rec.w);
   m.setErr('Loading the original order, if we can find it…');
   const looked=await lookupForAddress(c);
-  if(looked.order&&looked.order.shippingAddress){
+  const src=lookedAddressSource(looked);
+  if(src){
     const a=looked.order.shippingAddress;
     const shop={firstName:a.firstName||'',lastName:a.lastName||'',address1:a.address1||'',address2:a.address2||'',city:a.city||'',province:a.province||a.provinceCode||'',zip:a.zip||'',countryCode:a.countryCodeV2||a.country||'',phone:a.phone||''};
-    Object.keys(shop).forEach(k=>{if(shop[k]) setAuto(af[k], shop[k], 'from Shopify order')});
+    Object.keys(shop).forEach(k=>{if(shop[k]) setAuto(af[k], shop[k], src)});
     const quick=el('div');quick.append(el('div','hint','Items on Shopify '+looked.order.name+' — click to add:'));
     (looked.order.lineItems&&looked.order.lineItems.nodes||[]).forEach(li=>{const b=el('button','btn ghost',li.title+' × '+li.quantity);b.type='button';
       b.onclick=()=>{selected.push({variantId:li.variant&&li.variant.id,title:li.title,sku:li.sku,price:li.originalUnitPriceSet&&li.originalUnitPriceSet.shopMoney&&li.originalUnitPriceSet.shopMoney.amount,quantity:li.quantity||1,label:li.title});drawChosen()};quick.append(b)});
@@ -1477,8 +1488,8 @@ async function openSampleModal(c, host, existing){
   const reason=field('Why / notes',{tag:'textarea',minHeight:'56px',value:prev.reason||c.overview||''});
   m.body.append(who.w,handle.w,games.w,qty.w,addr.w,email.w,phone.w,reason.w);
   const details=()=>Object.assign({},prev,{recipient:who.i.value.trim(),handle:handle.i.value.trim(),games:games.i.value.trim(),quantity:qty.i.value.trim()||'1',address:addr.i.value.trim(),email:email.i.value.trim(),phone:phone.i.value.trim(),reason:reason.i.value.trim(),ticket_url:location.origin+'/inbox/?c='+c.id,source_origin:c.origin,source_order:c.order_number||null});
-  if(!prev.address){lookupForAddress(c).then(r=>{const a=r&&r.order&&r.order.shippingAddress;if(!a||addr.i.value.trim())return;
-    addr.i.value=[[a.firstName,a.lastName].filter(Boolean).join(' '),a.address1,a.address2,a.city,a.province||a.provinceCode,a.zip,a.countryCodeV2||a.country].filter(Boolean).join('\n');if(a.phone&&!phone.i.value)phone.i.value=a.phone;m.setErr('Address filled from Shopify '+r.order.name+'. Check it is where the sample should go.')},()=>{})}
+  if(!prev.address){lookupForAddress(c).then(r=>{const a=r&&r.order&&r.order.shippingAddress;if(!a||addr.i.value.trim()||!lookedAddressSource(r))return;
+    addr.i.value=[[a.firstName,a.lastName].filter(Boolean).join(' '),a.address1,a.address2,a.city,a.province||a.provinceCode,a.zip,a.countryCodeV2||a.country].filter(Boolean).join('\n');if(a.phone&&!phone.i.value)phone.i.value=a.phone;m.setErr('Address filled from '+(r.fromEmail?'the order email':('Shopify '+r.order.name))+'. Check it is where the sample should go.')},()=>{})}
   const save=async(copyOpen)=>{const d=details();
     if(!d.recipient||!d.games){m.setErr('Add who the sample is for and which game.',true);return}
     if(copyOpen){const cp=navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(sampleCopy(d)):Promise.reject();window.open(SAMPLE_BOARD,'_blank');cp.catch(()=>prompt('Copy this into the monday sample request:',sampleCopy(d)))}
