@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { createShopifyTokenStore, scrubSecrets } from "./shopify-token.ts";
 
 const SHOP = Deno.env.get("SHOPIFY_STORE_DOMAIN") || "lucky-egg-ltd.myshopify.com";
 const API = "2025-10";
@@ -39,26 +40,69 @@ async function authorize(req: Request): Promise<Staff | Response> {
   return { email, jwt, hook: false };
 }
 
-async function shopifyToken(): Promise<string | null> {
-  const env = Deno.env.get("SHOPIFY_ADMIN_ACCESS_TOKEN");
-  if (env) return env;
-  const { data, error } = await admin.rpc("cx_shopify_admin_token");
-  if (error || !data) return null;
-  return String(data);
+const shopifyTokens = createShopifyTokenStore({
+  shop: SHOP,
+  readEnv: (name) => Deno.env.get(name),
+  readVaultAdminToken: async () => {
+    const { data, error } = await admin.rpc("cx_shopify_admin_token");
+    if (error || data == null) return null;
+    return String(data);
+  },
+  readVaultClientCredentials: async () => {
+    const { data, error } = await admin.rpc("cx_shopify_client_credentials");
+    if (error) {
+      const missing = /could not find the function|PGRST202|schema cache/i.test(error.message || "");
+      return {
+        clientId: null,
+        clientSecret: null,
+        error: missing ? null : "Could not read Shopify client credentials from Vault.",
+      };
+    }
+    let row: { client_id?: unknown; client_secret?: unknown } = {};
+    if (typeof data === "string") {
+      try { row = JSON.parse(data) as { client_id?: unknown; client_secret?: unknown }; } catch { row = {}; }
+    } else if (data && typeof data === "object") {
+      row = data as { client_id?: unknown; client_secret?: unknown };
+    }
+    return {
+      clientId: typeof row.client_id === "string" ? row.client_id : null,
+      clientSecret: typeof row.client_secret === "string" ? row.client_secret : null,
+      error: null,
+    };
+  },
+});
+
+function shopifyGraphqlError(body: { errors?: unknown }, status: number, token: string): string {
+  const errors = body?.errors;
+  let msg = "";
+  if (Array.isArray(errors)) {
+    msg = errors.map((e: { message?: string }) => e?.message || "").filter(Boolean).join("; ");
+  } else if (typeof errors === "string") {
+    msg = errors;
+  }
+  return scrubSecrets(msg || `Shopify HTTP ${status}`, [token]);
 }
 
-async function shopify(query: string, variables: Record<string, unknown> = {}) {
-  const token = await shopifyToken();
-  if (!token) return { ok: false as const, error: "not_configured", userErrors: [] as { message: string }[] };
+async function shopify(query: string, variables: Record<string, unknown> = {}, refresh = false) {
+  const auth = await shopifyTokens.get({ forceRefresh: refresh });
+  if (!auth.token) {
+    return { ok: false as const, error: auth.error || "not_configured", userErrors: [] as { message: string }[] };
+  }
   const res = await fetch(`https://${SHOP}/admin/api/${API}/graphql.json`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": token },
+    headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": auth.token },
     body: JSON.stringify({ query, variables }),
   });
-  const body = await res.json();
+  if (res.status === 401 && auth.source === "client_credentials" && !refresh) {
+    shopifyTokens.invalidate();
+    try { await res.body?.cancel(); } catch { /* ignore */ }
+    return shopify(query, variables, true);
+  }
+  const raw = await res.text();
+  let body: any = {};
+  try { body = raw ? JSON.parse(raw) : {}; } catch { body = {}; }
   if (!res.ok || body.errors) {
-    const msg = (body.errors || []).map((e: { message: string }) => e.message).join("; ") || `Shopify HTTP ${res.status}`;
-    return { ok: false as const, error: msg, userErrors: [] as { message: string }[] };
+    return { ok: false as const, error: shopifyGraphqlError(body, res.status, auth.token), userErrors: [] as { message: string }[] };
   }
   return { ok: true as const, data: body.data };
 }
@@ -201,8 +245,8 @@ function orderSearchQuery(raw: string) {
 }
 
 async function searchProducts(q: string) {
-  const token = await shopifyToken();
-  if (!token) return { ok: false, error: "not_configured", products: [] };
+  const auth = await shopifyTokens.get();
+  if (!auth.token) return { ok: false, error: auth.error || "not_configured", products: [] };
   const query = (q || "").trim() ? `${q.trim()} status:active` : "status:active";
   const res = await shopify(SEARCH_Q, { q: query });
   if (!res.ok) return { ok: false, error: res.error, products: [] };
@@ -222,8 +266,8 @@ async function searchProducts(q: string) {
 async function lookupOrder(conversationId: string, name?: string) {
   const conv = await loadConversation(conversationId);
   const q = orderSearchQuery(name || conv?.order_number || "");
-  const token = await shopifyToken();
-  if (!token) return { ok: false, error: "not_configured", order: null, conversation: conv };
+  const auth = await shopifyTokens.get();
+  if (!auth.token) return { ok: false, error: auth.error || "not_configured", order: null, conversation: conv };
   if (!q) return { ok: true, order: null, conversation: conv };
   const res = await shopify(ORDER_LOOKUP, { q });
   if (!res.ok) return { ok: false, error: res.error, order: null, conversation: conv };
@@ -285,15 +329,23 @@ async function previewOrCreateReplacement(body: Record<string, unknown>, staff: 
   const payload = { shop: SHOP, tags, note, address, items, reason, retail_value: retail, source_origin: conv.origin, source_order: conv.order_number };
 
   if (!create) {
-    return json({ ok: true, dry_run: true, would_create: payload, shopify_connected: !!(await shopifyToken()) });
+    const auth = await shopifyTokens.get();
+    return json({
+      ok: true,
+      dry_run: true,
+      would_create: payload,
+      shopify_connected: !!auth.token,
+      ...(auth.token || !auth.error ? {} : { error: auth.error }),
+    });
   }
 
-  const token = await shopifyToken();
-  if (!token) {
+  const auth = await shopifyTokens.get();
+  if (!auth.token) {
+    const notConfigured = "Shopify Admin API is not connected to Eggsy CX yet, so a live order was not created. You can create the £0 order in Shopify Admin with these tags and this note, then record the order number here.";
     return json({
       ok: false,
-      error: "not_configured",
-      message: "Shopify Admin API is not connected to Eggsy CX yet, so a live order was not created. You can create the £0 order in Shopify Admin with these tags and this note, then record the order number here.",
+      error: auth.error || "not_configured",
+      message: auth.error || notConfigured,
       would_create: payload,
     }, 409);
   }
@@ -356,9 +408,10 @@ async function createRefund(body: Record<string, unknown>, staff: Staff) {
   const notify = body.notify !== false;
   const orderId = String(body.shopify_order_id || "");
   if (!orderId) return json({ ok: false, error: "No Shopify order is linked. Use the manual refund path for marketplace orders." }, 400);
-  const token = await shopifyToken();
-  if (!token) {
-    return json({ ok: false, error: "not_configured", message: "Shopify Admin API is not connected to Eggsy CX yet, so a live refund was not created." }, 409);
+  const auth = await shopifyTokens.get();
+  if (!auth.token) {
+    const notConfigured = "Shopify Admin API is not connected to Eggsy CX yet, so a live refund was not created.";
+    return json({ ok: false, error: auth.error || "not_configured", message: auth.error || notConfigured }, 409);
   }
   const got = await shopify(ORDER_GET, { id: orderId });
   if (!got.ok || !got.data.order) return json({ ok: false, error: got.error || "Shopify order not found" }, 404);
@@ -433,8 +486,8 @@ async function refreshTracking(conversationId?: string) {
   if (conversationId) q.eq("conversation_id", conversationId);
   const { data: rows, error } = await q.limit(50);
   if (error) return { ok: false, error: error.message, updated: 0 };
-  const token = await shopifyToken();
-  if (!token) return { ok: true, updated: 0, skipped: "not_configured" };
+  const auth = await shopifyTokens.get();
+  if (!auth.token) return { ok: true, updated: 0, skipped: auth.error || "not_configured" };
   let updated = 0;
   for (const row of rows || []) {
     const got = await shopify(ORDER_GET, { id: row.shopify_order_id });
@@ -484,7 +537,10 @@ Deno.serve(async (req: Request) => {
   if (staff.hook && action !== "refresh_tracking") return json({ ok: false, error: "unauthorized" }, 401);
   try {
     if (action === "status" || action === "connected") {
-      return json({ ok: true, shopify_connected: !!(await shopifyToken()), shop: SHOP });
+      const auth = await shopifyTokens.get();
+      const payload: Record<string, unknown> = { ok: true, shopify_connected: !!auth.token, shop: SHOP };
+      if (!auth.token && auth.error) payload.error = auth.error;
+      return json(payload);
     }
     if (action === "search_products") return json(await searchProducts(String(body.q || "")));
     if (action === "lookup_order") return json(await lookupOrder(String(body.conversation_id || ""), body.name ? String(body.name) : undefined));

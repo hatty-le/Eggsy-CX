@@ -1292,7 +1292,7 @@ async function openMcfModal(c, host, existing){
     results.style.display='';results.textContent='Searching…';
     const r=await callCx({action:'search_products',q});
     results.innerHTML='';
-    if(r.error==='not_configured'||(r.ok===false&&!r.products)){results.append(el('div','hint','Shopify is not connected, so catalogue search is unavailable. Type the Amazon SKU, ASIN or FNSKU instead.'));return}
+    if(r.error==='not_configured'||(r.ok===false&&!r.products)){results.append(el('div','hint',r.error&&r.error!=='not_configured'?r.error:'Shopify is not connected, so catalogue search is unavailable. Type the Amazon SKU, ASIN or FNSKU instead.'));return}
     const prods=r.products||[];if(!prods.length){results.append(el('div','hint','No matching products.'));return}
     prods.forEach(p=>{(p.variants||[]).forEach(v=>{const b=el('button');b.type='button';b.textContent=v.label+(v.sku?' · '+v.sku:'');
       b.onclick=()=>{const empty=selected.find(it=>!it.seller_sku&&!it.asin&&!it.fnsku);const target=empty||{seller_sku:'',asin:'',fnsku:'',quantity:1,title:''};if(!empty) selected.push(target);
@@ -1349,6 +1349,8 @@ async function openMcfModal(c, host, existing){
     refreshCopy();
   }else if(looked.error==='not_configured'){
     m.setErr('Shopify is not connected, so the address could not be looked up. Fill it in from the ticket. No Amazon order will be placed from this screen.');
+  }else if(looked.error&&!looked.order){
+    m.setErr(looked.error,true);
   }else{
     m.setErr(orderId.i.value?'Order ID prefilled from the ticket as '+orderId.i.value+'. Check the address, then copy the fields into Seller Central.':'No original order number is stored on this ticket — paste the TikTok, Amazon or Shopify order number into Order ID.');
   }
@@ -1404,7 +1406,7 @@ async function openPartReplacementModal(c, host, existing){
     results.style.display='';results.textContent='Searching…';
     const r=await callCx({action:'search_products',q});
     results.innerHTML='';
-    if(r.error==='not_configured'||r.ok===false&&!r.products){results.append(el('div','hint','Shopify is not connected to Eggsy CX yet, so products can’t be searched here. Create the £0 order in Shopify Admin, then record its number.'));return}
+    if(r.error==='not_configured'||r.ok===false&&!r.products){results.append(el('div','hint',r.error&&r.error!=='not_configured'?r.error:'Shopify is not connected to Eggsy CX yet, so products can’t be searched here. Create the £0 order in Shopify Admin, then record its number.'));return}
     const prods=r.products||[];if(!prods.length){results.append(el('div','hint','No matching products.'));return}
     prods.forEach(p=>{(p.variants||[]).forEach(v=>{const b=el('button');b.type='button';b.textContent=v.label+(v.price?' · £'+v.price:'');
       b.onclick=()=>{selected.push({variantId:v.id,title:p.title+(v.title&&v.title!=='Default Title'?' · '+v.title:''),sku:v.sku,price:v.price,quantity:1,label:v.label});drawChosen();results.style.display='none'};results.append(b)})})},250)};
@@ -1429,6 +1431,7 @@ async function openPartReplacementModal(c, host, existing){
     orig.append(quick);
     m.setErr('Address filled from '+looked.order.name+'. Check it before creating the order.');
   }else if(looked.error==='not_configured'){m.setErr('Shopify is not connected to Eggsy CX yet. You can still fill this in and record a Shopify order number after you create it in Admin.')}
+  else if(looked.error&&!looked.order){m.setErr(looked.error,true)}
   else m.setErr(looked.order? '':'No Shopify order was found for this ticket — fill in the address and items.');
   const preview=el('button','btn ghost','Preview (no order created)');preview.type='button';
   const go=el('button','btn','Create free replacement');go.type='button';
@@ -1440,7 +1443,7 @@ async function openPartReplacementModal(c, host, existing){
   }
   preview.onclick=async()=>{m.setErr('Checking…');const r=await callCx(Object.assign({action:'replacement',dry_run:true},collect()));
     if(!r.ok){m.setErr(r.error||r.message||'Could not preview',true);return}
-    m.setErr('Dry run only — no Shopify order was created. Tags: '+(r.would_create&&r.would_create.tags||[]).join(', ')+(r.shopify_connected?' Shopify is connected.':' Shopify API is not connected, so Create will ask you to record an Admin order instead.'))};
+    m.setErr('Dry run only — no Shopify order was created. Tags: '+(r.would_create&&r.would_create.tags||[]).join(', ')+(r.shopify_connected?' Shopify is connected.':(r.error&&r.error!=='not_configured'?' '+r.error:' Shopify API is not connected, so Create will ask you to record an Admin order instead.')))};
   go.onclick=async()=>{
     if(rec.i.value.trim()){
       if(!selected.length&&!reason.i.value.trim()){m.setErr('Add what you sent, or a reason, so the ticket has a record.',true);return}
