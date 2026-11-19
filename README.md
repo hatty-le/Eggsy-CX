@@ -69,8 +69,10 @@ Never commit values. Never paste them into chat, Slack or email.
 | `GMAIL_CLIENT_ID` | `send-email-reply`, `forward-to-marketing`, `gmail-push` |
 | `GMAIL_CLIENT_SECRET` | `send-email-reply`, `forward-to-marketing`, `gmail-push` |
 | `GMAIL_REFRESH_TOKEN` | `send-email-reply`, `forward-to-marketing`, `gmail-push` (hey@ OAuth) |
-| `SHOPIFY_ADMIN_ACCESS_TOKEN` | `cx-actions` (Shopify Admin; not required until refunds go live) |
-| `SHOPIFY_STORE_DOMAIN` | `cx-actions` |
+| `SHOPIFY_ADMIN_ACCESS_TOKEN` | `cx-actions` (Shopify Admin static token; used first when set) |
+| `SHOPIFY_CLIENT_ID` | `cx-actions` (Dev Dashboard app client id; used only when no static token is set) |
+| `SHOPIFY_CLIENT_SECRET` | `cx-actions` (Dev Dashboard app client secret; used only when no static token is set) |
+| `SHOPIFY_STORE_DOMAIN` | `cx-actions` (defaults to `lucky-egg-ltd.myshopify.com`) |
 
 ### Supabase Vault secrets (created by migrations if missing)
 
@@ -78,7 +80,11 @@ Never commit values. Never paste them into chat, Slack or email.
 | --- | --- |
 | `eggsy_email_hook_secret` | Shared hook header between the database (`cx_email_call`, `cx_actions_call`, `cx_gmail_call`) and the edge functions |
 | `eggsy_gmail_push_secret` | Token checked by `cx_gmail_hook_ok` for Gmail Pub/Sub push |
-| `shopify_admin_access_token` | Read by `cx_shopify_admin_token()` if/when Shopify refunds are enabled |
+| `shopify_admin_access_token` | Read by `cx_shopify_admin_token()` when `SHOPIFY_ADMIN_ACCESS_TOKEN` is not set |
+| `shopify_client_id` | Read by `cx_shopify_client_credentials()` when `SHOPIFY_CLIENT_ID` is not set. Not created by the migration |
+| `shopify_client_secret` | Read by `cx_shopify_client_credentials()` when `SHOPIFY_CLIENT_SECRET` is not set. Not created by the migration |
+
+When no static token is set, `cx-actions` exchanges the client id and secret at `POST https://{shop}/admin/oauth/access_token` (`grant_type=client_credentials`) and keeps the access token in memory until shortly before `expires_in` (about 24 hours). A Shopify 401 fetches a new token once. Do not log the client secret or the access token. Apply `supabase/migrations/20261119121000_cx_shopify_client_credentials.sql` before relying on the Vault names.
 
 `gmail-push` also hard-codes the Pub/Sub topic name it renews the Gmail watch on (`TOPIC_NAME`). That is configuration, not a password; change it in `supabase/functions/gmail-push/index.ts` if the topic changes.
 
