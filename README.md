@@ -20,6 +20,8 @@ site/                          static web app (deploy this folder to Vercel)
   resolved/ index.html
   knowledge/ index.html
   metrics/ index.html
+  queue/ index.html            send queue
+  expired/ index.html          replies the platform can no longer deliver
   sent/ index.html
 supabase/
   migrations/                  16 dated SQL migrations (complete)
