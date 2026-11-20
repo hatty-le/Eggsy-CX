@@ -254,6 +254,10 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
 .actmd label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}
 .fieldhint{font-size:11.5px;font-weight:500;color:#7a6a3a;margin-top:2px}
 .actmd input.autofilled,.actmd select.autofilled{background:#fffdf6}
+.actrow.items{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
+.itemfield{flex:1 1 140px;min-width:120px}
+.itemfield.qty{flex:0 0 84px;min-width:84px}
+.actrow.items>.btn{margin-top:28px}
 .actmd .hint{font-size:12.5px;color:var(--muted);margin:4px 0 8px;line-height:1.4}
 .actmd .warn{font-size:13px;background:#fff3d1;border-radius:10px;padding:8px 12px;margin:8px 0}
 .actresults{border:1px solid var(--line);border-radius:10px;max-height:180px;overflow:auto;margin-top:6px}
@@ -905,7 +909,9 @@ function defaultMcfMarket(c, countryCode){
   return MCF_MARKET[m]?m:'UK';
 }
 function needsProvince(cc){return ['US','CA','AU'].indexOf(String(cc||'').toUpperCase())>=0}
-const AUTO_RANK={'from the ticket':1,'from conversation':2,'from an earlier action':3,'from Shopify order':4};
+const AUTO_RANK={'from the ticket':1,'from conversation':2,'from an earlier action':3,'from the linked order':3,'from Shopify order':4};
+const SKU_CHECK='check — seller SKU not known';
+const LAST_CHECK='check — last name not on the ticket';
 function setAuto(input, value, source){
   if(value==null||String(value)==='') return false;
   if(input.dataset.user==='1') return false;
@@ -926,6 +932,83 @@ function watchAuto(input){
     if(input.value!==input.dataset.autoValue){input.dataset.user='1';input.classList.remove('autofilled');const h=input.parentElement&&input.parentElement.querySelector('.fieldhint');if(h)h.remove();delete input.dataset.auto}
   };
   input.addEventListener('input',clear);input.addEventListener('change',clear);
+}
+function flagCheck(input, hint){
+  if(!input||input.dataset.user==='1'||input.value) return;
+  input.classList.add('autofilled');
+  input.dataset.auto=hint;input.dataset.autoValue='';input.dataset.autoRank='0';
+  let h=input.parentElement&&input.parentElement.querySelector('.fieldhint');
+  if(!h&&input.parentElement){h=el('div','fieldhint');input.parentElement.append(h)}
+  if(h) h.textContent=hint;
+}
+function flagBlankLast(input){if(input) flagCheck(input, LAST_CHECK)}
+function blankItem(){return {seller_sku:'',asin:'',fnsku:'',quantity:1,title:'',variantId:'',price:'',label:'',_src:{},_skuTouched:false}}
+function rowFromParsed(it){
+  const src=it.source||'from conversation';
+  const sources=it.sources||{};
+  const row=blankItem();
+  row.title=it.title||'';row.seller_sku=it.seller_sku||'';row.asin=it.asin||'';row.fnsku=it.fnsku||'';
+  row.quantity=it.quantity||1;row.variantId=it.variantId||'';row.price=it.price||'';row.label=it.label||it.title||'';
+  ['title','seller_sku','asin','fnsku','quantity'].forEach(k=>{if(row[k]!==''&&row[k]!=null) row._src[k]=sources[k]||src});
+  return row;
+}
+function seedReplacementItems(origin){
+  if(!window.EggsyPrefill) return [];
+  return EggsyPrefill.replacementItems(actThreadMsgs||[], [], origin).map(rowFromParsed);
+}
+function savedItemRow(it){
+  const cls=window.EggsyPrefill?EggsyPrefill.classifySku(it.seller_sku||it.sku||''):{seller_sku:it.seller_sku||it.sku||'',asin:'',fnsku:''};
+  return {seller_sku:cls.seller_sku||'',asin:it.asin||cls.asin||'',fnsku:it.fnsku||cls.fnsku||'',quantity:it.quantity||it.qty||1,title:it.title||'',variantId:it.variantId||'',price:it.price||'',label:it.label||it.title||'',_src:{},_skuTouched:!!cls.seller_sku};
+}
+function drawItemRows(selected, host, onChange){
+  host.innerHTML='';
+  selected.forEach((it,idx)=>{
+    const row=el('div','actrow items');
+    function cell(input, key, qty){
+      const w=el('div','itemfield'+(qty?' qty':''));w.append(input);watchAuto(input);
+      const src=it._src&&it._src[key];
+      const val=key==='quantity'?String(it.quantity||1):(it[key]||'');
+      if(src&&val) setAuto(input, val, src); else input.value=val;
+      const mark=()=>{
+        itemEdit=true;
+        if(input.dataset.user==='1'){if(it._src) delete it._src[key]; if(key==='seller_sku') it._skuTouched=true}
+        if(key==='quantity') it.quantity=Math.max(1,+input.value||1); else it[key]=input.value;
+        if(onChange) onChange();
+      };
+      input.addEventListener('input',mark);input.addEventListener('change',mark);
+      if(key==='seller_sku'&&!it.seller_sku&&!it._skuTouched) flagCheck(input, SKU_CHECK);
+      return w;
+    }
+    const title=el('input');title.placeholder='Game / product';
+    const sku=el('input');sku.placeholder='Seller SKU';
+    const asin=el('input');asin.placeholder='ASIN';
+    const fn=el('input');fn.placeholder='FNSKU';
+    const q=el('input');q.type='number';q.min='1';
+    const rm=el('button','btn ghost','Remove');rm.type='button';
+    rm.onclick=()=>{if(selected.length>1) selected.splice(idx,1); else Object.assign(it, blankItem()); drawItemRows(selected, host, onChange)};
+    row.append(cell(title,'title'),cell(sku,'seller_sku'),cell(asin,'asin'),cell(fn,'fnsku'),cell(q,'quantity',true),rm);
+    host.append(row);
+  });
+  if(onChange) onChange();
+}
+let itemEdit=false;
+async function enrichReplacementItems(c, selected, host, onChange, saved){
+  if(saved||itemEdit||!window.EggsyPrefill) return;
+  let orders=[];
+  try{orders=(await loadLinkedOrders(c.id)).orders||[]}catch(e){orders=[]}
+  if(itemEdit) return;
+  const parsed=EggsyPrefill.replacementItems(actThreadMsgs||[], orders, c.origin);
+  if(!parsed.length||itemEdit) return;
+  selected.splice(0, selected.length, ...parsed.map(rowFromParsed));
+  drawItemRows(selected, host, onChange);
+}
+function adoptShopifyItems(selected, lines, mode, host, onChange, saved){
+  if(saved||itemEdit||!lines||!lines.length||!window.EggsyPrefill) return false;
+  const rows=EggsyPrefill.shopifyItems(lines, selected, mode).map(rowFromParsed);
+  if(!rows.length||itemEdit) return false;
+  selected.splice(0, selected.length, ...rows);
+  drawItemRows(selected, host, onChange);
+  return true;
 }
 function isPlaceholderAction(a){const d=a&&a.details||{};return !!(a&&a.type==='replacement'&&a.status==='pending'&&!isMcf(d)&&d.kind!=='part'&&d.fulfilment!=='shopify_3pl'&&d.fulfilment!=='amazon_mcf')}
 function replacementToUpdate(kind){
@@ -964,6 +1047,7 @@ function buildMcfDetails(c, fields){
       displayableOrderId:original,displayableOrderDateTime:fields.displayableOrderDateTime||new Date().toISOString(),
       displayableOrderComment:fields.reason||('CX replacement'+(c.order_number?' for '+c.order_number:'')),
       shippingSpeedCategory:speed,destinationAddress:mcfDestAddress(fields.address),
+      // No seller SKU is invented. Seller Central accepts the ASIN in sellerSku, so that is the fallback.
       items:items.map((it,i)=>({sellerSku:it.seller_sku||it.asin||it.fnsku,sellerFulfillmentOrderItemId:(original||'item')+'-'+(i+1),quantity:it.quantity})),
       featureConstraints:plain?[{featureName:'BLANK_BOX',featureFulfillmentPolicy:'Required'}]:[]
     }
@@ -1197,6 +1281,7 @@ async function openReplacementModal(c, host, existing){
   m.bar.append(cancel);
 }
 async function openMcfModal(c, host, existing){
+  itemEdit=false;
   if(!existing) existing=replacementToUpdate('mcf');
   const prev=(existing&&existing.details)||{};
   const m=actModal('Amazon MCF — whole game');
@@ -1230,25 +1315,15 @@ async function openMcfModal(c, host, existing){
     const pre=ticketPrefill(c, existing);
     if(pre.original_order_id) setAuto(orderId.i, pre.original_order_id, pre.sources.original_order_id||'from the ticket');
   }
-  const itemsBox=el('div');itemsBox.append(el('label',null,'Items (enter SKU, ASIN or FNSKU)'));
-  const selected=(prev.items&&prev.items.length)?prev.items.map(it=>({seller_sku:it.seller_sku||it.sku||'',asin:it.asin||'',fnsku:it.fnsku||'',quantity:it.quantity||1,title:it.title||''})):[{seller_sku:'',asin:'',fnsku:'',quantity:1,title:''}];
+  flagBlankLast(af.lastName);
+  const savedItems=!!(prev.items&&prev.items.length);
+  const itemsBox=el('div');itemsBox.append(el('label',null,'Items'));
+  const skuNote=el('div','hint','');
+  const seededItems=seedReplacementItems(c.origin);
+  const selected=savedItems?prev.items.map(savedItemRow):(seededItems.length?seededItems:[blankItem()]);
   const itemRows=el('div');
-  function drawItems(){
-    itemRows.innerHTML='';
-    selected.forEach((it,idx)=>{
-      const row=el('div','actrow');
-      const title=el('input');title.placeholder='Title (optional)';title.value=it.title||'';title.oninput=()=>{it.title=title.value;refreshCopy()};
-      const sku=el('input');sku.placeholder='SKU';sku.value=it.seller_sku||'';sku.oninput=()=>{it.seller_sku=sku.value;refreshCopy()};
-      const asin=el('input');asin.placeholder='ASIN';asin.value=it.asin||'';asin.oninput=()=>{it.asin=asin.value;refreshCopy()};
-      const fn=el('input');fn.placeholder='FNSKU';fn.value=it.fnsku||'';fn.oninput=()=>{it.fnsku=fn.value;refreshCopy()};
-      const q=el('input');q.type='number';q.min='1';q.value=String(it.quantity||1);q.style.width='64px';q.onchange=()=>{it.quantity=Math.max(1,+q.value||1);refreshCopy()};
-      const rm=el('button','btn ghost','Remove');rm.type='button';rm.onclick=()=>{if(selected.length>1){selected.splice(idx,1);drawItems()}};
-      row.append(title,sku,asin,fn,q,rm);itemRows.append(row);
-    });
-    refreshCopy();
-  }
   const add=el('button','btn ghost','Add another item');add.type='button';
-  add.onclick=()=>{selected.push({seller_sku:'',asin:'',fnsku:'',quantity:1,title:''});drawItems()};
+  add.onclick=()=>{selected.push(blankItem());drawItemRows(selected,itemRows,refreshCopy)};
   const search=field('Look up a SKU from the Shopify catalogue (optional)',{placeholder:'Name or SKU'});
   const results=el('div','actresults');results.style.display='none';
   let tmr;search.i.oninput=()=>{clearTimeout(tmr);tmr=setTimeout(async()=>{const q=search.i.value.trim();if(q.length<2){results.style.display='none';return}
@@ -1258,9 +1333,9 @@ async function openMcfModal(c, host, existing){
     if(r.error==='not_configured'||(r.ok===false&&!r.products)){results.append(el('div','hint','Shopify is not connected, so catalogue search is unavailable. Type the Amazon SKU, ASIN or FNSKU instead.'));return}
     const prods=r.products||[];if(!prods.length){results.append(el('div','hint','No matching products.'));return}
     prods.forEach(p=>{(p.variants||[]).forEach(v=>{const b=el('button');b.type='button';b.textContent=v.label+(v.sku?' · '+v.sku:'');
-      b.onclick=()=>{const empty=selected.find(it=>!it.seller_sku&&!it.asin&&!it.fnsku);const target=empty||{seller_sku:'',asin:'',fnsku:'',quantity:1,title:''};if(!empty) selected.push(target);
-        target.seller_sku=v.sku||'';target.title=p.title+(v.title&&v.title!=='Default Title'?' · '+v.title:'');target.quantity=target.quantity||1;drawItems();results.style.display='none'};results.append(b)})})},250)};
-  itemsBox.append(search.w,results,itemRows,add);m.body.append(itemsBox);
+      b.onclick=()=>{itemEdit=true;const hostRow=selected.find(it=>!it.seller_sku);const target=hostRow||blankItem();if(!hostRow) selected.push(target);
+        target.seller_sku=v.sku||'';if(!target.title) target.title=p.title+(v.title&&v.title!=='Default Title'?' · '+v.title:'');target.quantity=target.quantity||1;target._skuTouched=!!target.seller_sku;if(target._src) delete target._src.seller_sku;drawItemRows(selected,itemRows,refreshCopy);results.style.display='none'};results.append(b)})})},250)};
+  itemsBox.append(search.w,results,itemRows,skuNote,add);m.body.append(itemsBox);
   const reason=field('Reason / note',{tag:'textarea',minHeight:'64px'});reason.i.value=prev.reason||'';m.body.append(reason.w);
   const mcfId=field('MCF order ID (after you place it in Seller Central)',{value:prev.mcf_order_id||'',placeholder:'Paste the Amazon MCF order ID'});m.body.append(mcfId.w);
   const copyHost=el('div');m.body.append(copyHost);
@@ -1269,12 +1344,14 @@ async function openMcfModal(c, host, existing){
     const address={};Object.keys(af).forEach(k=>address[k]=af[k].value.trim());
     return buildMcfDetails(c,{
       marketplace:marketSel.value,original_order_id:orderId.i.value.trim(),shipping_speed:speed.value,
-      plain_packaging:plain.checked,address,items:selected.filter(it=>it.seller_sku||it.asin||it.fnsku),
+      plain_packaging:plain.checked,address,items:selected.filter(it=>it.seller_sku||it.asin||it.fnsku||it.title),
       reason:reason.i.value.trim(),mcf_order_id:mcfId.i.value.trim(),
       displayableOrderDateTime:prev.sp_api&&prev.sp_api.displayableOrderDateTime
     });
   }
   function refreshCopy(){
+    const blankSku=selected.some(it=>(it.title||it.asin)&&!it.seller_sku);
+    skuNote.textContent=blankSku?'Seller SKU is blank where the ticket has no seller SKU. Seller Central can use the ASIN, and the prepared MCF payload does that when SKU is empty.':'';
     const d=currentDetails();
     copyHost.innerHTML='';
     copyHost.append(el('h3',null,'Copy into Seller Central'));
@@ -1298,16 +1375,20 @@ async function openMcfModal(c, host, existing){
   });
   marketSel.addEventListener('change',()=>{marketSel.dataset.touched='1'});
   af.countryCode.addEventListener('change',()=>{if(!marketSel.dataset.touched) marketSel.value=defaultMcfMarket(c, af.countryCode.value);refreshCopy()});
-  drawItems();
+  drawItemRows(selected,itemRows,refreshCopy);
   m.body.append(link);
   m.setErr('Loading the original order, if we can find it…');
+  await enrichReplacementItems(c, selected, itemRows, refreshCopy, savedItems);
   const looked=await lookupForAddress(c);
+  const lines=looked.order&&looked.order.lineItems&&looked.order.lineItems.nodes||[];
+  const adopted=adoptShopifyItems(selected, lines, 'mcf', itemRows, refreshCopy, savedItems);
   if(!(prev.address&&prev.address.address1)&&looked.order&&looked.order.shippingAddress){
     const a=looked.order.shippingAddress;
     const shop={firstName:a.firstName||'',lastName:a.lastName||'',address1:a.address1||'',address2:a.address2||'',city:a.city||'',province:a.province||a.provinceCode||'',zip:a.zip||'',countryCode:a.countryCodeV2||a.country||'',phone:a.phone||''};
     Object.keys(shop).forEach(k=>{if(shop[k]) setAuto(af[k], shop[k], 'from Shopify order')});
     if(!marketSel.dataset.user&&!marketSel.dataset.touched) setAuto(marketSel, defaultMcfMarket(c, af.countryCode.value), 'from Shopify order');
-    m.setErr('Address filled from Shopify '+looked.order.name+'. The Order ID stays the original channel number ('+(orderId.i.value||c.order_number||'none on the ticket')+'). Check it before you copy the fields.');
+    flagBlankLast(af.lastName);
+    m.setErr('Address filled from Shopify '+looked.order.name+'. The Order ID stays the original channel number ('+(orderId.i.value||c.order_number||'none on the ticket')+'). Check it before you copy the fields.'+(adopted?' The game line is filled from the Shopify order.':''));
     refreshCopy();
   }else if(looked.error==='not_configured'){
     m.setErr('Shopify is not connected, so the address could not be looked up. Fill it in from the ticket. No Amazon order will be placed from this screen.');
@@ -1318,7 +1399,7 @@ async function openMcfModal(c, host, existing){
   async function save(markPlaced){
     const details=currentDetails();
     if(!details.original_order_id){m.setErr('Order ID must be the original channel order number.',true);return}
-    if(!details.items.length){m.setErr('Add at least one item with a SKU, ASIN or FNSKU.',true);return}
+    if(!details.items.length){m.setErr('Add at least one item with a game, SKU, ASIN or FNSKU.',true);return}
     if(!details.address.firstName||!details.address.lastName){m.setErr('Add a first and last name.',true);return}
     if(!details.address.address1||!details.address.city||!details.address.zip||!details.address.countryCode){m.setErr('Fill in address line 1, city, postcode and country code.',true);return}
     if(needsProvince(details.address.countryCode)&&!details.address.province){m.setErr('County / state is required for the US, Canada and Australia.',true);return}
@@ -1350,18 +1431,37 @@ async function openMcfModal(c, host, existing){
   m.bar.append(saveBtn,placed,cancel);
 }
 async function openPartReplacementModal(c, host, existing){
+  itemEdit=false;
   if(!existing) existing=replacementToUpdate('part');
   const prev=(existing&&existing.details)||{};
   const m=actModal('Send a replacement part');
   m.body.append(el('p','hint','This is for replacement PARTS only. It creates a free Shopify order tagged eggsy-replacement so it goes to the same 3PL as website orders. Whole games should use Amazon MCF instead. Nothing is sent to the customer until you queue a reply.'));
-  const itemsBox=el('div');const selected=[];
+  const savedItems=!!(prev.items&&prev.items.length);
+  const selected=savedItems?prev.items.map(savedItemRow):seedReplacementItems(c.origin);
+  const itemsBox=el('div');itemsBox.append(el('label',null,'Items'));
   const search=field('Search products or parts',{placeholder:'Name or SKU'});
   const results=el('div','actresults');results.style.display='none';
   const chosen=el('div');
-  function drawChosen(){chosen.innerHTML='';selected.forEach((it,idx)=>{const row=el('div','actrow');row.append(document.createTextNode(it.label+' × '));
-    const q=el('input');q.type='number';q.min='1';q.value=String(it.quantity||1);q.style.width='64px';q.onchange=()=>{it.quantity=Math.max(1,+q.value||1)};
-    const rm=el('button','btn ghost','Remove');rm.type='button';rm.onclick=()=>{selected.splice(idx,1);drawChosen()};
-    row.append(q,rm);chosen.append(row)})}
+  const skuNote=el('div','hint','');
+  function redraw(){
+    drawItemRows(selected,chosen,function(){});
+    const blankSku=selected.some(it=>(it.title||it.asin)&&!it.seller_sku);
+    skuNote.textContent=blankSku?'Seller SKU is blank where the ticket has no seller SKU. Search the catalogue to attach the Shopify product before creating an order.':'';
+  }
+  function takeVariant(v, title, price, qty){
+    itemEdit=true;
+    let target=selected.find(it=>!it.variantId);
+    if(!target){target=blankItem();selected.push(target)}
+    target.variantId=v.id||'';
+    target.seller_sku=v.sku||'';
+    target.price=price||v.price||'';
+    target.label=v.label||title||target.label||'';
+    if(title) target.title=title;
+    target.quantity=qty||target.quantity||1;
+    target._skuTouched=!!target.seller_sku;
+    if(target._src){delete target._src.title;delete target._src.seller_sku;delete target._src.quantity}
+    redraw();
+  }
   let tmr;search.i.oninput=()=>{clearTimeout(tmr);tmr=setTimeout(async()=>{const q=search.i.value.trim();if(q.length<2){results.style.display='none';return}
     results.style.display='';results.textContent='Searching…';
     const r=await callCx({action:'search_products',q});
@@ -1369,35 +1469,48 @@ async function openPartReplacementModal(c, host, existing){
     if(r.error==='not_configured'||r.ok===false&&!r.products){results.append(el('div','hint','Shopify is not connected to Eggsy CX yet, so products can’t be searched here. Create the £0 order in Shopify Admin, then record its number.'));return}
     const prods=r.products||[];if(!prods.length){results.append(el('div','hint','No matching products.'));return}
     prods.forEach(p=>{(p.variants||[]).forEach(v=>{const b=el('button');b.type='button';b.textContent=v.label+(v.price?' · £'+v.price:'');
-      b.onclick=()=>{selected.push({variantId:v.id,title:p.title+(v.title&&v.title!=='Default Title'?' · '+v.title:''),sku:v.sku,price:v.price,quantity:1,label:v.label});drawChosen();results.style.display='none'};results.append(b)})})},250)};
-  itemsBox.append(search.w,results,chosen);m.body.append(itemsBox);
+      b.onclick=()=>{takeVariant(v, p.title+(v.title&&v.title!=='Default Title'?' · '+v.title:''), v.price, 1);results.style.display='none'};results.append(b)})})},250)};
+  itemsBox.append(search.w,results,chosen,skuNote);m.body.append(itemsBox);
+  redraw();
   const orig=el('div');m.body.append(orig);
   const af={};
   [['firstName','First name'],['lastName','Last name'],['address1','Address line 1'],['address2','Address line 2'],['city','City'],['province','County / state'],['zip','Postcode'],['countryCode','Country code (GB, US…)'],['phone','Phone']].forEach(([k,lab])=>{const f=field(lab,{value:''});af[k]=f.i;watchAuto(f.i);m.body.append(f.w)});
   if(prev.address&&(prev.address.address1||prev.address.zip)) Object.keys(af).forEach(k=>lockField(af[k], prev.address[k]||''));
   else {const pre=ticketPrefill(c, existing);Object.keys(af).forEach(k=>{if(pre.address&&pre.address[k]) setAuto(af[k], pre.address[k], pre.sources[k]||'from the ticket')})}
+  flagBlankLast(af.lastName);
   const reason=field('Reason',{tag:'textarea',minHeight:'64px'});m.body.append(reason.w);
   const rec=field('Or record an order already created in Shopify',{placeholder:'#11312'});m.body.append(rec.w);
   m.setErr('Loading the original order, if we can find it…');
+  await enrichReplacementItems(c, selected, chosen, redraw, savedItems);
   const looked=await lookupForAddress(c);
+  const lines=looked.order&&looked.order.lineItems&&looked.order.lineItems.nodes||[];
+  const adopted=adoptShopifyItems(selected, lines, 'shopify', chosen, redraw, savedItems);
+  if(adopted) redraw();
   if(looked.order&&looked.order.shippingAddress){
     const a=looked.order.shippingAddress;
     const shop={firstName:a.firstName||'',lastName:a.lastName||'',address1:a.address1||'',address2:a.address2||'',city:a.city||'',province:a.province||a.provinceCode||'',zip:a.zip||'',countryCode:a.countryCodeV2||a.country||'',phone:a.phone||''};
     Object.keys(shop).forEach(k=>{if(shop[k]) setAuto(af[k], shop[k], 'from Shopify order')});
-    const quick=el('div');quick.append(el('div','hint','Items on Shopify '+looked.order.name+' — click to add:'));
-    (looked.order.lineItems&&looked.order.lineItems.nodes||[]).forEach(li=>{const b=el('button','btn ghost',li.title+' × '+li.quantity);b.type='button';
-      b.onclick=()=>{selected.push({variantId:li.variant&&li.variant.id,title:li.title,sku:li.sku,price:li.originalUnitPriceSet&&li.originalUnitPriceSet.shopMoney&&li.originalUnitPriceSet.shopMoney.amount,quantity:li.quantity||1,label:li.title});drawChosen()};quick.append(b)});
-    orig.append(quick);
-    m.setErr('Address filled from '+looked.order.name+'. Check it before creating the order.');
+    flagBlankLast(af.lastName);
+    if(!adopted){
+      const quick=el('div');quick.append(el('div','hint','Items on Shopify '+looked.order.name+' — click to add:'));
+      lines.forEach(li=>{const b=el('button','btn ghost',li.title+' × '+li.quantity);b.type='button';
+        b.onclick=()=>{takeVariant({id:li.variant&&li.variant.id,sku:li.sku,label:li.title}, li.title, li.originalUnitPriceSet&&li.originalUnitPriceSet.shopMoney&&li.originalUnitPriceSet.shopMoney.amount, li.quantity||1)};quick.append(b)});
+      orig.append(quick);
+    }
+    m.setErr('Address filled from '+looked.order.name+(adopted?'. Items filled from that order.':'')+'. Check it before creating the order.');
   }else if(looked.error==='not_configured'){m.setErr('Shopify is not connected to Eggsy CX yet. You can still fill this in and record a Shopify order number after you create it in Admin.')}
+  else if(selected.some(it=>it.title||it.asin)) m.setErr('Game filled from the ticket. Seller SKU stays blank until you pick the Shopify product. No order has been created.');
   else m.setErr(looked.order? '':'No Shopify order was found for this ticket — fill in the address and items.');
   const preview=el('button','btn ghost','Preview (no order created)');preview.type='button';
   const go=el('button','btn','Create free replacement');go.type='button';
   const cancel=el('button','btn ghost','Cancel');cancel.type='button';cancel.onclick=closeActModal;
   m.bar.append(preview,go,cancel);
+  function orderLines(){
+    return selected.filter(it=>it.variantId).map(it=>({variantId:it.variantId,title:it.title,sku:it.seller_sku,seller_sku:it.seller_sku,asin:it.asin||'',fnsku:it.fnsku||'',price:it.price,quantity:it.quantity||1,label:it.label||it.title}));
+  }
   function collect(){
     const address={};Object.keys(af).forEach(k=>address[k]=af[k].value.trim());
-    return {conversation_id:c.id,items:selected,address,reason:reason.i.value.trim()};
+    return {conversation_id:c.id,items:orderLines(),address,reason:reason.i.value.trim()};
   }
   preview.onclick=async()=>{m.setErr('Checking…');const r=await callCx(Object.assign({action:'replacement',dry_run:true},collect()));
     if(!r.ok){m.setErr(r.error||r.message||'Could not preview',true);return}
@@ -1406,7 +1519,8 @@ async function openPartReplacementModal(c, host, existing){
     if(rec.i.value.trim()){
       if(!selected.length&&!reason.i.value.trim()){m.setErr('Add what you sent, or a reason, so the ticket has a record.',true);return}
       const address={};Object.keys(af).forEach(k=>address[k]=af[k].value.trim());
-      const partDetails=Object.assign({},prev,{kind:'part',fulfilment:'shopify_3pl',items:selected,address,reason:reason.i.value.trim(),recorded_manually:true,source_origin:c.origin,source_order:c.order_number,awaiting_details:false});
+      const recorded=selected.filter(it=>it.variantId||it.title||it.seller_sku||it.asin).map(it=>({variantId:it.variantId||'',title:it.title||'',sku:it.seller_sku||'',seller_sku:it.seller_sku||'',asin:it.asin||'',fnsku:it.fnsku||'',price:it.price||'',quantity:it.quantity||1,label:it.label||it.title||''}));
+      const partDetails=Object.assign({},prev,{kind:'part',fulfilment:'shopify_3pl',items:recorded,address,reason:reason.i.value.trim(),recorded_manually:true,source_origin:c.origin,source_order:c.order_number,awaiting_details:false});
       const res=existing
         ?await sb.from('cx_actions').update({status:'created',shopify_order_name:rec.i.value.trim(),details:partDetails,updated_at:new Date().toISOString()}).eq('id',existing.id).select('id').single()
         :await sb.from('cx_actions').insert({conversation_id:c.id,type:'replacement',status:'created',shopify_order_name:rec.i.value.trim(),details:partDetails,created_by:(await sb.auth.getUser()).data.user.email}).select('id').single();
@@ -1415,7 +1529,7 @@ async function openPartReplacementModal(c, host, existing){
       await logNote(c,'Replacement recorded against Shopify order '+rec.i.value.trim()+(selected.length?' for '+selected.map(i=>i.title+' × '+(i.quantity||1)).join(', '):'')+'.','note:action:'+data.id);
       closeActModal();await reloadActions(c,host);return;
     }
-    if(!selected.length){m.setErr('Pick at least one product or part.',true);return}
+    if(!orderLines().length){m.setErr('Pick at least one product or part.',true);return}
     if(!confirm('Create a real £0 Shopify order that will go to the 3PL like any other website order?'))return;
     go.disabled=true;m.setErr('Creating Shopify order…');
     const r=await callCx(Object.assign({action:'replacement',create:true,dry_run:false},collect()));
@@ -1791,7 +1905,7 @@ async function flagReplacement(c,order,host){
    kind:'game',fulfilment:'amazon_mcf',marketplace:market,marketplace_id:meta.marketplace_id,
    original_order_id:order.platform_order_id,displayable_order_id:order.platform_order_id,
    mcf_create_url:meta.create_url,shipping_speed:'Standard',plain_packaging:true,
-   items:chosen.map(it=>({title:it.title||'',seller_sku:it.sku||'',quantity:it.qty||1})),
+   items:chosen.map(it=>{const cls=window.EggsyPrefill?EggsyPrefill.classifySku(it.sku||''):{seller_sku:it.sku||'',asin:'',fnsku:''};return {title:it.title||'',seller_sku:cls.seller_sku||'',asin:cls.asin||'',fnsku:cls.fnsku||'',quantity:it.qty||1}}),
    reason:labels[reason.value]+(note.i.value.trim()?': '+note.i.value.trim():''),
    flag_reason:reason.value,note:note.i.value.trim()||null,
    source:'order_card',source_origin:c.origin,source_order:order.platform_order_id,
