@@ -10,6 +10,7 @@ var PAGES=[
  {href:'/actions/',label:'Actions',icon:'📌',count:'actions'},
  {href:'/knowledge/',label:'Knowledge',icon:'📚'},
  {href:'/queue/',label:'Send queue',icon:'📮',count:'queue'},
+ {href:'/expired/',label:'Expired',icon:'⌛',count:'expired'},
  {href:'/sent/',label:'Sent log',icon:'📤'},
  {href:'/metrics/',label:'Metrics',icon:'📊'}
 ];
