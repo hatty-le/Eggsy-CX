@@ -28,6 +28,34 @@ select public.cx_save_draft(
 
 `missing_actions` on `cx_draft_readiness()` is only an open "Ask Marty" follow-up, or a replacement, refund, or return the reply says is already done and that is not logged. Pending `follow_up` actions are not in that list.
 
+## Who drafts
+
+There are two drafters and they share one path. The Eggsy drafter saves with author `Eggsy`. The batch drafter saves with author `Claude`. Both read the published knowledge articles from `kb_for_origin` (there is no separate prompt file) and both save with `cx_save_draft`. The pre-queue check in `cx_queue_ready_draft` is the same for both.
+
+## Greenlit auto-send types
+
+Hatty greenlit five types on 23 Nov 2026. The article "Greenlit auto-send replies" is the rule both drafters follow. The drafter does the lookup and records any follow-up as a `cx_actions` row. It does not write `[check tracking]`, `[is this spam?]` or `[forward to sales]` in the draft.
+
+`p_reply_type` is one of `tracking_update`, `address_confirmation`, `wholesale_holding`, `thank_you`, `junk_decision`. `p_reply_facts` is the lookup (order found, shipping status, and for an address check whether it matched and whether it has shipped). Turn a type off later with:
+
+```sql
+update public.cx_settings
+   set value = jsonb_set(value, '{tracking_update}', 'false')
+ where key = 'auto_send_greenlit_types';
+```
+
+`cx_greenlit_prequeue_block` runs after the existing holds and before anything is auto-queued. It blocks a tracking reply that mentions a refund, replacement, compensation or a delivery date, or whose lookup is missing or shows delivered, lost, failed, returned or an exception. It blocks an address reply that says the address was changed without a recorded change, or that is shipped, unmatched, or not looked up. It blocks a wholesale reply that contains £, $, €, a price next to a number, minimum, MOQ, discount or terms. It blocks a thank-you to a creator, influencer, UGC, ad-code or sample ticket, and a thank-you that makes a promise. Junk is not queued. Drafts saved before `auto_send_greenlit_from` are left on the previous rules.
+
+A wholesale save also writes a pending follow-up to Ben Pullen (sales), with the same `to`, `to_name` and `kind` fields as a colleague forward. It does not call the automatic colleague forward, because that mailer resolves the ticket.
+
+Replacement follow-ups, gameplay questions, missing parts, cancellations, UK damaged items and refunds are unchanged. So are the US/EU refund hold, Amazon plain-text rules, the neighbours-first delivered-not-arrived steps, the promised-action check, the already-answered check, and the rule that we never say the artwork is not AI.
+
+```sql
+select * from public.cx_greenlit_dry_run();
+```
+
+That read is the dry run for drafts already in the Inbox. It does not change a draft and it does not send anything. `would_ready` is true only when the customer text is already complete and every hold, including the new check, would let it queue.
+
 ## Dry run for drafts already in the Inbox
 
 `public.cx_draft_note_split_report()` reads the current Inbox drafts and classifies each bracket note. It does not change a draft and it does not send anything.
