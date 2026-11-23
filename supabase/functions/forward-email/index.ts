@@ -6,6 +6,7 @@
 //         original email attached when there is one; their reply comes back to hey@ and the
 //         cx_marty_advice_reply trigger files it on the ticket as "(X's advice)".
 // Recipients must be active @luckyegg.co colleagues, so this can never forward to an outside address.
+// After a successful forward, cx_place_holding_reply drafts a holding reply. It is not queued or sent.
 // Legacy: to: "claudia-bb" (handle) and to: "marty" (advice) still work.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -22,6 +23,20 @@ const chName = (o: string) => ORIGINS[o] || (o.startsWith("amazon_") ? "Amazon "
 const ukTime = (d: string) => new Date(d).toLocaleString("en-GB", { timeZone: "Europe/London", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+
+async function placeHoldingReply(cid: string) {
+  try {
+    const { data, error } = await SB.rpc("cx_place_holding_reply", { p_conversation: cid, p_replace: false });
+    if (error) {
+      console.error("holding reply: " + String(error.message || "").slice(0, 160));
+      return { ok: false };
+    }
+    return data;
+  } catch (e) {
+    console.error("holding reply: " + String((e as Error).message || e).slice(0, 160));
+    return { ok: false };
+  }
+}
 
 let tok: string | null = null;
 async function token() {
@@ -146,7 +161,10 @@ Deno.serve(async (req) => {
   try {
     let orig: any = null;
     try { for (const r of rows || []) { orig = await resolve(String(r.external_id).slice(6), r, handle); if (orig) break; } } catch (e) { if (!to.advice) throw e; orig = null; }
-    if (to.advice) return json(await adviceEmail(to, conv, orig, note, draft, by, p.origin_url));
+    if (to.advice) {
+      const advised = await adviceEmail(to, conv, orig, note, draft, by, p.origin_url);
+      return json({ ...advised, holding: await placeHoldingReply(cid) });
+    }
     if (!orig) return json({ error: "no_email", message: "This ticket has no email in hey@ to forward. Use Ask for advice instead." }, 404);
     const raw = await gm("messages/" + orig.id + "?format=raw");
     const origFrom = hdr(orig, "From"), subj = hdr(orig, "Subject") || conv.subject || "Customer message";
@@ -178,7 +196,8 @@ Deno.serve(async (req) => {
       body: "(Forwarded to " + to.name + " by " + by + " to handle)" + (note ? " " + note : ""), sent_at: new Date().toISOString(),
       external_id: "gmail:" + sent.id, external_thread_id: sent.threadId });
     await SB.from("conversations").update({ status: "resolved", status_changed_at: new Date().toISOString(), summary: "Forwarded to " + to.name, updated_at: new Date().toISOString() }).eq("id", cid);
-    return json({ ok: true, gmail: sent.id, forwarded_message: orig.id, to: to.email, mode });
+    const holding = await placeHoldingReply(cid);
+    return json({ ok: true, gmail: sent.id, forwarded_message: orig.id, to: to.email, mode, holding });
   } catch (e) {
     console.error("forward-email: " + String((e as Error).message).slice(0, 160));
     return json({ error: "Could not forward from hey@" }, 502);

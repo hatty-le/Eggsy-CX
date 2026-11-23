@@ -8,7 +8,7 @@ import {
   namedPersonSalutation,
 } from "./mail-rules.ts";
 
-export const FUNCTION_VERSION = 19;
+export const FUNCTION_VERSION = 20;
 const FROM = "hey@luckyegg.co";
 const TEST_TO = "hey@luckyegg.co";
 const TICKET_ORIGIN = "https://eggsy-cx.vercel.app";
@@ -347,9 +347,19 @@ async function addNote(sb: SupabaseClient, cid: string, body: string, externalId
   }
 }
 
+async function placeHoldingReply(sb: SupabaseClient, cid: string) {
+  try {
+    const { error } = await sb.rpc("cx_place_holding_reply", { p_conversation: cid, p_replace: false });
+    if (error) console.error("holding reply: " + String(error.message || "").slice(0, 160));
+  } catch (e) {
+    console.error("holding reply: " + String(e instanceof Error ? e.message : e).slice(0, 160));
+  }
+}
+
+// Cancel anything already queued so a customer reply does not go out with the forward.
+// Leave suggested drafts alone: cx_place_holding_reply keeps an unsent draft, or writes the holding reply.
 async function supersedeDrafts(sb: SupabaseClient, cid: string) {
   const now = new Date().toISOString();
-  await sb.from("suggested_drafts").update({ superseded: true, superseded_at: now }).eq("conversation_id", cid).eq("superseded", false);
   await sb.from("reply_queue").update({
     status: "cancelled",
     cancelled_at: now,
@@ -511,6 +521,7 @@ async function recordForward(
   }
   await sb.from("conversations").update({ status: "resolved", status_changed_at: now, updated_at: now }).eq("id", conv.id);
   await supersedeDrafts(sb, conv.id);
+  await placeHoldingReply(sb, conv.id);
 }
 
 export type ForwardPlan =
