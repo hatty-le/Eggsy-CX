@@ -2,6 +2,7 @@
 // Email tickets are a Gmail forward (original sender, date, subject, full body, attachments from the Gmail API).
 // Other channels (TikTok, Amazon, Meta, Walmart, ...) send the conversation transcript instead.
 // Nothing is written to reply_queue and nothing is sent to the customer.
+// A successful forward also drafts a holding reply (cx_place_holding_reply). That stays a draft.
 // Gmail send uses the same quota wait-and-retry as send-email-reply (429 / rateLimitExceeded / quota exceeded).
 // The HTML + plain text part uses the same multipart/alternative envelope as that sender.
 // Recipient: cx_settings key marketing_forward_to (default will.h@luckyegg.co, @luckyegg.co only).
@@ -26,6 +27,21 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+
+// Draft only. Never throws: a forward that already reached the colleague still succeeds.
+async function placeHoldingReply(cid: string) {
+  try {
+    const { data, error } = await SB.rpc("cx_place_holding_reply", { p_conversation: cid, p_replace: false });
+    if (error) {
+      console.error("holding reply: " + String(error.message || "").slice(0, 160));
+      return { ok: false };
+    }
+    return data;
+  } catch (e) {
+    console.error("holding reply: " + String((e as Error).message || e).slice(0, 160));
+    return { ok: false };
+  }
+}
 
 let tok: string | null = null;
 async function token() {
@@ -467,16 +483,18 @@ Deno.serve(async (req) => {
     }).eq("id", lockId).eq("external_id", PENDING);
     if (noteErr) {
       await SB.from("messages").update({ body: note }).eq("id", lockId);
-      return json({ ok: false, sent: true, to, gmail: sent.id, error: "note", message: "The email was sent, but the note could not be saved. Do not send it again unless you mean to." }, 500);
+      const holding = await placeHoldingReply(cid);
+      return json({ ok: false, sent: true, to, gmail: sent.id, error: "note", holding, message: "The email was sent, but the note could not be saved. Do not send it again unless you mean to." }, 500);
     }
     const { error: stErr } = await SB.from("conversations").update({
       status: "resolved",
       status_changed_at: new Date().toISOString(),
     }).eq("id", cid);
+    const holding = await placeHoldingReply(cid);
     if (stErr) {
-      return json({ ok: false, sent: true, to, gmail: sent.id, error: "status", message: "The email was sent and the note was saved, but the ticket could not be marked Resolved." }, 500);
+      return json({ ok: false, sent: true, to, gmail: sent.id, error: "status", holding, message: "The email was sent and the note was saved, but the ticket could not be marked Resolved." }, 500);
     }
-    return json(payload);
+    return json({ ...payload, holding });
   } catch (e) {
     if (lockId) await releaseLock(lockId);
     const st = (e as any).status || 0;

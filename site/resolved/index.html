@@ -122,6 +122,8 @@ details.elog div{margin-top:6px}
 .others a:hover{background:#fffaf0}
 .others a .when{color:var(--muted);font-size:12px;float:right}
 .composer .lbl{font-size:12.5px;color:#7a5b00;background:#FFF3D1;border-radius:999px;display:inline-block;padding:3px 10px;margin-bottom:6px}
+.composer .holdnote{font-size:12.5px;color:#7a5b00;background:#FFF3D1;border-radius:10px;padding:8px 10px;margin:0 0 8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.composer .holdnote .btn{padding:5px 12px;font-size:13px}
 .composer .lbl.edit{background:#e8eefc;color:#2a3f7a}
 .composer details.tr{font-size:13.5px;background:#f7f5ef;border-radius:10px;padding:8px 12px;margin-top:8px}
 .composer details.tr summary{cursor:pointer;font-weight:600;color:var(--muted)}
@@ -757,6 +759,7 @@ function composer(c,sug){const w=el('div','composer');const ch=channel(c);
  const setLabel=()=>{const st=lsGet(c.id);
   if(st.text!=null&&cur&&sug&&st.draftId===sug.id){lbl.className='lbl edit';lbl.textContent='Eggsy’s suggested reply, edited by you (not sent yet)';lbl.style.display=''}
   else if(st.text!=null){lbl.className='lbl edit';lbl.textContent='Your unsent reply (saved on this device)';lbl.style.display=''}
+  else if(cur&&sug&&sug.holding){lbl.className='lbl';lbl.textContent='Holding reply drafted. Nothing is sent until you press Send.';lbl.style.display=''}
   else if(cur){lbl.className='lbl';lbl.textContent='Eggsy’s suggested reply, edit freely. Nothing is sent until you press Send.';lbl.style.display=''}
   else lbl.style.display='none'};
  const loadSug=()=>{ta.value=sug.body||'';cur=sug.id;if(sug.gaps)ta.dataset.gapbase=sug.body||'';else delete ta.dataset.gapbase;const st=lsGet(c.id);delete st.text;st.draftId=sug.id;lsSet(c.id,st);newer.style.display='none';setLabel();drawTr();phCheck()};
@@ -765,7 +768,7 @@ function composer(c,sug){const w=el('div','composer');const ch=channel(c);
   d.open=trMode()==='en';d.append(el('summary',null,'English, for you'+(sug.language?' (the reply is in '+langName(sug.language)+')':'')+'. This is not sent.'),el('div',null,sug.body_en));trBox.append(d)};
  const onTr=()=>{if(!w.isConnected){document.removeEventListener('eggsy-tr',onTr);return}drawTr()};document.addEventListener('eggsy-tr',onTr);
  if(st0.text!=null){const saved=window.EggsyDisplay?EggsyDisplay.splitDraft(st0.text):{text:st0.text,gaps:false};ta.value=saved.text;if(saved.gaps)ta.dataset.gapbase=saved.text;cur=sug&&st0.draftId===sug.id?sug.id:null;
-  if(sug&&st0.draftId!==sug.id){newer.append(document.createTextNode('Eggsy has a newer suggested reply.'));const lb=el('button','btn ghost','Replace my text with it');lb.type='button';lb.onclick=()=>{if(confirm('Replace what you have written with Eggsy’s newer suggestion?'))loadSug()};newer.append(lb);newer.style.display=''}}
+  if(sug&&st0.draftId!==sug.id){newer.append(document.createTextNode(sug.holding?'A holding reply is ready. Your unsent draft was kept.':'Eggsy has a newer suggested reply.'));const lb=el('button','btn ghost',sug.holding?'Use holding reply':'Replace my text with it');lb.type='button';lb.onclick=()=>{if(sug.holding){loadSug();return}if(confirm('Replace what you have written with Eggsy’s newer suggestion?'))loadSug()};newer.append(lb);newer.style.display=''}}
  else if(sug){ta.value=sug.body||'';cur=sug.id;if(sug.gaps)ta.dataset.gapbase=sug.body||''}
  else ta.value=SIGNOFF;
  ta.oninput=()=>{const st=lsGet(c.id);if(cur&&sug&&ta.value===sug.body){delete st.text}else if(!cur&&ta.value===SIGNOFF){delete st.text}else{st.text=ta.value;st.draftId=cur||st.draftId||null}lsSet(c.id,st);setLabel();phCheck()};
@@ -780,7 +783,8 @@ function composer(c,sug){const w=el('div','composer');const ch=channel(c);
    b.onclick=function(){delete ta.dataset.gapbase;cur=null;ta.value=tp.body;ta.dispatchEvent(new Event('input'));ta.focus()};
    tplHost.append(b)});
  }
- if(sug&&sug.context){const ctx=el('div','draftcontext');ctx.append(el('b',null,'Internal note'),document.createTextNode(sug.context));w.append(ctx)}
+ if(sug&&sug.context&&!sug.holding){const ctx=el('div','draftcontext');ctx.append(el('b',null,'Internal note'),document.createTextNode(sug.context));w.append(ctx)}
+ if(c._holdingOffer&&!(sug&&sug.holding)){const hn=el('div','holdnote');hn.append(document.createTextNode('A holding reply is ready. Your unsent draft was kept. '));const ub=el('button','btn ghost','Use holding reply');ub.type='button';ub.onclick=async()=>{ub.disabled=true;const st=lsGet(c.id);delete st.text;lsSet(c.id,st);const {error}=await sb.rpc('cx_place_holding_reply',{p_conversation:c.id,p_replace:true});if(error){alert('Could not use the holding reply: '+error.message);ub.disabled=false;return}openConv(c.id,false)};hn.append(ub);w.append(hn)}
  w.append(tplHost,newer,lbl,ta,trBox,req);setLabel();drawTr();
  const bar=el('div','bar');const go=el('button','btn','Send');go.disabled=blocked;go.type='button';
  const clr=el('button','btn ghost','Discard');clr.type='button';
@@ -1828,7 +1832,9 @@ async function sendMarketing(c,again,draw,btn){
  if(r.to)MARKETING_TO=r.to;
  c.status='resolved';
  await refreshStates();EggsyNav.refreshCounts&&EggsyNav.refreshCounts();
- if(!inScope(c)){sel=null;document.body.classList.remove('showthread');const t=$('thread');t.innerHTML='';t.append(el('div','empty','Sent to marketing ('+(r.to||addr)+'). Ticket moved to Resolved.'));drawList()}
+ if(!inScope(c)){sel=null;document.body.classList.remove('showthread');const t=$('thread');t.innerHTML='';
+  const held=r.holding&&r.holding.placed?' A holding reply was drafted on the ticket. Nothing was sent to the customer.':r.holding&&r.holding.kept_draft?' Your unsent draft was kept. Open the ticket for the holding reply. Nothing was sent to the customer.':'';
+  t.append(el('div','empty','Sent to marketing ('+(r.to||addr)+'). Ticket moved to Resolved.'+held));drawList()}
  else openConv(c.id,false)}
 async function closeTicket(c,how){const {error}=await sb.from('conversations').update({status:'resolved',status_changed_at:new Date().toISOString()}).eq('id',c.id);
  if(error){alert('Could not update: '+error.message);return}
@@ -1963,9 +1969,10 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
  const cols='id,conversation_id,direction,author,body,sent_at,language,body_en,external_id,body_raw,platform_sent_at';
  let mr=await sb.from('messages').select(cols).in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true});
  if(mr.error)mr=await sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en,external_id').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true});
+ c._holdingOffer='';
  const [qr,dr,ar]=await Promise.all([
   sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address').eq('conversation_id',id).order('queued_at',{ascending:true}),
-  sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at,context').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
+  sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at,context,author').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
   sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false})]);
  if(sel!==id)return;
  actList=(ar&&!ar.error&&ar.data)||[];
@@ -1993,6 +2000,7 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
   if(m.direction==='note'&&/^\((Sent to [^)]* for advice|[^)]*'s advice|Forwarded to [^)]*)/.test(m.body||'')){const sentQ=/^\((Sent to|Forwarded to)/.test(m.body);const card=el('div','advicecard'+(sentQ?'':' reply'));
    const mh=el('div','mh');const lab=((m.body||'').match(/^\(([^)]*)\)/)||['',''])[1].replace(/ by [^ ]+@[^ )]+/,'');mh.append(el('b',null,/'s advice$/.test(lab)?'💡 '+lab.replace(/'s advice$/,'’s advice'):(/^Forwarded/.test(lab)?'📨 ':'💬 ')+lab),el('span',null,fmt(m.sent_at)+' UK'));
    card.append(mh,el('div','mb',(m.body||'').replace(/^\([^)]*\)\s*/,'')));msgHost.append(card);return}
+  if(m.external_id==='note:holding-reply-offer'){if(m.conversation_id===id)c._holdingOffer=m.body||'ready';return}
   if(k==='eggsy'||k==='sysnote'||k==='psum'||k==='draft'){noteBits.push([ (m.author||'Eggsy')+' · '+fmt(messageWhen(m,c.origin)), m.body||'' ]);return}
   const when=fmt(messageWhen(m,c.origin));
   if(style==='bubble'){const [who,role]=whoLine(m,k,c.origin);const b=el('div','bubble '+(k==='team'||k==='platform'?'outbound '+k:k==='internal'?'internal':k==='inbound'?'inbound':'outbound'));
@@ -2016,7 +2024,8 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
   if(+new Date(sug.drafted_at)<=lastOut)sug=null}
  let draftNotes=[];
  if(sug&&window.EggsyDisplay){const parts=EggsyDisplay.splitDraft(sug.body||'');draftNotes=parts.notes;const en=sug.body_en?EggsyDisplay.splitDraft(sug.body_en).text:sug.body_en;
-  sug=Object.assign({},sug,{body:parts.text,body_en:en,gaps:parts.gaps,language:sug.language})}
+  sug=Object.assign({},sug,{body:parts.text,body_en:en,gaps:parts.gaps,language:sug.language,holding:sug.author==='Holding reply'})}
+ if(sug&&sug.holding)c._holdingOffer='';
  draftNotes.forEach(n=>noteBits.push(['Draft note',n]));
  const latestIn=[...msgs].reverse().find(m=>m.direction==='inbound'&&m.body&&!/^\[Summary by Eggsy/.test(m.body));
  c._replyLang=window.EggsyDisplay?EggsyDisplay.replyLang(c.origin,latestIn&&latestIn.language,latestIn&&latestIn.body):'en';
