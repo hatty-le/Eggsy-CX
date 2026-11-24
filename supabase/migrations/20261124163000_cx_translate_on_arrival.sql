@@ -1,0 +1,5 @@
+-- Translate each new inbound message as soon as it is stored (translate-message edge function, via the DB hook secret).
+-- The English is saved on the message (language, body_en), so it stays even if the translation provider is removed.
+-- Applied via MCP on 24 Nov 2026; see the live database for the exact definitions:
+--   public.cx_translate_call(uuid), public.cx_translate_new_message() + trigger messages_zz_translate (AFTER INSERT),
+--   public.cx_translate_sweep() + cron job 'cx-translate-sweep' every 15 minutes (last 3 days, 30 at a time).

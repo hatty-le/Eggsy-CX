@@ -1784,7 +1784,7 @@ function addEnglish(host,m){if(!window.EggsyDisplay)return;const foreign=(m.body
   let en=m.body_en;if(!en){btn.disabled=true;btn.textContent='Translating…';
    try{const {data:{session}}=await sb.auth.getSession();if(!session)throw new Error('Not signed in');
     const r=await fetch(SUPABASE_URL+'/functions/v1/translate-message',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token,apikey:SUPABASE_KEY},body:JSON.stringify({message_id:m.id})});
-    const j=await r.json();if(j&&j.body_en){en=j.body_en;m.body_en=en;if(j.language)m.language=j.language}else if(j&&j.language==='en'){btn.disabled=false;btn.textContent='Already English';return}else{btn.disabled=false;btn.textContent=j&&j.error==='not_configured'?'Translation isn’t set up yet':'Could not translate';return}}
+    const j=await r.json();if(j&&j.body_en){en=j.body_en;m.body_en=en;if(j.language)m.language=j.language}else if(j&&j.language==='en'){btn.disabled=false;btn.textContent='Already English';return}else{btn.disabled=false;btn.textContent=j&&j.error==='not_configured'?'English will be added within the hour':'Could not translate';return}}
    catch(e){btn.disabled=false;btn.textContent='Could not translate';return}btn.disabled=false}
   hold.hidden=false;hold.textContent=en;btn.textContent='Hide English'};
  host.append(btn,hold)}
