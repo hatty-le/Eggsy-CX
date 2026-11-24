@@ -525,7 +525,7 @@ function drawDraftChips(){const box=$('draftchips');box.innerHTML='';setTitle();
 // On narrow screens the chip rows scroll sideways; keep the selected chip in view.
 function keepOnVisible(row){const on=row.querySelector('.on');if(on&&row.scrollWidth>row.clientWidth)row.scrollLeft=Math.max(0,on.offsetLeft-row.offsetLeft-12)}
 function qMatch(c,q){return !q||[c.customer_name,c.customer_handle,c.order_number,c.subject,c.shop,c.summary,c.topic,c.overview,ORIGINS[c.origin]].join(' ').toLowerCase().includes(q)||!!msgHits[c.id]}
-function chMatch(c){if(grp==='mmc')return !!c.is_mmc;if(c.is_mmc)return false;const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];return g[2](c.origin)&&(!sub||c.origin===sub)}
+function chMatch(c){return EggsyCounts.inGroup(c, grp)&&(!sub||EggsyCounts.regionOf(c)===sub)}
 // Search results on the other two pages (channel filters apply; the draft filter is Inbox-only).
 function elsewhere(){const q=$('q').value.trim().toLowerCase();if(!q)return [];return convs.filter(c=>!inMode(c)&&chMatch(c)&&qMatch(c,q)).sort((a,b)=>new Date(b.last_message_at||0)-new Date(a.last_message_at||0))}
 function visible(){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const q=$('q').value.trim().toLowerCase();const st='';
@@ -1708,7 +1708,7 @@ function paintLockBanner(host,rows,nameShops){host.innerHTML='';if(!rows.length)
 function drawLockBanner(){const host=$('lockbanner');if(!host)return;paintLockBanner(host,viewKeys().map(accessFor).filter(r=>r&&r.locked_out),grp==='tiktok'||grp==='meta')}
 function threadLockBanner(origin){const key=accessKeyForOrigin(origin);const row=key&&accessFor(key);if(!row||!row.locked_out)return null;
  const host=el('div','lockbanner');host.setAttribute('role','alert');paintLockBanner(host,[row],/^tiktok_/.test(key)||key==='facebook'||key==='instagram');return host}
-function channelNeedsReply(k){const g=GROUPS.find(x=>x[0]===k)||GROUPS[0];return EggsyCounts.channelCount(convs, stMap, k, MODE, scope, g[2])}
+function channelNeedsReply(k){return EggsyCounts.count(convs, stMap, MODE, scope, k, '')}
 function countTitle(n){const replied=MODE==='waiting'||(MODE==='inbox'&&scope==='replied');
  if(replied)return n+(n===1?' has a reply':' have a reply');
  if(MODE==='resolved')return n+' resolved';
@@ -1735,7 +1735,7 @@ function drawChips(){setTitle();drawLockStrip();drawLockBanner();const side=$('c
  if(MODE==='inbox'){scopebar.style.display='';
   [['needs','Needs a reply'],['replied','We\u2019ve replied, or a reply is queued, sending or sent']].forEach(([k,lab])=>{
    const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];
-   const n=EggsyCounts.channelCount(convs, stMap, grp, 'inbox', k, g[2]);
+   const n=EggsyCounts.count(convs, stMap, 'inbox', k, grp, sub);
    const b=el('button',scope===k?'on':'');b.type='button';b.setAttribute('aria-pressed',scope===k?'true':'false');
    b.append(document.createTextNode(lab), el('small',null,' '+n));
    b.onclick=()=>{scope=k;writeFilterUrl();drawChips();drawList()};scopebar.append(b)})}
@@ -1743,7 +1743,7 @@ function drawChips(){setTitle();drawLockStrip();drawLockBanner();const side=$('c
  const shops=$('shopbar');shops.innerHTML='';
  if(grp==='tiktok'){const tot=channelNeedsReply('tiktok');
   const all=el('button','chip'+(!sub?' on':''),'All');all.type='button';all.append(el('small',null,tot));all.onclick=()=>setFilter('tiktok','');shops.append(all);
-  SUBS.tiktok.forEach(([o,lab])=>{const n=EggsyCounts.channelCount(convs, stMap, o, MODE, scope, x=>x===o);const b=el('button','chip'+(sub===o?' on':''),lab);b.type='button';if(isLocked(o))b.insertBefore(emergMark((ACCESS_NAME[o]||lab)+': Urgent: locked out'),b.firstChild);b.append(el('small',null,n));b.onclick=()=>setFilter('tiktok',o);shops.append(b)})}
+  SUBS.tiktok.forEach(([o,lab])=>{const n=EggsyCounts.count(convs, stMap, MODE, scope, 'tiktok', o);const b=el('button','chip'+(sub===o?' on':''),lab);b.type='button';if(isLocked(o))b.insertBefore(emergMark((ACCESS_NAME[o]||lab)+': Urgent: locked out'),b.firstChild);b.append(el('small',null,n));b.onclick=()=>setFilter('tiktok',o);shops.append(b)})}
  const menu=$('filtermenu');menu.innerHTML='';menu.hidden=!filterOpen;
  function addItem(label,on,fn){const b=el('button','fitem'+(on?' on':''),label);b.type='button';b.onclick=e=>{e.stopPropagation();fn()};menu.append(b)}
  if(MODE==='inbox'){addItem(unreadOnly?'Unread only ✓':'Unread only',unreadOnly,()=>{unreadOnly=!unreadOnly;writeFilterUrl();drawChips();drawList()});
@@ -1765,7 +1765,7 @@ function drawChips(){setTitle();drawLockStrip();drawLockBanner();const side=$('c
 function drawDraftChips(){setTitle()}
 function elsewhere(){const q=$('q').value.trim().toLowerCase();if(!q)return [];return convs.filter(c=>!inScope(c)&&chMatch(c)&&qMatch(c,q)).sort((a,b)=>new Date(customerAt(b)||0)-new Date(customerAt(a)||0))}
 function visible(){const q=$('q').value.trim().toLowerCase();
- const v=convs.filter(c=>inScope(c)&&chMatch(c)&&(MODE!=='inbox'||!dft||draftState(c)===dft)&&(!unreadOnly||isUnread(c))&&qMatch(c,q));
+ const v=convs.filter(c=>EggsyCounts.listed(c, stMap[c.id], MODE, scope, grp, sub)&&(MODE!=='inbox'||!dft||draftState(c)===dft)&&(!unreadOnly||isUnread(c))&&qMatch(c,q));
  const stamp=c=>{const t=customerAt(c);return t?new Date(t).getTime():null};
  if(grp==='amazon'&&MODE==='inbox'&&scope==='needs')v.sort((a,b)=>(stamp(a)??1e15)-(stamp(b)??1e15));
  else v.sort((a,b)=>(stamp(b)??0)-(stamp(a)??0));

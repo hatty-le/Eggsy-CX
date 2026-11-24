@@ -1,6 +1,5 @@
-/* Channel badges, shop chips and the conversation list share this filter.
-   Needs-reply is the Inbox bucket. "We've replied" is the Waiting bucket.
-   Merged tickets are not a bucket: they stay on the ticket they were merged into. */
+/* One filter for the channel badge, the region chips, and the conversation list.
+   A ticket the badge counts is in the All list, and in exactly one region chip. */
 (function (root, factory) {
   var api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -16,9 +15,37 @@
     return 'inbox';
   }
 
-  // mode: inbox | waiting | resolved | junk
-  // scope (inbox page only): needs | replied | all
-  function inScope(conv, state, mode, scope) {
+  // TikTok region from the origin code, then from the shop name.
+  // "TikTok EU (DE)" is EU. A bare tiktok origin still lands on a region.
+  function regionOf(conv) {
+    var o = String((conv && conv.origin) || '');
+    if (o === 'tiktok_uk' || o === 'tiktok_us' || o === 'tiktok_eu') return o;
+    var shop = String((conv && conv.shop) || '');
+    var blob = (o + ' ' + shop).toLowerCase();
+    if (blob.indexOf('tiktok') < 0) return o;
+    if (/\buk\b|united kingdom/.test(blob)) return 'tiktok_uk';
+    if (/\busa\b|\bus\b|united states/.test(blob)) return 'tiktok_us';
+    if (/\beu\b|germany|\bde\b|france|\bfr\b|italy|\bit\b|spain|\bes\b/.test(blob)) return 'tiktok_eu';
+    if (o.indexOf('tiktok') === 0) return 'tiktok_uk';
+    return o;
+  }
+
+  function inGroup(conv, group) {
+    if (!conv) return false;
+    if (group === 'mmc') return !!conv.is_mmc;
+    if (conv.is_mmc) return false;
+    var o = String(conv.origin || '');
+    if (!group || group === 'all') return true;
+    if (group === 'email') return o === 'email_hey';
+    if (group === 'forms') return o === 'shopify_form' || o === 'wix_mmc_form';
+    if (group === 'amazon') return o.indexOf('amazon') === 0;
+    if (group === 'walmart') return o === 'walmart';
+    if (group === 'meta') return o === 'facebook' || o === 'instagram';
+    if (group === 'tiktok') return o.indexOf('tiktok') === 0 || String(regionOf(conv)).indexOf('tiktok_') === 0;
+    return true;
+  }
+
+  function inBucket(conv, state, mode, scope) {
     if (!conv || conv.merged_into) return false;
     var b = bucket(conv, state);
     if (mode === 'inbox') {
@@ -29,19 +56,40 @@
     return b === mode;
   }
 
-  function channelCount(convs, stateById, key, mode, scope, matchesOrigin) {
+  // region '' is All. Otherwise the ticket must map to that region.
+  function listed(conv, state, mode, scope, group, region) {
+    if (!inBucket(conv, state, mode, scope)) return false;
+    if (!inGroup(conv, group)) return false;
+    if (region && regionOf(conv) !== region) return false;
+    return true;
+  }
+
+  function count(convs, stateById, mode, scope, group, region) {
     var rows = convs || [];
     var n = 0;
     for (var i = 0; i < rows.length; i++) {
       var c = rows[i];
-      var state = stateById ? stateById[c.id] : null;
-      if (!inScope(c, state, mode, scope)) continue;
-      if (key === 'mmc') {
-        if (c.is_mmc) n++;
-      } else if (!c.is_mmc && matchesOrigin(c.origin)) n++;
+      if (listed(c, stateById ? stateById[c.id] : null, mode, scope, group, region || '')) n++;
     }
     return n;
   }
 
-  return { bucket: bucket, inScope: inScope, channelCount: channelCount };
+  // Kept so older call sites still compile. Region chips pass the origin code as key.
+  function channelCount(convs, stateById, key, mode, scope, matchesOrigin) {
+    if (key === 'tiktok_uk' || key === 'tiktok_us' || key === 'tiktok_eu') {
+      return count(convs, stateById, mode, scope, 'tiktok', key);
+    }
+    return count(convs, stateById, mode, scope, key, '');
+  }
+
+  return {
+    bucket: bucket,
+    regionOf: regionOf,
+    inGroup: inGroup,
+    inBucket: inBucket,
+    listed: listed,
+    count: count,
+    channelCount: channelCount,
+    inScope: function (conv, state, mode, scope) { return inBucket(conv, state, mode, scope); }
+  };
 });
