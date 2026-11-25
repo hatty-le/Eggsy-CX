@@ -307,6 +307,7 @@ details.psumfold div{white-space:pre-wrap;margin-top:6px}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/prefill.js"></script>
 <script src="/cx-display.js"></script>
+<script src="/inbox-counts.js"></script>
 <script>
 const SUPABASE_URL='https://xodkbmtylftfmnxfnxxf.supabase.co';
 const SUPABASE_KEY='sb_publishable_gX9OKDCT6Opnt8OcsFRmiQ_xaM0O8ti'; // public publishable key: safe in the browser, data is protected by RLS
@@ -330,7 +331,7 @@ const MODES={inbox:{title:'Inbox',path:'/inbox/',intro:'Conversations that need 
  resolved:{title:'Resolved',path:'/resolved/',intro:'Resolved customer conversations. A new customer message on a resolved conversation moves it back to the Inbox.',empty:'No resolved conversations yet.',statuses:['resolved']},
  junk:{title:'Junk',path:'/junk/',intro:'Spam, sales pitches, phishing and platform notifications: anything that isn’t a customer needing help. Eggsy never drafts or sends replies here. Use “Not junk” to move a ticket back to the Inbox.',empty:'No junk. 🎉',statuses:['ignored']}};
 const MODE=/^\/waiting\//.test(location.pathname)?'waiting':/^\/resolved\//.test(location.pathname)?'resolved':/^\/junk\//.test(location.pathname)?'junk':'inbox';
-const bucketOf=c=>{const x=stMap[c.id];if(x)return x.bucket;return c.status==='ignored'?'junk':c.status==='resolved'?'resolved':c.status==='awaiting_customer'?'waiting':'inbox'};
+const bucketOf=c=>EggsyCounts.bucket(c, stMap[c.id]);
 const inMode=c=>bucketOf(c)===MODE;
 const sinceOf=c=>{const x=stMap[c.id];return (x&&(x.needs_reply_since||x.last_customer_at))||c.last_message_at};
 (function(){const m=MODES[MODE];document.getElementById('ptitle').textContent=m.title;document.getElementById('atitle').textContent=m.title;document.getElementById('pintro').textContent=m.intro;
@@ -470,7 +471,7 @@ async function openFromUrl(){const id=new URLSearchParams(location.search).get('
 async function loadDrafts(){const m={};
  const {data}=await sb.rpc('cx_draft_readiness');
  (data||[]).forEach(r=>{const acts=(r.missing_actions||[]).map(t=>t==='any'?'action':t);m[r.conversation_id]={notes:r.notes||0,acts,partial:!!r.partial_history,att:!!r.attachment_missing,gaps:(r.notes||0)>0||acts.length>0||!!r.partial_history||!!r.attachment_missing,at:r.drafted_at}});draftMap=m}
-function draftState(c){const d=draftMap[c.id];if(!d||qmap[c.id])return 'none';return d.gaps?'gaps':'ready'}
+function draftState(c){if(qmap[c.id]==='failed'||qmap[c.id]==='expired')return 'gaps';const d=draftMap[c.id];if(!d||qmap[c.id])return 'none';return d.gaps?'gaps':'ready'}
 // ---- Unread: per person. A ticket is unread when the customer has written since you last opened it.
 // Everything before unread tracking started (10 Nov 2026, 15:00 UK) counts as read.
 const READ_START=new Date('2026-11-10T15:00:00Z');
@@ -491,15 +492,16 @@ async function loadLangs(){const m={};
  const {data}=await sb.from('messages').select('conversation_id,language').neq('language','en').not('language','is',null).limit(5000);
  (data||[]).forEach(r=>{(m[r.conversation_id]=m[r.conversation_id]||new Set()).add(r.language)});langMap=m}
 async function loadQueueSummary(){qmap={};
- const {data}=await sb.from('reply_queue').select('conversation_id,status').in('status',['queued','sending','failed']);
- (data||[]).forEach(r=>{const cur=qmap[r.conversation_id];if(!cur||r.status==='failed')qmap[r.conversation_id]=r.status});}
+ const {data}=await sb.from('reply_queue').select('conversation_id,status').in('status',['queued','sending','failed','expired']);
+ const rank={expired:3,failed:3,sending:2,queued:1};
+ (data||[]).forEach(r=>{const cur=qmap[r.conversation_id];if(!cur||(rank[r.status]||0)>(rank[cur]||0))qmap[r.conversation_id]=r.status});}
 // Filters: ?ch=<channel>&sub=<origin> (kept alongside ?c=<conversation>)
 function readFilterUrl(){const u=new URLSearchParams(location.search);const g=u.get('ch')||'email';grp=GROUPS.some(x=>x[0]===g)?g:'email';
  const s2=u.get('sub')||'';sub=(SUBS[grp]||[]).some(x=>x[0]===s2)?s2:'';const d=u.get('draft')||'';dft=['ready','gaps','none'].includes(d)?d:'';
- scope='needs';unreadOnly=u.get('unread')==='1'} // Inbox only shows tickets needing a reply; Waiting and Resolved have their own pages.
+ const sc=u.get('scope')||'';scope=(MODE==='inbox'&&(sc==='replied'||sc==='all'))?sc:'needs';unreadOnly=u.get('unread')==='1'}
 function writeFilterUrl(){const u=new URLSearchParams(location.search);
  if(grp)u.set('ch',grp);else u.delete('ch');if(sub)u.set('sub',sub);else u.delete('sub');if(dft)u.set('draft',dft);else u.delete('draft');
- if(scope==='all')u.set('scope','all');else u.delete('scope');if(unreadOnly)u.set('unread','1');else u.delete('unread');
+ if(scope==='replied'||scope==='all')u.set('scope',scope);else u.delete('scope');if(unreadOnly)u.set('unread','1');else u.delete('unread');
  const qs=u.toString();history.replaceState(history.state,'',location.pathname+(qs?'?'+qs:''))}
 function setFilter(g,s2){grp=g;sub=s2||'';writeFilterUrl();drawChips();drawList()}
 function drawChips(){const box=$('chips');box.innerHTML='';
@@ -523,7 +525,7 @@ function drawDraftChips(){const box=$('draftchips');box.innerHTML='';setTitle();
 // On narrow screens the chip rows scroll sideways; keep the selected chip in view.
 function keepOnVisible(row){const on=row.querySelector('.on');if(on&&row.scrollWidth>row.clientWidth)row.scrollLeft=Math.max(0,on.offsetLeft-row.offsetLeft-12)}
 function qMatch(c,q){return !q||[c.customer_name,c.customer_handle,c.order_number,c.subject,c.shop,c.summary,c.topic,c.overview,ORIGINS[c.origin]].join(' ').toLowerCase().includes(q)||!!msgHits[c.id]}
-function chMatch(c){if(grp==='mmc')return !!c.is_mmc;if(c.is_mmc)return false;const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];return g[2](c.origin)&&(!sub||c.origin===sub)}
+function chMatch(c){return EggsyCounts.inGroup(c, grp)&&(!sub||EggsyCounts.regionOf(c)===sub)}
 // Search results on the other two pages (channel filters apply; the draft filter is Inbox-only).
 function elsewhere(){const q=$('q').value.trim().toLowerCase();if(!q)return [];return convs.filter(c=>!inMode(c)&&chMatch(c)&&qMatch(c,q)).sort((a,b)=>new Date(b.last_message_at||0)-new Date(a.last_message_at||0))}
 function visible(){const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];const q=$('q').value.trim().toLowerCase();const st='';
@@ -651,7 +653,7 @@ async function openConv(id,push){sel=id;markRead(id);drawChips();drawList();cons
  const box=el('div');box.append(el('div','empty','Loading messages…'));t.append(box);
  const [mr,qr,dr,ar]=await Promise.all([
   sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en,external_id').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true}),
-  sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address').eq('conversation_id',id).order('queued_at',{ascending:true}),
+  sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address,expiry_detail').eq('conversation_id',id).order('queued_at',{ascending:true}),
   sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at,context').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
   sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false})]);
  if(sel!==id)return;
@@ -712,18 +714,19 @@ function sentExtras(b,q,c){
  if(q.status==='failed'){if(q.send_error)b.append(el('div','err',q.send_error));const acts=el('div','acts');const r=el('button','btn ghost','Edit and send again');r.onclick=()=>{const ta=document.getElementById('replybox');if(ta){ta.value=q.body;ta.dispatchEvent(new Event('input'));ta.focus();ta.scrollIntoView({block:'center'})}};acts.append(r);b.append(acts)}
  else if(q.send_route==='email')b.append(el('div','okline','Sent by email from hey@luckyegg.co'+(q.to_address&&/amazon/.test(q.to_address)?' to the buyer’s Amazon message thread':q.to_address?' to '+q.to_address:'')+' · '+fmt(q.sent_at)+' UK. If Amazon rejects it, this ticket is flagged here within a few minutes.'))}
 const PH_RE=/\[[^\]]*\]/,PH_RE_G=/\[[^\]]*\]/g;
-const QLABEL={queued:'Queued',sending:'Sending…',sent:'Sent',failed:'Failed',cancelled:'Cancelled'};
+const QLABEL={queued:'Queued',sending:'Sending…',sent:'Sent',failed:'Failed',cancelled:'Cancelled',expired:'Not posted'};
 function queueBubble(q,c){const b=el('div','bubble outbound team q'+q.status);
  const by=el('div','by');by.append(el('b',null,'You'+(q.queued_by?' ('+q.queued_by+')':'')),el('span','role','Eggsy CX reply'),document.createTextNode(' · queued '+fmt(q.queued_at)+(q.sent_at?' · sent '+fmt(q.sent_at):'')));
  by.append(el('span','badge b-'+q.status,QLABEL[q.status]||q.status));b.append(by,document.createTextNode(q.body||''));
  if(q.status==='failed'&&q.send_error)b.append(el('div','err',/^Not (sent|delivered):/.test(q.send_error)?q.send_error:'Eggsy could not post this: '+q.send_error));
  if(q.status==='queued'&&q.email_note)b.append(el('div','qnote',q.email_note));
  const acts=el('div','acts');
- if(q.status==='queued'){const x=el('button','btn ghost','Cancel');x.onclick=async()=>{if(!confirm('Cancel this queued reply? Eggsy will not send it.'))return;x.disabled=true;
-   const {data,error}=await sb.from('reply_queue').update({status:'cancelled'}).eq('id',q.id).eq('status','queued').select('id');
+ if(q.status==='expired')b.append(el('div','err',q.expiry_detail||'The reply window closed before this could be posted. Cancel it, then close the ticket if nothing else is needed.'));
+ if(q.status==='queued'||q.status==='failed'||q.status==='expired'){const x=el('button','btn ghost','Cancel');x.onclick=async()=>{if(!confirm(q.status==='queued'?'Cancel this queued reply? Eggsy will not send it.':'Cancel this reply that could not be posted? You can then close the ticket.'))return;x.disabled=true;
+   const {data,error}=await sb.from('reply_queue').update({status:'cancelled'}).eq('id',q.id).in('status',['queued','failed','expired']).select('id');
    if(error)alert('Could not cancel: '+error.message);else if(!data||!data.length)alert('Too late to cancel: Eggsy has already started sending this reply.');
    await refreshAfterQueue(c.id)};acts.append(x)}
- if(q.status==='failed'||q.status==='cancelled'){const r=el('button','btn ghost','Edit and send again');r.onclick=()=>{const ta=document.getElementById('replybox');if(ta){ta.value=q.body;ta.dispatchEvent(new Event('input'));ta.focus();ta.scrollIntoView({block:'center'})}};acts.append(r)}
+ if(q.status==='failed'||q.status==='cancelled'||q.status==='expired'){const r=el('button','btn ghost','Edit and send again');r.onclick=()=>{const ta=document.getElementById('replybox');if(ta){ta.value=q.body;ta.dispatchEvent(new Event('input'));ta.focus();ta.scrollIntoView({block:'center'})}};acts.append(r)}
  if(acts.childNodes.length)b.append(acts);return b}
 const EMAIL_ORIGINS=['email_hey','shopify_form','wix_mmc_form'];
 function channel(c){const o=c.origin,mk=(ORIGINS[o]||o).replace('Amazon ','');
@@ -1670,7 +1673,7 @@ async function loadPreviews(){const {data,error}=await sb.from('cx_latest_inboun
  if(error){console.warn('preview',error.message);return}
  previewMap={};(data||[]).forEach(r=>{previewMap[r.conversation_id]=r})}
 function customerAt(c){const p=previewMap[c.id];if(p&&p.customer_at)return p.customer_at;const x=stMap[c.id];return (x&&x.last_customer_at)||null}
-function inScope(c){if(MODE!=='inbox')return inMode(c);const b=bucketOf(c);if(scope==='all')return b==='inbox'||b==='waiting'||b==='resolved';return b==='inbox'}
+function inScope(c){return EggsyCounts.inScope(c, stMap[c.id], MODE, scope)}
 function messageWhen(m,origin){if(m.platform_sent_at)return m.platform_sent_at;if(m.body_raw&&window.EggsyDisplay){const t=EggsyDisplay.tiktokCustomerAt(m.body_raw,m.sent_at,origin);if(t)return t}return m.sent_at}
 let moreOpen=false,filterOpen=false;
 // channel_access is maintained outside the inbox. It is not in the realtime publication, so the
@@ -1705,7 +1708,12 @@ function paintLockBanner(host,rows,nameShops){host.innerHTML='';if(!rows.length)
 function drawLockBanner(){const host=$('lockbanner');if(!host)return;paintLockBanner(host,viewKeys().map(accessFor).filter(r=>r&&r.locked_out),grp==='tiktok'||grp==='meta')}
 function threadLockBanner(origin){const key=accessKeyForOrigin(origin);const row=key&&accessFor(key);if(!row||!row.locked_out)return null;
  const host=el('div','lockbanner');host.setAttribute('role','alert');paintLockBanner(host,[row],/^tiktok_/.test(key)||key==='facebook'||key==='instagram');return host}
-function channelNeedsReply(k){const g=GROUPS.find(x=>x[0]===k)||GROUPS[0];return convs.filter(c=>bucketOf(c)==='inbox'&&(k==='mmc'?!!c.is_mmc:!c.is_mmc&&g[2](c.origin))).length}
+function channelNeedsReply(k){return EggsyCounts.count(convs, stMap, MODE, scope, k, '')}
+function countTitle(n){const replied=MODE==='waiting'||(MODE==='inbox'&&scope==='replied');
+ if(replied)return n+(n===1?' has a reply':' have a reply');
+ if(MODE==='resolved')return n+' resolved';
+ if(MODE==='junk')return n+' junk';
+ return n+(n===1?' needs a reply':' need a reply')}
 function drawChips(){setTitle();drawLockStrip();drawLockBanner();const side=$('chside');if(!side)return;side.innerHTML='';
  side.append(el('div','chside-h','Channels'));
  const primary=[['email','Email'],['tiktok','TikTok'],['amazon','Amazon'],['mmc','MMC']];
@@ -1713,7 +1721,7 @@ function drawChips(){setTitle();drawLockStrip();drawLockBanner();const side=$('c
  if(more.some(x=>x[0]===grp))moreOpen=true;
  function chButton(k,label){const n=channelNeedsReply(k);const locked=groupIsLocked(k);const b=el('button','chbtn'+(grp===k?' on':'')+(locked?' locked':''));b.type='button';b.setAttribute('aria-pressed',grp===k?'true':'false');
   if(locked)b.append(emergMark(label+': Urgent: locked out'));
-  b.append(el('span',null,label));if(n){const c=el('span','chcount',String(n));c.title=n+(n===1?' needs a reply':' need a reply');b.append(c)}
+  b.append(el('span',null,label));if(n){const c=el('span','chcount',String(n));c.title=countTitle(n);b.append(c)}
   b.onclick=()=>{filterOpen=false;setFilter(k,'')};return b}
  side.append(chButton('all','All channels'));
  primary.forEach(p=>side.append(chButton(p[0],p[1])));
@@ -1723,22 +1731,31 @@ function drawChips(){setTitle();drawLockStrip();drawLockBanner();const side=$('c
  mb.append(document.createTextNode(moreOpen?'More channels ▾':'More channels ▸'));
  const box=el('div','morebox');box.hidden=!moreOpen;mb.onclick=()=>{moreOpen=!moreOpen;drawChips()};
  more.forEach(p=>box.append(chButton(p[0],p[1])));wrap.append(mb,box);side.append(wrap);
- const scopebar=$('scopebar');scopebar.innerHTML='';scopebar.style.display='none';
+ const scopebar=$('scopebar');scopebar.innerHTML='';
+ if(MODE==='inbox'){scopebar.style.display='';
+  [['needs','Needs a reply'],['replied','We\u2019ve replied, or a reply is queued, sending or sent']].forEach(([k,lab])=>{
+   const g=GROUPS.find(x=>x[0]===grp)||GROUPS[0];
+   const n=EggsyCounts.count(convs, stMap, 'inbox', k, grp, sub);
+   const b=el('button',scope===k?'on':'');b.type='button';b.setAttribute('aria-pressed',scope===k?'true':'false');
+   b.append(document.createTextNode(lab), el('small',null,' '+n));
+   b.onclick=()=>{scope=k;writeFilterUrl();drawChips();drawList()};scopebar.append(b)})}
+ else scopebar.style.display='none';
  const shops=$('shopbar');shops.innerHTML='';
- if(grp==='tiktok'){const g=GROUPS.find(x=>x[0]==='tiktok');const tot=convs.filter(c=>inScope(c)&&!c.is_mmc&&g[2](c.origin)).length;
+ if(grp==='tiktok'){const tot=channelNeedsReply('tiktok');
   const all=el('button','chip'+(!sub?' on':''),'All');all.type='button';all.append(el('small',null,tot));all.onclick=()=>setFilter('tiktok','');shops.append(all);
-  SUBS.tiktok.forEach(([o,lab])=>{const n=convs.filter(c=>inScope(c)&&!c.is_mmc&&c.origin===o).length;const b=el('button','chip'+(sub===o?' on':''),lab);b.type='button';if(isLocked(o))b.insertBefore(emergMark((ACCESS_NAME[o]||lab)+': Urgent: locked out'),b.firstChild);b.append(el('small',null,n));b.onclick=()=>setFilter('tiktok',o);shops.append(b)})}
+  SUBS.tiktok.forEach(([o,lab])=>{const n=EggsyCounts.count(convs, stMap, MODE, scope, 'tiktok', o);const b=el('button','chip'+(sub===o?' on':''),lab);b.type='button';if(isLocked(o))b.insertBefore(emergMark((ACCESS_NAME[o]||lab)+': Urgent: locked out'),b.firstChild);b.append(el('small',null,n));b.onclick=()=>setFilter('tiktok',o);shops.append(b)})}
  const menu=$('filtermenu');menu.innerHTML='';menu.hidden=!filterOpen;
  function addItem(label,on,fn){const b=el('button','fitem'+(on?' on':''),label);b.type='button';b.onclick=e=>{e.stopPropagation();fn()};menu.append(b)}
  if(MODE==='inbox'){addItem(unreadOnly?'Unread only ✓':'Unread only',unreadOnly,()=>{unreadOnly=!unreadOnly;writeFilterUrl();drawChips();drawList()});
   menu.append(el('div','flab','Draft'));
-  [['','Any'],['ready','Ready to send'],['gaps','Has gaps'],['none','No draft']].forEach(([k,lab])=>addItem(lab,dft===k,()=>{dft=k;writeFilterUrl();drawChips();drawList()}))}
+  [['','Any'],['ready','Ready to send'],['gaps','Gaps / not posted'],['none','No draft']].forEach(([k,lab])=>addItem(lab,dft===k,()=>{dft=k;writeFilterUrl();drawChips();drawList()}))}
  if(SUBS[grp]&&grp!=='tiktok'){menu.append(el('div','flab',grp==='amazon'?'Marketplace':'Account'));
   addItem('All',!sub,()=>setFilter(grp,''));
   SUBS[grp].forEach(([o,lab,always])=>{const n=convs.filter(c=>inScope(c)&&!c.is_mmc&&c.origin===o).length;if(!n&&!always)return;addItem(lab+' ('+n+')',sub===o,()=>setFilter(grp,o))})}
  const fb=$('filterbtn');const active=!!(unreadOnly||dft||(sub&&grp!=='tiktok'));fb.classList.toggle('on',active);fb.textContent=active?'Filter · on':'Filter';
  const intro=$('pintro');
- if(MODE==='inbox'&&grp==='email')intro.textContent='Like Gmail. The customer’s email is on the right, and your reply sits underneath.';
+ if(MODE==='inbox'&&scope==='replied')intro.textContent='We\u2019ve replied, or a reply is queued, sending or sent, and we\u2019re waiting on the customer. A new customer message moves the conversation back to the Inbox.';
+ else if(MODE==='inbox'&&grp==='email')intro.textContent='Like Gmail. The customer’s email is on the right, and your reply sits underneath.';
  else if(MODE==='inbox'&&grp==='tiktok')intro.textContent='Like TikTok Shop chat. UK, US and EU are the buttons above. The order we already have sits next to the chat.';
  else if(MODE==='inbox'&&grp==='amazon')intro.textContent='Like Buyer-Seller Messages, soonest reply deadline first. Amazon expects a reply within 24 hours.';
  else if(MODE==='inbox'&&grp==='mmc')intro.textContent='Murder Mystery Cases from every channel. Each row shows where it came in. A reply still goes out on that channel.';
@@ -1748,14 +1765,14 @@ function drawChips(){setTitle();drawLockStrip();drawLockBanner();const side=$('c
 function drawDraftChips(){setTitle()}
 function elsewhere(){const q=$('q').value.trim().toLowerCase();if(!q)return [];return convs.filter(c=>!inScope(c)&&chMatch(c)&&qMatch(c,q)).sort((a,b)=>new Date(customerAt(b)||0)-new Date(customerAt(a)||0))}
 function visible(){const q=$('q').value.trim().toLowerCase();
- const v=convs.filter(c=>inScope(c)&&chMatch(c)&&(MODE!=='inbox'||!dft||draftState(c)===dft)&&(!unreadOnly||isUnread(c))&&qMatch(c,q));
+ const v=convs.filter(c=>EggsyCounts.listed(c, stMap[c.id], MODE, scope, grp, sub)&&(MODE!=='inbox'||!dft||draftState(c)===dft)&&(!unreadOnly||isUnread(c))&&qMatch(c,q));
  const stamp=c=>{const t=customerAt(c);return t?new Date(t).getTime():null};
  if(grp==='amazon'&&MODE==='inbox'&&scope==='needs')v.sort((a,b)=>(stamp(a)??1e15)-(stamp(b)??1e15));
  else v.sort((a,b)=>(stamp(b)??0)-(stamp(a)??0));
  return v}
 function rowMarks(c){const marks=[];
  if(c.flag)marks.push({text:'Needs attention',hot:true,title:c.flag});
- if(qmap[c.id]==='failed')marks.push({text:'Reply failed',hot:true,title:'The last reply did not send'});
+ if(qmap[c.id]==='failed'||qmap[c.id]==='expired')marks.push({text:'Reply not posted',hot:true,title:'The reply could not be posted. Cancel it and close the ticket if nothing else is needed.'});
  const at=customerAt(c);
  if(String(c.origin).startsWith('amazon')&&bucketOf(c)==='inbox'&&window.EggsyDisplay){const left=EggsyDisplay.deadlineLeft(at,24,4);if(left)marks.push({text:left.text,hot:!!left.hot,title:'Amazon expects a reply within 24 hours of the customer’s message'})}
  else if(c.origin==='walmart'&&window.EggsyDisplay){const left=EggsyDisplay.deadlineLeft(at,48,8);if(left&&left.hot)marks.push({text:left.text,hot:true,title:'Walmart expects a reply within 48 hours'})}
@@ -1971,7 +1988,7 @@ async function openConv(id,push){sel=id;markRead(id);actShowReplacement=false;co
  if(mr.error)mr=await sb.from('messages').select('id,conversation_id,direction,author,body,sent_at,language,body_en,external_id').in('conversation_id',[id,...linked.map(x=>x.id)]).order('sent_at',{ascending:true});
  c._holdingOffer='';
  const [qr,dr,ar]=await Promise.all([
-  sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address').eq('conversation_id',id).order('queued_at',{ascending:true}),
+  sb.from('reply_queue').select('id,body,status,queued_by,queued_at,sent_at,send_error,message_id,cancelled_at,send_route,email_note,bounced_at,to_address,expiry_detail').eq('conversation_id',id).order('queued_at',{ascending:true}),
   sb.from('suggested_drafts').select('id,body,body_en,language,drafted_at,context,author').eq('conversation_id',id).eq('superseded',false).order('drafted_at',{ascending:false}).limit(1),
   sb.from('cx_actions').select('*').eq('conversation_id',id).order('created_at',{ascending:false})]);
  if(sel!==id)return;
