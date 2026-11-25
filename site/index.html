@@ -17,6 +17,23 @@ header{display:flex;align-items:center;justify-content:space-between;padding:20p
 @media (max-width:600px){.hero h1{font-size:34px!important}.hero{margin-top:28px}}
 .hero h1{font-size:48px;margin:0 0 12px;line-height:1.1}.hero h1 span{background:var(--yolk);padding:0 8px;border-radius:8px}
 .hero p{font-size:19px;color:var(--muted);max-width:640px;margin:0 auto}
+.finder{max-width:720px;margin:28px auto 8px;text-align:left}
+.finder label{display:block;font-weight:800;font-size:15px;margin:0 0 8px;text-align:center}
+.finder input{width:100%;font:inherit;font-size:17px;border:1px solid #eadfc4;border-radius:14px;padding:14px 16px;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+.finder input:focus{outline:2px solid var(--yolk);border-color:var(--yolk)}
+.finder .soon{display:block;text-align:center;min-height:1.2em}
+.hits{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.hit{display:block;text-decoration:none;color:inherit;background:#fff;border:1px solid #eadfc4;border-radius:14px;padding:12px 14px}
+.hit:hover,.hit:focus{background:#fffaf0;border-color:var(--yolk);outline:none}
+.hit .top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.hit .name{font-weight:800;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hit .when{color:var(--muted);font-size:12.5px;white-space:nowrap}
+.hit .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:#f2ecdc}
+.ch-amazon{background:#ffe9cc}.ch-tiktok{background:#e3f6f5}.ch-email{background:#e8eefc}.ch-forms{background:#eef6e2}.ch-meta{background:#fde4f1}.ch-walmart{background:#dceaff}
+.b-inbox{background:#FFE8A6;color:#5a4300}.b-waiting{background:#e6f0ff;color:#1f3d7a}.b-resolved{background:#dff5e3;color:#1d5c2b}.b-junk{background:#eee;color:#555}
+.hit .snip{font-size:13.5px;color:#3a3746;margin-top:6px;line-height:1.35}
+.hit .ord{margin-top:4px;font-size:12.5px;color:var(--muted)}
 .grid{max-width:1040px;margin:40px auto;padding:0 32px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
 .card{background:var(--card);border-radius:18px;padding:22px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
 .card h3{margin:8px 0 6px}.card p{margin:0;color:var(--muted);font-size:15px}.ico{font-size:28px}
@@ -38,6 +55,12 @@ footer{text-align:center;color:var(--muted);font-size:13px;padding:24px}
 <section class="hero">
 <h1>Every Lucky Egg customer, <span>looked after</span>.</h1>
 <p>Eggsy CX is the customer service tracker for Lucky Egg. See what Eggsy is working on, which replies are waiting for approval, and every return, replacement and refund in one place.</p>
+<div class="finder" id="finder">
+<label for="hq">Search every ticket</label>
+<input id="hq" type="search" placeholder="Name, email, order number, channel, or words in a message…" autocomplete="off" spellcheck="false" enterkeyhint="search" aria-controls="hresults" aria-autocomplete="list">
+<p class="soon" id="hsearchmsg" role="status"></p>
+<div class="hits" id="hresults" role="listbox" aria-label="Matching tickets"></div>
+</div>
 <p style="margin-top:22px"><a class="btn" href="/inbox/" style="padding:14px 28px;font-size:17px">Go to the inbox →</a></p>
 <div id="hsign" style="display:none;max-width:300px;margin:14px auto 0"><div id="gsign"></div><span class="soon">Use your @luckyegg.co Google account</span></div>
 <p class="soon" id="hmsg" role="status"></p>
@@ -57,14 +80,45 @@ footer{text-align:center;color:var(--muted);font-size:13px;padding:24px}
 <footer>© 2026 Lucky Egg Limited · Eggsy CX</footer>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// Show who is signed in (if anyone) in the left-hand menu; otherwise offer "Log in with Google" (returns to the inbox).
+// Show who is signed in, and search every ticket (Inbox, Waiting, Resolved, Junk) from here.
 (function(){try{var sb=supabase.createClient('https://xodkbmtylftfmnxfnxxf.supabase.co','sb_publishable_gX9OKDCT6Opnt8OcsFRmiQ_xaM0O8ti',{auth:{persistSession:true,detectSessionInUrl:false,flowType:'pkce'}});
  var msg=document.getElementById('hmsg');var setMsg=function(t,bad){msg.textContent=t;msg.style.color=bad?'#b3261e':''};
  EggsyAuth.button(document.getElementById('gsign'),sb,setMsg,'/inbox/');
+ var staff=false,qTimer=null,qSeq=0;
+ var ORIGINS={email_hey:'hey@ email',shopify_form:'Shopify form',wix_mmc_form:'MMC Wix form',tiktok_uk:'TikTok UK',tiktok_eu:'TikTok EU',tiktok_us:'TikTok US',amazon_uk:'Amazon UK',amazon_us:'Amazon US',amazon_de:'Amazon DE',amazon_fr:'Amazon FR',amazon_it:'Amazon IT',amazon_es:'Amazon ES',amazon_nl:'Amazon NL',amazon_se:'Amazon SE',amazon_pl:'Amazon PL',amazon_be:'Amazon BE',amazon_other:'Amazon',walmart:'Walmart',facebook:'Facebook',instagram:'Instagram'};
+ var FOLDERS={inbox:['Inbox','/inbox/'],waiting:['Waiting','/waiting/'],resolved:['Resolved','/resolved/'],junk:['Junk','/junk/']};
+ function groupOf(o){if(!o)return 'other';if(o==='email_hey')return 'email';if(o==='shopify_form'||o==='wix_mmc_form')return 'forms';if(o.indexOf('amazon')===0)return 'amazon';if(o.indexOf('tiktok')===0)return 'tiktok';if(o==='walmart')return 'walmart';if(o==='facebook'||o==='instagram')return 'meta';return 'other'}
+ function fmt(d){if(!d)return '';var x=new Date(d),o={timeZone:'Europe/London',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'};if(x.getFullYear()!==new Date().getFullYear())o.year='numeric';return x.toLocaleString('en-GB',o)}
+ function el(tag,cls,text){var n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n}
+ function setSearchStatus(t){document.getElementById('hsearchmsg').textContent=t||''}
+ function clearHits(){document.getElementById('hresults').textContent=''}
+ function drawHits(rows,q){var box=document.getElementById('hresults');box.textContent='';
+  if(!rows.length){setSearchStatus('No tickets match “'+q+'”.');return}
+  setSearchStatus(rows.length+(rows.length===1?' ticket':' tickets'));
+  rows.forEach(function(r){var folder=FOLDERS[r.bucket]||['Ticket','/inbox/'];
+   var a=el('a','hit');a.href=folder[1]+'?c='+encodeURIComponent(r.conversation_id);a.setAttribute('role','option');
+   var top=el('div','top');top.append(el('span','name',r.customer_name||r.customer_handle||'Unknown'),el('span','when',fmt(r.last_message_at)));
+   var tags=el('div','tags');tags.append(el('span','tag ch-'+groupOf(r.origin),ORIGINS[r.origin]||r.origin||'Channel'),el('span','tag b-'+(r.bucket||''),folder[0]));
+   a.append(top,tags);
+   if(r.order_number)a.append(el('div','ord','Order '+r.order_number));
+   if(r.snippet)a.append(el('div','snip',r.snippet));
+   box.append(a)})}
+ function schedule(){clearTimeout(qTimer);var q=(document.getElementById('hq').value||'').trim();
+  if(q.length<3){qSeq++;clearHits();setSearchStatus(q.length?'Type at least 3 characters.':'');return}
+  if(!staff){qSeq++;clearHits();setSearchStatus('Sign in with your @luckyegg.co account to search tickets.');return}
+  setSearchStatus('Searching…');var my=++qSeq;
+  qTimer=setTimeout(function(){sb.rpc('cx_search_tickets',{p_q:q}).then(function(res){if(my!==qSeq)return;
+    if(res.error){clearHits();var m=(res.error.message||'');if(res.error.code==='42501'||/permission|jwt|not authorized/i.test(m))setSearchStatus('Sign in with your @luckyegg.co account to search tickets.');else setSearchStatus('Search failed. Try again.');return}
+    drawHits(res.data||[],q)},function(){if(my!==qSeq)return;clearHits();setSearchStatus('Search failed. Try again.')})},300)}
+ var hq=document.getElementById('hq');
+ hq.addEventListener('input',schedule);
+ hq.addEventListener('keydown',function(e){if(e.key!=='Enter')return;var first=document.querySelector('#hresults a');if(first){e.preventDefault();location.href=first.href}});
  function show(u){var em=u&&u.email;
   if(em&&!EggsyAuth.okEmail(em)){EggsyAuth.reject(sb,em,setMsg);em=null}
+  staff=!!em;
   document.getElementById('hsign').style.display=em?'none':'block';
-  EggsyNav.setUser(em,em?function(){sb.auth.signOut()}:null,em?sb:null)}
+  EggsyNav.setUser(em,em?function(){sb.auth.signOut()}:null,em?sb:null);
+  schedule()}
  sb.auth.onAuthStateChange(function(_e,s){show(s&&s.user)});
  sb.auth.getSession().then(function(r){show(r.data.session&&r.data.session.user)})}catch(e){}})();
 </script>
