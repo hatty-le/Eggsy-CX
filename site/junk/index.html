@@ -1737,12 +1737,7 @@ function drawChips(){setTitle();drawLockStrip();drawLockBanner();const side=$('c
   b.onclick=()=>{filterOpen=false;setFilter(k,'')};return b}
  side.append(chButton('all','All channels'));
  primary.forEach(p=>side.append(chButton(p[0],p[1])));
- const wrap=el('div','morewrap');const moreLocked=more.some(p=>groupIsLocked(p[0]));
- const mb=el('button','chbtn moretoggle'+(moreLocked?' locked':''));mb.type='button';mb.setAttribute('aria-expanded',moreOpen?'true':'false');
- if(moreLocked)mb.append(emergMark('A channel in More is locked out'));
- mb.append(document.createTextNode(moreOpen?'More channels ▾':'More channels ▸'));
- const box=el('div','morebox');box.hidden=!moreOpen;mb.onclick=()=>{moreOpen=!moreOpen;drawChips()};
- more.forEach(p=>box.append(chButton(p[0],p[1])));wrap.append(mb,box);side.append(wrap);
+ more.forEach(p=>side.append(chButton(p[0],p[1])));
  const scopebar=$('scopebar');scopebar.innerHTML='';scopebar.style.display='none';
  const shops=$('shopbar');shops.innerHTML='';
  if(grp==='tiktok'){const g=GROUPS.find(x=>x[0]==='tiktok');const tot=convs.filter(c=>inScope(c)&&!c.is_mmc&&g[2](c.origin)).length;
