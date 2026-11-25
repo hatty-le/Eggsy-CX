@@ -765,8 +765,11 @@ function composer(c,sug){const w=el('div','composer');const ch=channel(c);
   else lbl.style.display='none'};
  const loadSug=()=>{ta.value=sug.body||'';cur=sug.id;if(sug.gaps)ta.dataset.gapbase=sug.body||'';else delete ta.dataset.gapbase;const st=lsGet(c.id);delete st.text;st.draftId=sug.id;lsSet(c.id,st);newer.style.display='none';setLabel();drawTr();phCheck()};
  const trBox=el('div');
- const drawTr=()=>{trBox.innerHTML='';if(!(cur&&sug&&sug.body_en))return;const d=el('details','tr');d.open=true;
-  d.open=trMode()==='en';d.append(el('summary',null,'English, for you'+(sug.language?' (the reply is in '+langName(sug.language)+')':'')+'. This is not sent.'),el('div',null,sug.body_en));trBox.append(d)};
+ const drawTr=()=>{trBox.innerHTML='';if(!sug)return;
+  const foreignSug=(sug.language&&isoOf(sug.language)!=='en')||(window.EggsyDisplay&&EggsyDisplay.looksNonEnglish(sug.body,null));
+  if(!sug.body_en){if(foreignSug&&cur)trBox.append(el('div','hint','English for this suggestion will be added within the hour.'));return}
+  const d=el('details','tr');d.open=true;
+  d.append(el('summary',null,'In English'+(sug.language?' (the reply goes in '+langName(sug.language)+')':'')+(cur?'':', as Eggsy suggested it before your edits')+'. This is not sent.'),el('div',null,sug.body_en));trBox.append(d)};
  const onTr=()=>{if(!w.isConnected){document.removeEventListener('eggsy-tr',onTr);return}drawTr()};document.addEventListener('eggsy-tr',onTr);
  if(st0.text!=null){const saved=window.EggsyDisplay?EggsyDisplay.splitDraft(st0.text):{text:st0.text,gaps:false};ta.value=saved.text;if(saved.gaps)ta.dataset.gapbase=saved.text;cur=sug&&st0.draftId===sug.id?sug.id:null;
   if(sug&&st0.draftId!==sug.id){newer.append(document.createTextNode(sug.holding?'A holding reply is ready. Your unsent draft was kept.':'Eggsy has a newer suggested reply.'));const lb=el('button','btn ghost',sug.holding?'Use holding reply':'Replace my text with it');lb.type='button';lb.onclick=()=>{if(sug.holding){loadSug();return}if(confirm('Replace what you have written with Eggsy’s newer suggestion?'))loadSug()};newer.append(lb);newer.style.display=''}}
