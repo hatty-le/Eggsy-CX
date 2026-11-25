@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RRR · Eggsy CX</title>
+<style>
+:root{--yolk:#FFC83D;--ink:#1d1b26;--muted:#6b6878;--bg:#FFF9EC;--card:#fff;--line:#eadfc4}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+a{color:inherit}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;gap:12px}
+.ptitle{margin:0;font-size:22px}
+.btn{background:var(--ink);color:#fff;border:0;border-radius:999px;padding:10px 18px;font-weight:600;text-decoration:none;cursor:pointer;font-size:14px;display:inline-block;white-space:nowrap}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.small{padding:6px 12px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default}
+.card{background:var(--card);border-radius:18px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+#auth{max-width:420px;margin:60px auto;padding:28px;text-align:center}
+#auth h1{margin:0 0 8px}#auth p{color:var(--muted)}
+input,select{font:inherit;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:#fff;width:100%}
+.msg{font-size:14px;color:var(--muted);min-height:20px}
+#app{display:none;max-width:1280px;margin:0 auto;padding:0 24px 24px}
+.intro{color:var(--muted);font-size:14px;margin:0 0 12px;line-height:1.45}
+.bar{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:12px}
+.tabs{display:flex;gap:4px;background:#f2ecdc;border-radius:999px;padding:4px}
+.tabs button{border:0;background:none;border-radius:999px;padding:7px 14px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;color:var(--muted)}
+.tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.bar label{font-size:12px;color:var(--muted);display:block;min-width:180px}
+.bar label input,.bar label select{margin-top:3px}
+.bar .q{flex:1;min-width:220px}
+.count{font-size:13px;color:var(--muted);margin:0 0 8px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:12px;border-bottom:1px solid #f3ecd9;vertical-align:top}
+tr:last-child td{border-bottom:0}
+.when{white-space:nowrap}.when small{display:block;color:var(--muted);font-size:12px}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:#f2ecdc;white-space:nowrap}
+.k-product_fault{background:#ffe1e1;color:#8a1c14}.k-game_idea{background:#e7defc;color:#4b2a8a}.k-feedback{background:#dcecff;color:#1d4f86}.k-advice{background:#F3F0FF;color:#4b2a8a}.k-follow_up{background:#e7f6ea;color:#1d6b32}
+.what b{display:block;margin:4px 0 2px}.what .det{color:var(--muted);font-size:13px;line-height:1.4;max-width:460px}
+.cust b{display:block}.cust span{color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}
+.none{color:var(--muted);font-size:13px}
+.acts{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.empty{color:var(--muted);text-align:center;padding:48px 20px;line-height:1.5}
+.empty b{color:var(--ink);display:block;font-size:17px;margin-bottom:6px}
+details.add{margin:0 0 12px}details.add summary{cursor:pointer;font-weight:600;font-size:14px}
+.addf{display:grid;grid-template-columns:1fr 2fr 1fr 1fr auto;gap:8px;align-items:end;margin-top:10px}
+.addf label{font-size:12px;color:var(--muted)}.addf label input,.addf label select{margin-top:3px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;display:none;z-index:60}
+@media (max-width:760px){
+ header{padding:10px 14px}.ptitle{font-size:19px}#app{padding:0 12px 12px}
+ input,select{font-size:16px}
+ .addf{grid-template-columns:1fr}
+ thead{display:none}
+ table,tbody,tr,td{display:block;width:100%}
+ tr{padding:12px 14px;border-bottom:1px solid var(--line)}
+ td{border:0;padding:3px 0}
+ td[data-k]:before{content:attr(data-k);display:block;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+ .acts{flex-direction:row;flex-wrap:wrap}
+}
+.k-refund{background:#e7f6ea;color:#1d6b32}.k-replacement{background:#dcecff;color:#1d4f86}.k-return{background:#fff0d6;color:#7a4b00}
+.st{display:inline-block;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap}
+.st-pending{background:#fff3d1;color:#7a5b00}.st-created{background:#e8eefc;color:#2a3f7a}.st-done{background:#e7f6ea;color:#1d6b32}.st-cancelled{background:#eee;color:#666}
+.sum{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 12px}.sum .card{padding:10px 16px;min-width:150px}.sum b{display:block;font-size:22px}.sum span{font-size:12.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<header><h1 class="ptitle">RRR: refunds, replacements and returns</h1><a class="btn ghost small" href="/inbox/">← Back to inbox</a></header>
+
+<section id="auth" class="card">
+ <h1>RRR</h1>
+ <p>Log in with your <b>@luckyegg.co</b> Google account.</p>
+ <div id="gsign" style="margin:16px 0 6px"></div>
+ <p class="msg" id="amsg" role="status"></p>
+</section>
+
+<main id="app">
+ <p class="intro">Every refund, replacement and return logged in Eggsy, from any ticket. Eggsy adds one automatically when a reply promises it, and you can log one yourself from a ticket's Actions panel. <b>To do</b> means it still needs doing in the seller centre (or MCF/Shopify for replacements). Mark it done once it's actually been issued.</p>
+ <div class="sum" id="sum"></div>
+ <div class="bar">
+  <div class="tabs" role="tablist"><button type="button" class="on" data-s="todo">To do</button><button type="button" data-s="done">Done</button><button type="button" data-s="cancelled">Cancelled</button><button type="button" data-s="all">All</button></div>
+  <label>Type<select id="kind"><option value="">All types</option><option value="refund">Refunds</option><option value="replacement">Replacements</option><option value="return">Returns</option></select></label>
+  <label>Channel<select id="chan"><option value="">All channels</option></select></label>
+  <label class="q">Search<input id="q" type="search" placeholder="Customer, order number, amount, reason…"></label>
+ </div>
+ <p class="count" id="count"></p>
+ <div class="card" id="list"><div class="empty">Loading…</div></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://xodkbmtylftfmnxfnxxf.supabase.co';
+const SUPABASE_KEY='sb_publishable_gX9OKDCT6Opnt8OcsFRmiQ_xaM0O8ti'; // public publishable key: safe in the browser, data is protected by RLS
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,detectSessionInUrl:false,flowType:'pkce'}});
+const TYPE_LABEL={refund:'Refund',replacement:'Replacement',return:'Return'};
+const STATUS_LABEL={pending:'To do',created:'Logged, not yet issued',done:'Done',cancelled:'Cancelled'};
+const CHANNEL={amazon_uk:'Amazon UK',amazon_us:'Amazon US',amazon_de:'Amazon DE',amazon_nl:'Amazon NL',amazon_es:'Amazon ES',amazon_fr:'Amazon FR',amazon_it:'Amazon IT',amazon_other:'Amazon (other)',tiktok_uk:'TikTok UK',tiktok_us:'TikTok US',tiktok_eu:'TikTok EU',shopify_form:'Website form',email_hey:'Email (hey@)',walmart:'Walmart',wix_mmc_form:'MMC form',facebook:'Facebook',instagram:'Instagram',other:'Other'};
+const $=id=>document.getElementById(id);
+const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
+const okEmail=EggsyAuth.okEmail;
+const ukWhen=d=>{const x=new Date(d);
+ const date=x.toLocaleDateString('en-GB',{timeZone:'Europe/London',weekday:'short',day:'numeric',month:'short',year:'numeric'});
+ const time=x.toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'});
+ return {date,time:time+' UK'}};
+let rows=[],me='',view='todo';
+const setMsg=(t,bad)=>{$('amsg').textContent=t;$('amsg').style.color=bad?'#b3261e':''};
+const toast=t=>{const b=$('toast');b.textContent=t;b.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>b.style.display='none',2200)};
+EggsyAuth.button($('gsign'),sb,setMsg);
+sb.auth.onAuthStateChange((_e,session)=>render(session));
+EggsyAuth.handleRedirect(sb,setMsg).then(()=>sb.auth.getSession()).then(({data})=>render(data.session));
+let started=false;
+function render(session){
+ const email=session&&session.user&&session.user.email;
+ if(!email){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;return}
+ if(!okEmail(email)){$('auth').style.display='block';$('app').style.display='none';EggsyNav.setUser(null);started=false;EggsyAuth.reject(sb,email,setMsg);return}
+ me=email;EggsyNav.setUser(email,()=>sb.auth.signOut(),sb);EggsyNav.takeReturn();
+ $('auth').style.display='none';$('app').style.display='block';
+ if(!started){started=true;load()}
+}
+async function load(){
+ const {data,error}=await sb.from('cx_actions')
+  .select('id,conversation_id,type,status,details,created_by,created_at,completed_at,updated_at,conversations(customer_name,customer_handle,origin,shop,order_number)')
+  .in('type',['refund','replacement','return']).order('created_at',{ascending:false}).limit(3000);
+ if(error){$('list').innerHTML='';$('list').append(el('div','empty','Could not load: '+error.message));return}
+ rows=data||[];
+ const sel=$('chan');const chs=[...new Set(rows.map(r=>(r.conversations||{}).origin).filter(Boolean))].sort();
+ sel.length=1;chs.forEach(o=>{const op=el('option',null,CHANNEL[o]||o);op.value=o;sel.append(op)});
+ drawSum();draw()}
+const isTodo=r=>r.status==='pending'||r.status==='created';
+function drawSum(){const s=$('sum');s.innerHTML='';
+ ['refund','replacement','return'].forEach(t=>{const n=rows.filter(r=>r.type===t&&isTodo(r)).length;const c=el('div','card');c.append(el('b',null,String(n)),el('span',null,TYPE_LABEL[t]+(t==='refund'?'s':t==='replacement'?'s':'s')+' to do'));s.append(c)})}
+function money(d){const a=d.amount!=null?String(d.amount):'';const cur=d.amount_currency||d.currency||'';return a?(cur&&!/[£$€]/.test(a)?a+' '+cur:a):''}
+function summary(r){const d=r.details||{};const bits=[];
+ const m=money(d);if(m)bits.push(m);
+ const items=Array.isArray(d.items)?d.items.map(i=>(i.title||i.seller_sku||i.name||'item')+' × '+(i.quantity||1)).join(', '):(d.games||d.item||d.what||'');if(items)bits.push(items);
+ const reason=d.reason||d.flag_reason||'';if(reason)bits.push('Reason: '+String(reason).replace(/_/g,' '));
+ const ord=d.source_order||d.original_order_id||d.platform_order_id||'';if(ord)bits.push('Order '+ord);
+ if(d.shopify_order_name)bits.push('Replacement order '+d.shopify_order_name);
+ if(d.address)bits.push('To: '+String(d.address).replace(/\n/g,', '));
+ return bits}
+function notes(r){const d=r.details||{};return [d.note,d.done_note].filter(Boolean)}
+function visible(){const q=$('q').value.trim().toLowerCase(),k=$('kind').value,ch=$('chan').value;
+ return rows.filter(r=>{const c=r.conversations||{};
+  const okView=view==='all'||(view==='todo'?isTodo(r):r.status===view);
+  return okView&&(!k||r.type===k)&&(!ch||c.origin===ch)&&
+   (!q||[c.customer_name,c.customer_handle,c.order_number,JSON.stringify(r.details||{}),r.created_by].join(' ').toLowerCase().includes(q))})}
+async function setStatus(r,status,btn){btn.disabled=true;
+ const d=Object.assign({},r.details||{});
+ const now=new Date().toISOString();
+ const patch=status==='done'?{status:'done',completed_at:now,updated_at:now,details:Object.assign(d,{done_by:me})}:{status:'pending',completed_at:null,updated_at:now,details:Object.assign(d,{done_by:null})};
+ const {error}=await sb.from('cx_actions').update(patch).eq('id',r.id);
+ if(error){btn.disabled=false;toast('Could not update: '+error.message);return}
+ Object.assign(r,patch);drawSum();draw();toast(status==='done'?'Marked done':'Reopened')}
+function draw(){const box=$('list');box.innerHTML='';
+ const v=visible();$('count').textContent=v.length?v.length+(v.length===1?' item':' items'):'';
+ if(!v.length){const e=el('div','empty');e.append(el('b',null,view==='todo'?'Nothing to do 🎉':'Nothing here'),document.createTextNode('Refunds, replacements and returns logged on tickets appear here.'));box.append(e);return}
+ const tb=el('table');const th=el('thead');const hr=el('tr');
+ ['What','Customer','Status','Logged (UK time)','Done',''].forEach(h=>hr.append(el('th',null,h)));th.append(hr);tb.append(th);
+ const body=el('tbody');
+ v.forEach(r=>{const c=r.conversations||{};const tr=el('tr');
+  const c1=el('td','what');c1.dataset.k='What';c1.append(el('span','tag k-'+r.type,TYPE_LABEL[r.type]||r.type));
+  const sm=summary(r);c1.append(el('b',null,sm[0]||(r.details&&r.details.source?'Promised in a reply':'No details recorded')));
+  if(sm.length>1)c1.append(el('div','det',sm.slice(1).join(' · ')));
+  notes(r).forEach(n=>c1.append(el('div','det',n)));
+  const c2=el('td','cust');c2.dataset.k='Customer';
+  c2.append(el('b',null,c.customer_name||c.customer_handle||'Unknown'));const s=[CHANNEL[c.origin]||c.shop||c.origin,c.order_number].filter(Boolean).join(' · ');if(s)c2.append(el('span',null,s));
+  const c3=el('td');c3.dataset.k='Status';c3.append(el('span','st st-'+r.status,STATUS_LABEL[r.status]||r.status));
+  const w=ukWhen(r.created_at);const c4=el('td','when');c4.dataset.k='Logged';c4.append(document.createTextNode(w.date),el('small',null,w.time+(r.created_by?' · by '+r.created_by:'')));
+  const c5=el('td','when');if(r.completed_at&&r.status==='done'){c5.dataset.k='Done';const d=ukWhen(r.completed_at);c5.append(document.createTextNode(d.date),el('small',null,(r.details&&r.details.done_by?'by '+r.details.done_by:'')))}
+  const c6=el('td');const a=el('div','acts');
+  if(isTodo(r)){const b=el('button','btn small','Mark done');b.type='button';b.onclick=()=>{if(confirm('Mark this '+(TYPE_LABEL[r.type]||'').toLowerCase()+' as done? Only do this once it has actually been issued.'))setStatus(r,'done',b)};a.append(b)}
+  else if(r.status==='done'){const b=el('button','btn ghost small','Reopen');b.type='button';b.onclick=()=>setStatus(r,'pending',b);a.append(b)}
+  if(r.conversation_id){const l=el('a','btn ghost small','Open ticket →');l.href='/inbox/?c='+encodeURIComponent(r.conversation_id);a.append(l)}
+  c6.append(a);tr.append(c1,c2,c3,c4,c5,c6);body.append(tr)});
+ tb.append(body);box.append(tb)}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{view=b.dataset.s;document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));draw()});
+['q','kind','chan'].forEach(id=>{$(id).addEventListener('input',draw);$(id).addEventListener('change',draw)});
+</script>
+</body>
+</html>

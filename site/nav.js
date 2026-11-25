@@ -3,15 +3,16 @@
 (function(){
 var PAGES=[
  {href:'/',label:'Home',icon:'🏠'},
+ {href:'/metrics/',label:'Overview',icon:'📊'},
  {href:'/inbox/',label:'Inbox',icon:'💬',count:'inbox'},
  {href:'/waiting/',label:'Waiting',icon:'⏳',count:'waiting'},
  {href:'/resolved/',label:'Resolved',icon:'✅',count:'resolved'},
  {href:'/junk/',label:'Junk',icon:'🗑️',count:'junk'},
  {href:'/actions/',label:'Actions',icon:'📌',count:'actions'},
+ {href:'/rrr/',label:'RRR',icon:'💷'},
  {href:'/knowledge/',label:'Knowledge',icon:'📚'},
  {href:'/queue/',label:'Send queue',icon:'📮',count:'queue'},
- {href:'/sent/',label:'Sent log',icon:'📤'},
- {href:'/metrics/',label:'Metrics',icon:'📊'}
+ {href:'/sent/',label:'Sent log',icon:'📤'}
 ];
 var css=''+
 ':root{--nav-w:220px}'+
