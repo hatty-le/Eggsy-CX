@@ -1,0 +1,1 @@
+-- Translate our own foreign-language replies on arrival too (trigger + sweep now cover outbound). Applied via MCP 25 Nov 2026.
