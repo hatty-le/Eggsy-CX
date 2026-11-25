@@ -785,7 +785,17 @@ function composer(c,sug){const w=el('div','composer');const ch=channel(c);
  }
  if(sug&&sug.context&&!sug.holding){const ctx=el('div','draftcontext');ctx.append(el('b',null,'Internal note'),document.createTextNode(sug.context));w.append(ctx)}
  if(c._holdingOffer&&!(sug&&sug.holding)){const hn=el('div','holdnote');hn.append(document.createTextNode('A holding reply is ready. Your unsent draft was kept. '));const ub=el('button','btn ghost','Use holding reply');ub.type='button';ub.onclick=async()=>{ub.disabled=true;const st=lsGet(c.id);delete st.text;lsSet(c.id,st);const {error}=await sb.rpc('cx_place_holding_reply',{p_conversation:c.id,p_replace:true});if(error){alert('Could not use the holding reply: '+error.message);ub.disabled=false;return}openConv(c.id,false)};hn.append(ub);w.append(hn)}
- w.append(tplHost,newer,lbl,ta,trBox,req);setLabel();drawTr();
+ // Write in English, send in the customer's language: the English is translated when Send is pressed.
+ const custLang=(()=>{const a=isoOf(c._replyLang),b=isoOf(sug&&sug.language);return (a&&a!=='en')?a:((b&&b!=='en')?b:null)})();
+ const enRow=el('label','req');const enc=el('input');enc.type='checkbox';let enTouched=false;
+ if(custLang){enRow.title='Type in English. When you press Send, Eggsy translates it into '+langName(custLang)+' and shows you the result before it goes.';
+  enRow.append(enc,document.createTextNode(' I’m writing in English: translate into '+langName(custLang)+' when I press Send'));
+  const looksEn=()=>window.EggsyDisplay?!EggsyDisplay.looksNonEnglish(ta.value,null):false;
+  enc.checked=looksEn();enc.onchange=()=>{enTouched=true};
+  ta.addEventListener('input',()=>{if(!enTouched)enc.checked=looksEn()});
+  if(sug&&sug.body_en){const eb=el('button','chip','Edit the suggested reply in English');eb.type='button';eb.title='Loads the English version of Eggsy’s suggestion. It is translated into '+langName(custLang)+' when you press Send.';
+   eb.onclick=()=>{if(ta.value.trim()&&ta.value.trim()!==(sug.body||'').trim()&&!confirm('Replace what you have written with the English version of the suggestion?'))return;cur=null;delete ta.dataset.gapbase;ta.value=sug.body_en;enTouched=true;enc.checked=true;ta.dispatchEvent(new Event('input'));ta.focus()};tplHost.append(eb)}}
+ w.append(tplHost,newer,lbl,ta,trBox);if(custLang)w.append(enRow);w.append(req);setLabel();drawTr();
  const bar=el('div','bar');const go=el('button','btn','Send');go.disabled=blocked;go.type='button';
  const clr=el('button','btn ghost','Discard');clr.type='button';
  clr.onclick=()=>{if(ta.value.trim()&&ta.value!==SIGNOFF&&!confirm(cur?'Discard this reply? You can write your own instead.':'Clear what you have written?'))return;
@@ -808,9 +818,19 @@ function composer(c,sug){const w=el('div','composer');const ch=channel(c);
   const body=(cleaned.text||'').trim();
   if(!body||body===SIGNOFF.trim()){stm.textContent='Write a reply first.';stm.style.color='#b3261e';return}
   if(cleaned.notes.length||PH_RE.test(body)){phCheck();stm.style.color='#b3261e';stm.textContent=PH_MSG;return}
-  if(!confirm('Send this reply?\n\n'+ch.label+(to?' to '+to:'')+'\nShop: '+(c.shop||'–')+(ch.instant?'\n\nIt is sent exactly as written, straight away.'+(/^(amazon|tiktok|walmart)/.test(c.origin)?' Replies with links to our sites, review requests or marketing are held back for you to edit.':''):'\n\nEggsy posts it exactly as written at its next check (not instantly). You can cancel until then.')))return;
+  let sendBody=body,sendEn=null,sendLang=null;
+  if(custLang&&enc.checked){go.disabled=true;stm.style.color='';stm.textContent='Translating into '+langName(custLang)+'…';
+   try{const {data:{session}}=await sb.auth.getSession();
+    const r=await fetch(SUPABASE_URL+'/functions/v1/translate-message',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+session.access_token,apikey:SUPABASE_KEY},body:JSON.stringify({text:body,target:custLang})});
+    const j=await r.json();
+    if(!j||!j.ok||!j.text){go.disabled=false;stm.style.color='#b3261e';stm.textContent=j&&j.error==='not_configured'?'Translation isn’t switched on yet (it needs the DeepL key in Supabase). Untick the box to send in English, or write it in '+langName(custLang)+'.':'Could not translate. Nothing was sent. Try again.';phCheck();return}
+    sendBody=j.text.trim();sendEn=body;sendLang=custLang}
+   catch(e){go.disabled=false;stm.style.color='#b3261e';stm.textContent='Could not translate. Nothing was sent. Try again.';phCheck();return}
+   go.disabled=false;stm.textContent='';
+   if(!confirm('This is what will be sent, in '+langName(custLang)+':\n\n'+sendBody+'\n\nYour English:\n'+body+'\n\nSend it?')){phCheck();return}}
+  else if(!confirm('Send this reply?\n\n'+ch.label+(to?' to '+to:'')+'\nShop: '+(c.shop||'–')+(ch.instant?'\n\nIt is sent exactly as written, straight away.'+(/^(amazon|tiktok|walmart)/.test(c.origin)?' Replies with links to our sites, review requests or marketing are held back for you to edit.':''):'\n\nEggsy posts it exactly as written at its next check (not instantly). You can cancel until then.')))return;
   go.disabled=true;stm.style.color='';stm.textContent='Sending to Eggsy…';
-  const {error}=await sb.from('reply_queue').insert({conversation_id:c.id,body,requires_action:!!reqc.checked});
+  const {error}=await sb.from('reply_queue').insert(Object.assign({conversation_id:c.id,body:sendBody,requires_action:!!reqc.checked},sendLang?{body_en:sendEn,language:sendLang}:{}));
   if(error){go.disabled=false;stm.style.color='#b3261e';stm.textContent='Could not send: '+(/Fill in the \[ \]/.test(error.message)?PH_MSG:/promises a /.test(error.message)?error.message:error.message);phCheck();return}
   const st=lsGet(c.id);delete st.text;if(cur)st.dismissed=[...(st.dismissed||[]),cur].slice(-20);st.draftId=null;lsSet(c.id,st);
   ta.value='';await refreshAfterQueue(c.id);if(ch.instant)watchSend(c.id)};
